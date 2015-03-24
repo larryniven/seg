@@ -10,10 +10,9 @@
 #include <unordered_map>
 #include <map>
 #include "ebt/ebt.h"
-#include "nn/neural_net.h"
-#include "scrf-first-pass/fst.h"
-#include "scrf-first-pass/lm.h"
-#include "scrf-first-pass/lattice.h"
+#include "scrf/fst.h"
+#include "scrf/lm.h"
+#include "scrf/lattice.h"
 
 namespace scrf {
 
@@ -30,10 +29,19 @@ namespace scrf {
     void adagrad(scrf_model& theta, scrf_model const& grad,
         scrf_model& accu_grad_sq, double step_size);
 
+    struct scrf_weight {
+        virtual ~scrf_weight();
+
+        virtual double operator()(std::tuple<int, int> const& e) const = 0;
+    };
+
     struct scrf {
         using fst_type = fst::composed_fst<lattice::fst, lm::fst>;
         using vertex_type = fst_type::vertex_type;
         using edge_type = fst_type::edge_type;
+
+        std::shared_ptr<fst_type> fst;
+        std::shared_ptr<scrf_weight> weight_func;
 
         std::vector<vertex_type> vertices() const;
         std::vector<edge_type> edges() const;
