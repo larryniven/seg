@@ -26,7 +26,7 @@ namespace lm {
         return result;
     }
 
-    double fst::weight(int e) const
+    real fst::weight(int e) const
     {
         return data->edges.at(e).weight;
     }
@@ -73,12 +73,12 @@ namespace lm {
 
     std::string const& fst::input(int e) const
     {
-        return data->edges.at(e).label;
+        return data->edges.at(e).input;
     }
 
     std::string const& fst::output(int e) const
     {
-        return data->edges.at(e).label;
+        return data->edges.at(e).output;
     }
 
     fst load_arpa_lm(std::istream& is)
@@ -112,7 +112,7 @@ namespace lm {
             } else {
                 auto parts = ebt::split(line);
 
-                double boff = 0;
+                real boff = 0;
                 if (parts.size() > n + 1) {
                     boff = std::stod(parts.back());
                     parts.pop_back();
@@ -140,7 +140,7 @@ namespace lm {
                 }
 
                 edge_data e_data = { hist.at(tail_h), hist.at(head_h),
-                    std::stod(parts.front()), ngram.back() };
+                    std::stod(parts.front()), ngram.back(), ngram.back() };
 
                 int e = result.edges.size();
                 result.edges.push_back(e_data);
@@ -171,7 +171,7 @@ namespace lm {
                     }
 
                     edge_data e_data = { hist.at(tail_h), hist.at(head_h),
-                        boff, "<eps>" };
+                        boff, "<eps>", "<eps>" };
 
                     int e = result.edges.size();
                     result.edges.push_back(e_data);

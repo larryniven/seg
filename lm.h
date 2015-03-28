@@ -1,6 +1,7 @@
 #ifndef LM_H
 #define LM_H
 
+#include "scrf/util.h"
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -12,8 +13,9 @@ namespace lm {
     struct edge_data {
         int tail;
         int head;
-        double weight;
-        std::string label;
+        real weight;
+        std::string input;
+        std::string output;
     };
 
     struct fst_data {
@@ -36,7 +38,7 @@ namespace lm {
 
         std::vector<int> vertices() const;
         std::vector<int> edges() const;
-        double weight(int e) const;
+        real weight(int e) const;
         std::vector<int> const& in_edges(int v) const;
         std::unordered_map<std::string, std::vector<int>> const& in_edges_map(int v) const;
         std::vector<int> const& out_edges(int v) const;

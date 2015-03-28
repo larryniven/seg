@@ -1,6 +1,7 @@
 #ifndef LATTICE_H
 #define LATTICE_H
 
+#include "scrf/util.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -40,7 +41,7 @@ namespace lattice {
 
         std::vector<int> vertices() const;
         std::vector<int> edges() const;
-        double weight(int e) const;
+        real weight(int e) const;
         std::vector<int> const& in_edges(int v) const;
         std::vector<int> const& out_edges(int v) const;
         int tail(int e) const;
@@ -53,10 +54,6 @@ namespace lattice {
         std::unordered_map<std::string, std::vector<int>> const& in_edges_map(int v) const;
         std::unordered_map<std::string, std::vector<int>> const& out_edges_map(int v) const;
     };
-
-    fst make_fst(
-        std::vector<std::vector<double>> acoustics,
-        std::unordered_set<std::string> phone_set);
 
     fst load_lattice(std::istream& is);
 

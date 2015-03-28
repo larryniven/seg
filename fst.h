@@ -1,6 +1,7 @@
 #ifndef FST_H
 #define FST_H
 
+#include "scrf/util.h"
 #include <unordered_map>
 #include <tuple>
 #include <vector>
@@ -42,19 +43,19 @@ namespace fst {
             return data->edges;
         }
 
-        double weight(edge_type const& e) const
+        real weight(edge_type const& e) const
         {
-            return data->base_fst.weight(e);
+            return data->base_fst->weight(e);
         }
 
         vertex_type tail(edge_type const& e) const
         {
-            return data->base_fst.tail(e);
+            return data->base_fst->tail(e);
         }
 
         vertex_type head(edge_type const& e) const
         {
-            return data->base_fst.head(e);
+            return data->base_fst->head(e);
         }
 
         std::vector<edge_type> in_edges(vertex_type const& v) const
@@ -79,12 +80,12 @@ namespace fst {
 
         std::string input(edge_type const& e) const
         {
-            return data->base_fst.input(e);
+            return data->base_fst->input(e);
         }
 
         std::string output(edge_type const& e) const
         {
-            return data->base_fst.output(e);
+            return data->base_fst->output(e);
         }
 
     };
@@ -101,7 +102,7 @@ namespace fst {
         struct deck_entry {
             edge_type edge;
             int index;
-            double value;
+            real value;
         };
 
         struct extra_data {
@@ -178,7 +179,7 @@ namespace fst {
                 std::vector<edge_type> pi = fst.in_edges(u);
 
                 if (pi.size() > 0) {
-                    double max = -std::numeric_limits<double>::infinity();
+                    real max = -std::numeric_limits<real>::infinity();
                     edge_type argmax;
 
                     for (auto&& e: pi) {
@@ -192,13 +193,13 @@ namespace fst {
                         }
                     }
 
-                    if (max == -std::numeric_limits<double>::infinity()) {
+                    if (max == -std::numeric_limits<real>::infinity()) {
                         bool dead_end = false;
                         for (auto&& e: pi) {
                             edge_type v = fst.tail(e);
                             extra_data& v_data = get_extra(v);
 
-                            if (v_data.deck.at(get_pi_ind(e) + 1).value == -std::numeric_limits<double>::infinity()) {
+                            if (v_data.deck.at(get_pi_ind(e) + 1).value == -std::numeric_limits<real>::infinity()) {
                                 dead_end = true;
                             }
                         }
@@ -248,7 +249,7 @@ namespace fst {
                 } else if (u_data.deck.size() == 0) {
                     deck_entry d_entry;
                     d_entry.index = -1;
-                    d_entry.value = -std::numeric_limits<double>::infinity();
+                    d_entry.value = -std::numeric_limits<real>::infinity();
                     u_data.deck.push_back(d_entry);
                 }
 
@@ -304,7 +305,7 @@ namespace fst {
                 edge_type e = extra.at(u).deck.at(deck_index).edge;
 
                 vertex_type v = fst.tail(e);
-                double value = extra.at(u).deck.at(deck_index).value;
+                real value = extra.at(u).deck.at(deck_index).value;
 
                 result.edges.push_back(e);
                 result.in_edges[u].push_back(e);
@@ -312,7 +313,8 @@ namespace fst {
 
                 for (int i = 0; i < extra.at(v).deck.size(); ++i) {
                     if (std::abs(extra.at(v).deck.at(i).value - (value - fst.weight(e)))
-                            <= std::min(std::abs(extra.at(v).deck.at(i).value), std::abs(value - fst.weight(e))) * 1e-3) {
+                            <= std::min(std::abs(extra.at(v).deck.at(i).value),
+                                std::abs(value - fst.weight(e))) * 1e-3) {
                         stack.push_back(std::make_tuple(v, i));
                         break;
                     }
@@ -364,7 +366,7 @@ namespace fst {
                 edge_type e = extra.at(u).deck.at(deck_index).edge;
 
                 vertex_type v = fst.tail(e);
-                double value = extra.at(u).deck.at(deck_index).value;
+                real value = extra.at(u).deck.at(deck_index).value;
 
                 result.edges.push_back(e);
                 result.in_edges[u].push_back(e);
@@ -490,7 +492,7 @@ namespace fst {
             return result;
         }
 
-        double weight(edge_type const& e) const
+        real weight(edge_type const& e) const
         {
             return fst1->weight(std::get<0>(e)) + fst2->weight(std::get<1>(e));
         }
@@ -534,27 +536,27 @@ namespace fst {
         using vertex_type = typename fst_type::vertex_type;
         using edge_type = typename fst_type::edge_type;
 
-        std::unordered_map<vertex_type, double> score;
+        std::unordered_map<vertex_type, real> score;
         std::unordered_map<vertex_type, edge_type> pi;
 
         void search(fst_type const& fst, int top_k)
         {
-            ebt::MaxHeap<vertex_type, double> to_expand;
+            ebt::MaxHeap<vertex_type, real> to_expand;
 
             to_expand.insert(fst.initial(), 0);
             score[fst.initial()] = 0;
 
-            double inf = std::numeric_limits<double>::infinity();
+            real inf = std::numeric_limits<real>::infinity();
 
             while (to_expand.size()) {
-                ebt::MaxHeap<vertex_type, double> expanded;
+                ebt::MaxHeap<vertex_type, real> expanded;
 
                 while (to_expand.size()) {
                     auto v = to_expand.extract_max();
 
                     for (auto& e: fst.out_edges(v)) {
                         vertex_type const& head = fst.head(e);
-                        double s = fst.weight(e) + score.at(v);
+                        real s = fst.weight(e) + score.at(v);
                         if (s > ebt::get(score, head, -inf)) {
                             expanded.insert(head, s);
                             score[head] = s;
@@ -599,6 +601,84 @@ namespace fst {
 
             return p;
         }
+    };
+
+    template <class fst_type>
+    struct one_best {
+
+        using vertex_type = typename fst_type::vertex_type;
+        using edge_type = typename fst_type::edge_type;
+
+        struct extra_data {
+            edge_type pi;
+            real value;
+        };
+
+        std::unordered_map<vertex_type, extra_data> extra;
+
+        void merge(fst_type& fst, std::vector<vertex_type> const& order)
+        {
+            auto get_value = [&](vertex_type v) {
+                real inf = std::numeric_limits<real>::infinity();
+
+                if (!ebt::in(v, extra)) {
+                    return -inf;
+                } else {
+                    return extra.at(v).value;
+                }
+            };
+
+            for (auto& u: order) {
+                real max = get_value(u);
+                edge_type argmax;
+
+                for (auto&& e: fst.in_edges(u)) {
+                    edge_type v = fst.tail(e);
+
+                    real candidate_value = get_value(v) + fst.weight(e);
+                    if (candidate_value > max) {
+                        max = candidate_value;
+                        argmax = e;
+                    }
+                }
+
+                extra[u] = extra_data { argmax, max };
+            }
+        }
+
+        path<fst_type> best_path(fst_type& fst)
+        {
+            path_data<fst_type> result;
+            result.base_fst = &fst;
+
+            vertex_type u = fst.final();
+            result.vertices.push_back(u);
+
+            while (u != fst.initial()) {
+                edge_type e = extra.at(u).pi;
+
+                vertex_type v = fst.tail(e);
+
+                result.edges.push_back(e);
+                result.in_edges[u].push_back(e);
+                result.out_edges[v].push_back(e);
+
+                result.vertices.push_back(v);
+
+                u = v;
+            }
+
+            result.initial = fst.initial();
+            result.final = fst.final();
+
+            std::reverse(result.edges.begin(), result.edges.end());
+
+            path<fst_type> p;
+            p.data = std::make_shared<path_data<fst_type>>(std::move(result));
+
+            return p;
+        }
+
     };
 
 }
