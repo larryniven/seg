@@ -1,130 +1,128 @@
 #include "scrf/util.h"
 #include "scrf/scrf.h"
-#include "opt/opt.h"
+#include "scrf/lm.h"
+#include "scrf/lattice.h"
 #include <fstream>
 
 struct learning_env {
 
-    std::ifstream feature_list;
+    std::ifstream input_list;
     std::ifstream gold_list;
+    std::shared_ptr<lm::fst> lm;
     int max_seg;
-    scrf::detail::model_vector weights;
-    scrf::detail::model_vector opt_data;
-
-    std::unordered_map<std::string, int> phone_map;
-    std::vector<std::string> inv_phone_map;
-
+    scrf::param_t param;
+    scrf::param_t opt_data;
     real step_size;
+
+    std::vector<std::string> features;
 
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
 
     void run();
+
 };
 
 learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    feature_list.open(args.at("feature-list"));
+    input_list.open(args.at("input-list"));
     gold_list.open(args.at("gold-list"));
-    max_seg = 10;
+    lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+    max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
         max_seg = std::stoi(args.at("max-seg"));
     }
 
-    weights = scrf::detail::load_model(args.at("model"));
-    opt_data = scrf::detail::load_model(args.at("opt-data"));
-
-    phone_map = scrf::detail::load_phone_map(args.at("phone-set"));
-    inv_phone_map = scrf::detail::make_inv_phone_map(phone_map);
-
+    param = scrf::load_param(args.at("param"));
+    opt_data = scrf::load_param(args.at("opt-data"));
     step_size = std::stod(args.at("step-size"));
+
+    features = ebt::split(args.at("features"), ",");
 }
 
 void learning_env::run()
 {
-    std::string feature_file;
+    std::string input_file;
+
+    std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
     int i = 0;
-    while (std::getline(feature_list, feature_file)) {
+    while (std::getline(input_list, input_file)) {
 
-        std::vector<std::vector<real>> features = scrf::load_features(feature_file);
+        std::vector<std::vector<real>> inputs = scrf::load_features(input_file);
 
-        scrf::detail::gold_scrf gold { features, weights, int(phone_map.size()) };
-        gold.edges = scrf::detail::load_gold(gold_list, phone_map, int(features.size()));
+        std::cout << input_file << std::endl;
 
-        scrf::detail::graph_scrf graph { features, weights, int(phone_map.size()),
-            phone_map, int(features.size()), max_seg };
+        scrf::composite_feature gold_feat_func = scrf::make_feature(features, inputs, max_seg);
+        scrf::linear_score gold_score { param, gold_feat_func };
 
-        scrf::detail::log_loss loss { gold, graph };
+        lattice::fst gold_lat = scrf::load_gold(gold_list);
+        scrf::scrf_t gold = scrf::make_gold_scrf(gold_lat, lm);
 
-        real ell = loss.loss();
+        scrf::backoff_cost bc; 
+        gold.weight_func = std::make_shared<scrf::backoff_cost>(bc);
+        gold.topo_order = gold.vertices();
+        fst::path<scrf::scrf_t> gold_path = scrf::shortest_path(gold, gold.topo_order);
 
-        std::cout << i << ": " << "loss: " << ell << std::endl;
+        gold.weight_func = std::make_shared<scrf::linear_score>(gold_score);
+        gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
 
-        auto grad = loss.model_grad();
+        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
+        scrf::linear_score graph_score { param, graph_feat_func };
+
+        scrf::scrf_t graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
+        graph.topo_order = graph.vertices();
+        scrf::composite_weight cost_aug_weight;
+        cost_aug_weight.weights.push_back(std::make_shared<scrf::linear_score>(graph_score));
+        cost_aug_weight.weights.push_back(std::make_shared<scrf::overlap_cost>(scrf::overlap_cost { gold_path }));
+        graph.weight_func = std::make_shared<scrf::composite_weight>(cost_aug_weight);
+        graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
+
+        scrf::hinge_loss loss_func { gold_path, graph };
+
+        real ell = loss_func.loss();
+
+        std::cout << "loss: " << ell << std::endl;
+
+        if (ell < 0) {
+            std::cout << "loss is less than zero.  skipping." << std::endl;
+            // exit(1);
+        }
+
+        std::cout << std::endl;
+
+        if (ell > 0) {
+            auto param_grad = loss_func.param_grad();
 
 #if 0
-        {
-            real& f = weights.class_weights.at(0).at(0);
-            real tmp = f;
-            f += 1e-8;
-            scrf::detail::graph_scrf graph_step { features, weights, int(phone_map.size()),
-                phone_map, int(features.size()), max_seg };
-            scrf::detail::log_loss loss_step { gold, graph_step };
-            std::cout << "grad check: " << (loss_step.loss() - ell) / 1e-8 << " " << grad.at(0).at(0) << std::endl;
-            f = tmp;
-        }
-
-        {
-            real& f = weights.class_weights.at(0).at(1);
-            real tmp = f;
-            f += 1e-8;
-            scrf::detail::graph_scrf graph_step { features, weights, int(phone_map.size()),
-                phone_map, int(features.size()), max_seg };
-            scrf::detail::log_loss loss_step { gold, graph_step };
-            std::cout << "grad check: " << (loss_step.loss() - ell) / 1e-8 << " " << grad.at(0).at(1) << std::endl;
-            f = tmp;
-        }
-
-        {
-            real& f = weights.class_weights.at(1).at(0);
-            real tmp = f;
-            f += 1e-8;
-            scrf::detail::graph_scrf graph_step { features, weights, int(phone_map.size()),
-                phone_map, int(features.size()), max_seg };
-            scrf::detail::log_loss loss_step { gold, graph_step };
-            std::cout << "grad check: " << (loss_step.loss() - ell) / 1e-8 << " " << grad.at(1).at(0) << std::endl;
-            f = tmp;
-        }
-
-        {
-            real& f = weights.class_weights.at(1).at(1);
-            real tmp = f;
-            f += 1e-8;
-            scrf::detail::graph_scrf graph_step { features, weights, int(phone_map.size()),
-                phone_map, int(features.size()), max_seg };
-            scrf::detail::log_loss loss_step { gold, graph_step };
-            std::cout << "grad check: " << (loss_step.loss() - ell) / 1e-8 << " " << grad.at(1).at(1) << std::endl;
-            f = tmp;
-        }
-
+            {
+                real& f = param.class_param.at("<s>").at(0);
+                real tmp = f;
+                f += 1e-8;
+                scrf::hinge_loss loss_func_step { gold_path, graph };
+                std::cout << param_grad.class_param.at("<s>").at(0)
+                    << " " << (loss_func_step.loss() - ell) / 1e-8 << std::endl;
+                f = tmp;
+            }
 #endif
 
-        opt::adagrad_update(weights.class_weights, grad, opt_data.class_weights, step_size);
+            scrf::adagrad_update(param, param_grad, opt_data, step_size);
+
+            scrf::save_param("param-last", param);
+            scrf::save_param("opt-data-last", opt_data);
+        }
 
         ++i;
 
-        save_model("model-last", weights);
-        save_model("opt-data-last", opt_data);
-
+#if 0
         if (i == 10) {
             exit(1);
         }
+#endif
 
     }
-
 }
 
 int main(int argc, char *argv[])
@@ -133,13 +131,14 @@ int main(int argc, char *argv[])
         "learn",
         "Learn segmental CRF",
         {
-            {"feature-list", "", true},
+            {"input-list", "", true},
             {"gold-list", "", true},
+            {"lm", "", true},
             {"max-seg", "", false},
-            {"model", "", true},
+            {"param", "", true},
             {"opt-data", "", true},
-            {"phone-set", "", true},
-            {"step-size", "", true}
+            {"step-size", "", true},
+            {"features", "", true}
         }
     };
 

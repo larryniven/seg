@@ -161,6 +161,10 @@ namespace lm {
                 result.out_edges.at(hist.at(tail_h)).push_back(e);
                 result.out_edges_map.at(hist.at(tail_h))[ngram.back()].push_back(e);
 
+                if (e_data.output == "</s>") {
+                    result.final = e_data.head;
+                }
+
                 if (boff != 0) {
                     std::vector<std::string> tail_h = head_h;
                     std::vector<std::string> head_h { tail_h.begin() + 1, tail_h.end() };
@@ -194,11 +198,6 @@ namespace lm {
                 }
             }
         }
-
-        result.initial = hist.at(std::vector<std::string>{});
-
-        // TODO: dangerous
-        result.final = hist.at({"</s>"});
 
         fst f;
         f.data = std::make_shared<fst_data>(std::move(result));
