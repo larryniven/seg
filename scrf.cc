@@ -204,11 +204,33 @@ namespace scrf {
             feat.class_param["shared"].push_back(1);
         }
 
-        length::length(int max_seg)
+        length_value::length_value(int max_seg)
             : max_seg(max_seg)
         {}
 
-        void length::operator()(
+        void length_value::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int tail_time = lat.data->vertices.at(tail).time;
+            int head_time = lat.data->vertices.at(head).time;
+
+            auto& v = feat.class_param[fst.output(e)];
+
+            v.push_back(head_time - tail_time);
+            v.push_back(std::pow(head_time - tail_time, 2));
+        }
+
+        length_indicator::length_indicator(int max_seg)
+            : max_seg(max_seg)
+        {}
+
+        void length_indicator::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
@@ -839,9 +861,14 @@ namespace scrf {
             } else if (v == "frame-boundary") {
                 result.features.push_back(std::make_shared<feature::frame_boundary>(
                     feature::frame_boundary { inputs }));
-            } else if (v == "length") {
-                result.features.push_back(std::make_shared<feature::length>(
-                    feature::length { max_seg }));
+            } else if (v == "length-indicator") {
+                result.features.push_back(std::make_shared<feature::length_indicator>(
+                    feature::length_indicator { max_seg }));
+            } else if (v == "length-value") {
+                result.features.push_back(std::make_shared<feature::length_value>(
+                    feature::length_value { max_seg }));
+            } else if (v == "bias") {
+                result.features.push_back(std::make_shared<feature::bias>(feature::bias{}));
             } else {
                 std::cout << "unknown feature type " << v << std::endl;
                 exit(1);

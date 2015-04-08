@@ -604,7 +604,7 @@ namespace fst {
     };
 
     template <class fst_type>
-    struct one_best {
+    struct forward_one_best {
 
         using vertex_type = typename fst_type::vertex_type;
         using edge_type = typename fst_type::edge_type;
@@ -672,6 +672,85 @@ namespace fst {
             result.final = fst.final();
 
             std::reverse(result.edges.begin(), result.edges.end());
+
+            path<fst_type> p;
+            p.data = std::make_shared<path_data<fst_type>>(std::move(result));
+
+            return p;
+        }
+
+    };
+
+    template <class fst_type>
+    using one_best = forward_one_best<fst_type>;
+
+    template <class fst_type>
+    struct backward_one_best {
+
+        using vertex_type = typename fst_type::vertex_type;
+        using edge_type = typename fst_type::edge_type;
+
+        struct extra_data {
+            edge_type pi;
+            real value;
+        };
+
+        std::unordered_map<vertex_type, extra_data> extra;
+
+        void merge(fst_type& fst, std::vector<vertex_type> const& order)
+        {
+            auto get_value = [&](vertex_type v) {
+                real inf = std::numeric_limits<real>::infinity();
+
+                if (!ebt::in(v, extra)) {
+                    return -inf;
+                } else {
+                    return extra.at(v).value;
+                }
+            };
+
+            for (auto& u: order) {
+                real max = get_value(u);
+                edge_type argmax;
+
+                for (auto&& e: fst.out_edges(u)) {
+                    edge_type v = fst.head(e);
+
+                    real candidate_value = get_value(v) + fst.weight(e);
+                    if (candidate_value > max) {
+                        max = candidate_value;
+                        argmax = e;
+                    }
+                }
+
+                extra[u] = extra_data { argmax, max };
+            }
+        }
+
+        path<fst_type> best_path(fst_type& fst)
+        {
+            path_data<fst_type> result;
+            result.base_fst = &fst;
+
+            vertex_type u = fst.initial();
+            result.vertices.push_back(u);
+
+            while (u != fst.final()) {
+                edge_type e = extra.at(u).pi;
+
+                vertex_type v = fst.head(e);
+
+                result.edges.push_back(e);
+                result.in_edges[v].push_back(e);
+                result.out_edges[u].push_back(e);
+
+                result.vertices.push_back(v);
+
+                u = v;
+            }
+
+            result.initial = fst.initial();
+            result.final = fst.final();
 
             path<fst_type> p;
             p.data = std::make_shared<path_data<fst_type>>(std::move(result));

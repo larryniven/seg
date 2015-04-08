@@ -125,12 +125,25 @@ namespace scrf {
 
         };
 
-        struct length
+        struct length_value
             : public scrf_feature {
 
             int max_seg;
 
-            length(int max_seg);
+            length_value(int max_seg);
+
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+        };
+
+        struct length_indicator
+            : public scrf_feature {
+
+            int max_seg;
+
+            length_indicator(int max_seg);
 
             virtual void operator()(
                 param_t& feat,
@@ -243,6 +256,17 @@ namespace scrf {
         fst::path<scrf_t> graph_path;
 
         hinge_loss(fst::path<scrf_t> const& gold, scrf_t& graph);
+
+        real loss();
+        param_t param_grad();
+    };
+
+    struct filtering_loss {
+        fst::path<scrf_t> const& gold;
+        scrf_t& graph;
+        fst::path<scrf_t> graph_path;
+
+        filtering_loss(fst::path<scrf_t> const& gold, scrf_t& graph);
 
         real loss();
         param_t param_grad();
