@@ -67,13 +67,24 @@ void pruning_env::run()
 
         auto edges = graph.edges();
 
-        fst::max_marginal<scrf::scrf_t> max_marginal;
         auto order = graph.topo_order;
-        max_marginal.alpha[graph.initial()] = 0;
-        max_marginal.forward(graph, order);
+
+        fst::forward_one_best<scrf::scrf_t> forward;
+        forward.extra[graph.initial()] = {std::make_tuple(-1, -1), 0};
+        forward.merge(graph, order);
+
         std::reverse(order.begin(), order.end());
-        max_marginal.beta[graph.final()] = 0;
-        max_marginal.backward(graph, order);
+        fst::backward_one_best<scrf::scrf_t> backward;
+        backward.extra[graph.final()] = {std::make_tuple(-1, -1), 0};
+        forward.merge(graph, order);
+
+        auto fb_alpha = [&](std::tuple<int, int> const& v) {
+            return forward.extra[v].value;
+        };
+
+        auto fb_beta = [&](std::tuple<int, int> const& v) {
+            return backward.extra[v].value;
+        };
 
         real inf = std::numeric_limits<real>::infinity();
 
@@ -87,7 +98,7 @@ void pruning_env::run()
             int tail_time = graph.fst->fst1->data->vertices.at(std::get<0>(tail)).time;
             int head_time = graph.fst->fst1->data->vertices.at(std::get<0>(head)).time;
 
-            real s = max_marginal.alpha.at(tail) + graph.weight(e) + max_marginal.beta.at(head);
+            real s = fb_alpha(tail) + graph.weight(e) + fb_beta(head);
 
             if (s > max) {
                 max = s;
@@ -118,8 +129,7 @@ void pruning_env::run()
             auto tail = graph.tail(e);
             auto head = graph.head(e);
 
-            if (max_marginal.alpha.at(tail) + graph.weight(e)
-                    + max_marginal.beta.at(head) > threshold) {
+            if (fb_alpha(tail) + graph.weight(e) + fb_beta(head) > threshold) {
 
                 if (!ebt::in(tail, vertex_map)) {
                     int v = vertex_map.size();
