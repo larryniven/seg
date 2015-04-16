@@ -7,6 +7,7 @@
 struct learning_env {
 
     std::ifstream input_list;
+    std::ifstream lattice_list;
     std::ifstream gold_list;
     std::shared_ptr<lm::fst> lm;
     int max_seg;
@@ -28,6 +29,9 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
     input_list.open(args.at("input-list"));
+    if (ebt::in(std::string("lattice-list"), args)) {
+        lattice_list.open(args.at("lattice-list"));
+    }
     gold_list.open(args.at("gold-list"));
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
     max_seg = 20;
@@ -72,8 +76,27 @@ void learning_env::run()
         scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
         scrf::linear_score graph_score { param, graph_feat_func };
 
-        scrf::scrf_t graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
-        graph.topo_order = graph.vertices();
+        scrf::scrf_t graph;
+        if (ebt::in(std::string("lattice-list"), args)) {
+            lattice::fst lat = lattice::load_lattice(lattice_list);
+            lattice::add_eps_loops(lat);
+
+            fst::composed_fst<lattice::fst, lm::fst> comp;
+            comp.fst1 = std::make_shared<lattice::fst>(std::move(lat));
+            comp.fst2 = lm;
+            graph.fst = std::make_shared<decltype(comp)>(comp);
+
+            std::vector<std::tuple<int, int>> topo_order;
+            for (auto& v: lattice::topo_order(*(comp.fst1))) {
+                for (auto& u: lm->vertices()) {
+                    topo_order.push_back(std::make_tuple(v, u));
+                }
+            }
+            graph.topo_order = std::move(topo_order);
+        } else {
+            graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
+            graph.topo_order = graph.vertices();
+        }
         scrf::composite_weight cost_aug_weight;
         cost_aug_weight.weights.push_back(std::make_shared<scrf::linear_score>(graph_score));
         cost_aug_weight.weights.push_back(std::make_shared<scrf::overlap_cost>(scrf::overlap_cost { gold_path }));
@@ -132,6 +155,7 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"input-list", "", true},
+            {"lattice-list", "", false},
             {"gold-list", "", true},
             {"lm", "", true},
             {"max-seg", "", false},

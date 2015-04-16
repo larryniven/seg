@@ -26,8 +26,10 @@ namespace lm {
         std::vector<std::vector<int>> out_edges;
         std::vector<std::unordered_map<std::string, std::vector<int>>> out_edges_map;
 
-        int initial;
-        int final;
+        std::vector<std::string> history;
+
+        std::vector<int> initials;
+        std::vector<int> finals;
     };
 
     struct fst {
@@ -46,8 +48,8 @@ namespace lm {
         
         int tail(int e) const;
         int head(int e) const;
-        int initial() const;
-        int final() const;
+        std::vector<int> initials() const;
+        std::vector<int> finals() const;
         std::string const& input(int e) const;
         std::string const& output(int e) const;
     };

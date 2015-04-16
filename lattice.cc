@@ -1,5 +1,6 @@
 #include "scrf/lattice.h"
 #include "ebt/ebt.h"
+#include <algorithm>
 
 namespace lattice {
 
@@ -27,7 +28,7 @@ namespace lattice {
 
     real fst::weight(int e) const
     {
-        return 0;
+        return data->edges.at(e).weight;
     }
 
     std::vector<int> const& fst::in_edges(int v) const
@@ -50,14 +51,14 @@ namespace lattice {
         return data->edges.at(e).head;
     }
 
-    int fst::initial() const
+    std::vector<int> fst::initials() const
     {
-        return data->initial;
+        return data->initials;
     }
 
-    int fst::final() const
+    std::vector<int> fst::finals() const
     {
-        return data->final;
+        return data->finals;
     }
 
     std::string const& fst::input(int e) const
@@ -90,7 +91,11 @@ namespace lattice {
 
         std::getline(is, line);
 
-        int final = 0;
+        int min_time = std::numeric_limits<int>::max();
+        std::unordered_set<int> initials;
+
+        int max_time = std::numeric_limits<int>::min();
+        std::unordered_set<int> finals;
 
         while (std::getline(is, line) && line != ".") {
             auto parts = ebt::split(line);
@@ -105,7 +110,12 @@ namespace lattice {
             result.vertices.at(tail).time = std::stoi(parts[0]) / 1e5;
             result.vertices.at(head).time = std::stoi(parts[1]) / 1e5;
 
-            edge_data e_data { .label = parts[2], .tail = tail, .head = head };
+            real weight = 0;
+            if (parts.size() > 5) {
+                weight = std::stod(parts.at(5));
+            }
+
+            edge_data e_data { .label = parts[2], .tail = tail, .head = head, .weight = weight };
 
             result.edges.push_back(e_data);
 
@@ -124,11 +134,25 @@ namespace lattice {
             result.out_edges_map.at(tail)[parts[2]].push_back(e);
             result.in_edges_map.at(head)[parts[2]].push_back(e);
 
-            final = std::max(final, head);
+            if (max_time < result.vertices.at(head).time) {
+                max_time = result.vertices.at(head).time;
+                finals.clear();
+                finals.insert(head);
+            } else if (max_time == result.vertices.at(head).time) {
+                finals.insert(head);
+            }
+
+            if (result.vertices.at(tail).time < min_time) {
+                min_time = result.vertices.at(tail).time;
+                initials.clear();
+                initials.insert(tail);
+            } else if (min_time == result.vertices.at(tail).time) {
+                initials.insert(tail);
+            }
         }
 
-        result.initial = 0;
-        result.final = final;
+        result.initials = std::vector<int> { initials.begin(), initials.end() };
+        result.finals = std::vector<int> { finals.begin(), finals.end() };
 
         fst f;
         f.data = std::make_shared<fst_data>(std::move(result));
@@ -145,13 +169,16 @@ namespace lattice {
         data.out_edges.resize(data.vertices.size());
         data.out_edges_map.resize(data.vertices.size());
 
+        std::unordered_set<int> initial_set { data.initials.begin(), data.initials.end() };
+        std::unordered_set<int> final_set { data.finals.begin(), data.finals.end() };
+
         for (int i = 0; i < data.vertices.size(); ++i) {
-            if (i == f.initial() || i == f.final()) {
+            if (ebt::in(i, initial_set) || ebt::in(i, final_set)) {
                 continue;
             }
 
             edge_data e_data { .label = std::string("<eps>"),
-                .tail = i, .head = i};
+                .tail = i, .head = i, .weight = 0};
             data.edges.push_back(e_data);
 
             data.in_edges[i].push_back(data.edges.size() - 1);
@@ -162,6 +189,16 @@ namespace lattice {
         }
 
         return f;
+    }
+
+    std::vector<int> topo_order(lattice::fst const& fst)
+    {
+        auto vertices = fst.vertices();
+        std::sort(vertices.begin(), vertices.end(),
+            [&](int v1, int v2) {
+                return fst.data->vertices.at(v1).time < fst.data->vertices.at(v2).time;
+            });
+        return vertices;
     }
 
 }

@@ -22,8 +22,9 @@ namespace fst {
         std::vector<edge_type> edges;
         std::unordered_map<vertex_type, std::vector<edge_type>> in_edges;
         std::unordered_map<vertex_type, std::vector<edge_type>> out_edges;
-        vertex_type initial;
-        vertex_type final;
+
+        std::vector<vertex_type> initials;
+        std::vector<vertex_type> finals;
     };
 
     template <class fst>
@@ -68,14 +69,14 @@ namespace fst {
             return data->out_edges.at(v);
         }
 
-        vertex_type initial() const
+        std::vector<vertex_type> initials() const
         {
-            return data->initial;
+            return data->initials;
         }
 
-        vertex_type final() const
+        std::vector<vertex_type> finals() const
         {
-            return data->final;
+            return data->finals;
         }
 
         std::string input(edge_type const& e) const
@@ -509,14 +510,30 @@ namespace fst {
                 fst2->head(std::get<1>(e)));
         }
 
-        vertex_type initial() const
+        std::vector<vertex_type> initials() const
         {
-            return std::make_tuple(fst1->initial(), fst2->initial());
+            std::vector<vertex_type> result;
+
+            for (auto i1: fst1->initials()) {
+                for (auto i2: fst2->initials()) {
+                    result.push_back(std::make_tuple(i1, i2));
+                }
+            }
+
+            return result;
         }
 
-        vertex_type final() const
+        std::vector<vertex_type> finals() const
         {
-            return std::make_tuple(fst1->final(), fst2->final());
+            std::vector<vertex_type> result;
+
+            for (auto i1: fst1->finals()) {
+                for (auto i2: fst2->finals()) {
+                    result.push_back(std::make_tuple(i1, i2));
+                }
+            }
+
+            return result;
         }
 
         std::string input(edge_type const& e) const
@@ -648,13 +665,27 @@ namespace fst {
 
         path<fst_type> best_path(fst_type& fst)
         {
+            real max = -std::numeric_limits<real>::infinity();
+            vertex_type argmax;
+
+            for (auto v: fst.finals()) {
+                if (extra.at(v).value > max) {
+                    max = extra.at(v).value;
+                    argmax = v;
+                }
+            }
+
             path_data<fst_type> result;
             result.base_fst = &fst;
 
-            vertex_type u = fst.final();
+            vertex_type u = argmax;
+
             result.vertices.push_back(u);
 
-            while (u != fst.initial()) {
+            auto initials = fst.initials();
+            std::unordered_set<vertex_type> initial_set { initials.begin(), initials.end() };
+
+            while (!ebt::in(u, initial_set)) {
                 edge_type e = extra.at(u).pi;
 
                 vertex_type v = fst.tail(e);
@@ -668,8 +699,8 @@ namespace fst {
                 u = v;
             }
 
-            result.initial = fst.initial();
-            result.final = fst.final();
+            result.initials.push_back(u);
+            result.finals.push_back(argmax);
 
             std::reverse(result.edges.begin(), result.edges.end());
 
@@ -729,13 +760,26 @@ namespace fst {
 
         path<fst_type> best_path(fst_type& fst)
         {
+            real max = -std::numeric_limits<real>::infinity();
+            vertex_type argmax;
+
+            for (auto v: fst.initials()) {
+                if (extra.at(v).value > max) {
+                    max = extra.at(v).value;
+                    argmax = v;
+                }
+            }
+
             path_data<fst_type> result;
             result.base_fst = &fst;
 
-            vertex_type u = fst.initial();
+            vertex_type u = argmax;
             result.vertices.push_back(u);
 
-            while (u != fst.final()) {
+            auto finals = fst.finals();
+            std::unordered_set<vertex_type> final_set { finals.begin(), finals.end() };
+
+            while (!ebt::in(u, final_set)) {
                 edge_type e = extra.at(u).pi;
 
                 vertex_type v = fst.head(e);
@@ -749,8 +793,8 @@ namespace fst {
                 u = v;
             }
 
-            result.initial = fst.initial();
-            result.final = fst.final();
+            result.initials.push_back(argmax);
+            result.finals.push_back(u);
 
             path<fst_type> p;
             p.data = std::make_shared<path_data<fst_type>>(std::move(result));

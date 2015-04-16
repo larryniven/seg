@@ -70,13 +70,17 @@ void pruning_env::run()
         auto order = graph.topo_order;
 
         fst::forward_one_best<scrf::scrf_t> forward;
-        forward.extra[graph.initial()] = {std::make_tuple(-1, -1), 0};
+        for (auto v: graph.initials()) {
+            forward.extra[v] = {std::make_tuple(-1, -1), 0};
+        }
         forward.merge(graph, order);
 
         std::reverse(order.begin(), order.end());
         fst::backward_one_best<scrf::scrf_t> backward;
-        backward.extra[graph.final()] = {std::make_tuple(-1, -1), 0};
-        forward.merge(graph, order);
+        for (auto v: graph.finals()) {
+            backward.extra[v] = {std::make_tuple(-1, -1), 0};
+        }
+        backward.merge(graph, order);
 
         auto fb_alpha = [&](std::tuple<int, int> const& v) {
             return forward.extra[v].value;
@@ -125,45 +129,65 @@ void pruning_env::run()
             return lat.data->vertices.at(std::get<0>(v)).time;
         };
 
-        for (auto& e: edges) {
-            auto tail = graph.tail(e);
-            auto head = graph.head(e);
+        std::vector<std::tuple<int, int>> stack;
+        std::unordered_set<std::tuple<int, int>> traversed;
 
-            if (fb_alpha(tail) + graph.weight(e) + fb_beta(head) > threshold) {
+        for (auto v: graph.initials()) {
+            stack.push_back(v);
+            traversed.insert(v);
+        }
 
-                if (!ebt::in(tail, vertex_map)) {
-                    int v = vertex_map.size();
-                    vertex_map[tail] = v;
-                    result.vertices.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.in_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.out_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.in_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.out_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.vertices.at(v).time = time(tail);
+        while (stack.size() > 0) {
+            auto u = stack.back();
+            stack.pop_back();
+
+            for (auto&& e: graph.out_edges(u)) {
+                auto tail = graph.tail(e);
+                auto head = graph.head(e);
+
+                real weight = graph.weight(e);
+
+                if (fb_alpha(tail) + weight + fb_beta(head) > threshold) {
+
+                    if (!ebt::in(tail, vertex_map)) {
+                        int v = vertex_map.size();
+                        vertex_map[tail] = v;
+                        result.vertices.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.in_edges.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.out_edges.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.in_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.out_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.vertices.at(v).time = time(tail);
+                    }
+
+                    if (!ebt::in(head, vertex_map)) {
+                        int v = vertex_map.size();
+                        vertex_map[head] = v;
+                        result.vertices.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.in_edges.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.out_edges.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.in_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.out_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
+                        result.vertices.at(v).time = time(head);
+                    }
+
+                    int tail_new = vertex_map.at(tail);
+                    int head_new = vertex_map.at(head);
+                    int e_new = result.edges.size();
+
+                    result.edges.push_back(lattice::edge_data { graph.output(e), tail_new,
+                        head_new, weight });
+
+                    result.in_edges[head_new].push_back(e_new);
+                    result.out_edges[tail_new].push_back(e_new);
+                    result.in_edges_map[head_new][graph.output(e)].push_back(e_new);
+                    result.out_edges_map[tail_new][graph.output(e)].push_back(e_new);
+
+                    if (!ebt::in(head, traversed)) {
+                        stack.push_back(head);
+                        traversed.insert(head);
+                    }
                 }
-
-                if (!ebt::in(head, vertex_map)) {
-                    int v = vertex_map.size();
-                    vertex_map[head] = v;
-                    result.vertices.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.in_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.out_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.in_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.out_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                    result.vertices.at(v).time = time(head);
-                }
-
-                int tail_new = vertex_map.at(tail);
-                int head_new = vertex_map.at(head);
-                int e_new = result.edges.size();
-
-                result.edges.push_back(lattice::edge_data { graph.output(e), tail_new, head_new });
-
-                result.in_edges[head_new].push_back(e_new);
-                result.out_edges[tail_new].push_back(e_new);
-                result.in_edges_map[head_new][graph.output(e)].push_back(e_new);
-                result.out_edges_map[tail_new][graph.output(e)].push_back(e_new);
-
             }
         }
 
@@ -179,7 +203,8 @@ void pruning_env::run()
             ofs << int(result_fst.data->vertices.at(tail).time * 1e5)
                 << " " << int(result_fst.data->vertices.at(head).time *1e5)
                 << " " << result_fst.output(e)
-                << " " << tail << " " << head << std::endl;
+                << " " << tail << " " << head
+                << " " << result.edges.at(e).weight << std::endl;
         }
         ofs << "." << std::endl;
 

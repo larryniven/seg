@@ -18,11 +18,12 @@ namespace lattice {
         std::string label;
         int tail;
         int head;
+        real weight;
     };
 
     struct fst_data {
-        int initial;
-        int final;
+        std::vector<int> initials;
+        std::vector<int> finals;
     
         std::vector<vertex_data> vertices;
         std::vector<edge_data> edges;
@@ -46,8 +47,8 @@ namespace lattice {
         std::vector<int> const& out_edges(int v) const;
         int tail(int e) const;
         int head(int e) const;
-        int initial() const;
-        int final() const;
+        std::vector<int> initials() const;
+        std::vector<int> finals() const;
         std::string const& input(int e) const;
         std::string const& output(int e) const;
 
@@ -58,6 +59,8 @@ namespace lattice {
     fst load_lattice(std::istream& is);
 
     fst add_eps_loops(fst fst);
+
+    std::vector<int> topo_order(lattice::fst const& fst);
 
 }
 

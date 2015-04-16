@@ -107,8 +107,8 @@ namespace scrf {
         real weight(edge_type const& e) const;
         std::string input(edge_type const& e) const;
         std::string output(edge_type const& e) const;
-        vertex_type initial() const;
-        vertex_type final() const;
+        std::vector<vertex_type> initials() const;
+        std::vector<vertex_type> finals() const;
     };
 
     namespace feature {
@@ -180,19 +180,53 @@ namespace scrf {
                 std::tuple<int, int> const& e) const override;
         };
 
-        struct frame_boundary
+        struct left_boundary
             : public scrf_feature {
 
             std::vector<std::vector<real>> const& inputs;
 
             mutable std::unordered_map<int, std::vector<real>> feat_cache;
 
-            frame_boundary(std::vector<std::vector<real>> const& inputs);
+            left_boundary(std::vector<std::vector<real>> const& inputs);
 
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
                 std::tuple<int, int> const& e) const override;
+        };
+
+        struct right_boundary
+            : public scrf_feature {
+
+            std::vector<std::vector<real>> const& inputs;
+
+            mutable std::unordered_map<int, std::vector<real>> feat_cache;
+
+            right_boundary(std::vector<std::vector<real>> const& inputs);
+
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+        };
+
+        struct lm_score
+            : public scrf_feature {
+
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+        };
+
+        struct lattice_score
+            : public scrf_feature {
+
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
         };
 
     }
@@ -201,7 +235,6 @@ namespace scrf {
         std::vector<std::tuple<int, int>> const& order);
 
     lattice::fst load_gold(std::istream& is);
-    lattice::fst load_gold(std::istream& is, lattice::fst_data const& scrf_d);
 
     std::vector<std::vector<real>> load_features(std::string filename);
     std::vector<std::vector<real>> load_features(std::string filename, int nfeat);
@@ -276,12 +309,12 @@ namespace scrf {
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg);
 
-#if 0
     lattice::fst make_lattice(
         std::vector<std::vector<real>> acoustics,
         std::unordered_set<std::string> phone_set,
         int seg_size);
 
+#if 0
     struct forward_backward_alg {
 
         std::unordered_map<std::tuple<int, int>, real> alpha;

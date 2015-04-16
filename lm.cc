@@ -61,14 +61,14 @@ namespace lm {
         return data->edges.at(e).head;
     }
 
-    int fst::initial() const
+    std::vector<int> fst::initials() const
     {
-        return data->initial;
+        return data->initials;
     }
 
-    int fst::final() const
+    std::vector<int> fst::finals() const
     {
-        return data->final;
+        return data->finals;
     }
 
     std::string const& fst::input(int e) const
@@ -93,9 +93,10 @@ namespace lm {
         fst_data result;
         result.vertices = 0;
 
-        result.initial = 0;
+        result.initials.push_back(0);
         result.vertices += 1;
         hist[std::vector<std::string>{}] = 0;
+        result.history.push_back("");
 
         while (std::getline(is, line)) {
             if (line.size() == 0) {
@@ -122,6 +123,8 @@ namespace lm {
                 std::vector<std::string> tail_h { ngram.begin(), ngram.end() - 1 };
 
                 if (!ebt::in(tail_h, hist)) {
+                    result.history.resize(std::max<int>(result.history.size(), result.vertices + 1));
+                    result.history[result.vertices] = ebt::join(tail_h, "_");
                     hist[tail_h] = result.vertices;
                     result.vertices += 1;
                 }
@@ -135,6 +138,8 @@ namespace lm {
                 }
 
                 if (!ebt::in(head_h, hist)) {
+                    result.history.resize(std::max<int>(result.history.size(), result.vertices + 1));
+                    result.history[result.vertices] = ebt::join(head_h, "_");
                     hist[head_h] = result.vertices;
                     result.vertices += 1;
                 }
@@ -161,15 +166,13 @@ namespace lm {
                 result.out_edges.at(hist.at(tail_h)).push_back(e);
                 result.out_edges_map.at(hist.at(tail_h))[ngram.back()].push_back(e);
 
-                if (e_data.output == "</s>") {
-                    result.final = e_data.head;
-                }
-
                 if (boff != 0) {
                     std::vector<std::string> tail_h = head_h;
                     std::vector<std::string> head_h { tail_h.begin() + 1, tail_h.end() };
 
                     if (!ebt::in(head_h, hist)) {
+                        result.history.resize(std::max<int>(result.history.size(), result.vertices + 1));
+                        result.history[result.vertices] = ebt::join(head_h, "_");
                         hist[head_h] = result.vertices;
                         result.vertices += 1;
                     }
@@ -197,6 +200,10 @@ namespace lm {
                     result.out_edges_map.at(hist.at(tail_h))[std::string("<eps>")].push_back(e);
                 }
             }
+        }
+
+        for (int i = 0; i < result.vertices; ++i) {
+            result.finals.push_back(i);
         }
 
         fst f;
