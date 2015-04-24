@@ -43,7 +43,7 @@ namespace scrf {
             v.resize(std::max(v.size(), p.second.size()));
 
             for (int i = 0; i < p.second.size(); ++i) {
-                v.at(i) -= p.second.at(i);
+                v[i] -= p.second[i];
             }
         }
 
@@ -58,11 +58,26 @@ namespace scrf {
             v.resize(std::max(v.size(), p.second.size()));
 
             for (int i = 0; i < p.second.size(); ++i) {
-                v.at(i) += p.second.at(i);
+                v[i] += p.second[i];
             }
         }
 
         return p1;
+    }
+
+    param_t& operator*=(param_t& p, real c)
+    {
+        if (c == 0) {
+            p.class_param.clear();
+        }
+
+        for (auto& t: p.class_param) {
+            for (int i = 0; i < t.second.size(); ++i) {
+                t.second[i] *= c;
+            }
+        }
+
+        return p;
     }
 
     real dot(param_t const& p1, param_t const& p2)
@@ -77,7 +92,7 @@ namespace scrf {
             auto& v = p1.class_param.at(p.first);
 
             for (int i = 0; i < p.second.size(); ++i) {
-                sum += v.at(i) * p.second.at(i);
+                sum += v[i] * p.second[i];
             }
         }
 
@@ -327,7 +342,6 @@ namespace scrf {
                 auto& u = inputs.at(std::min<int>(std::floor(tail_time + (i + 0.5) * span), inputs.size() - 1));
                 v.insert(v.end(), u.begin(), u.end());
             }
-
         }
 
         left_boundary::left_boundary(std::vector<std::vector<real>> const& inputs)
@@ -428,7 +442,26 @@ namespace scrf {
 
     }
 
-    fst::path<scrf_t> shortest_path(scrf_t& s,
+    std::vector<std::tuple<int, int>> topo_order(scrf_t const& scrf)
+    {
+        auto const& lat = *(scrf.fst->fst1);
+        auto const& lm = *(scrf.fst->fst2);
+
+        std::vector<std::tuple<int, int>> result;
+
+        auto lm_vertices = lm.vertices();
+        std::reverse(lm_vertices.begin(), lm_vertices.end());
+
+        for (auto u: lat.vertices()) {
+            for (auto v: lm_vertices) {
+                result.push_back(std::make_tuple(u, v));
+            }
+        }
+
+        return result;
+    }
+
+    fst::path<scrf_t> shortest_path(scrf_t const& s,
         std::vector<std::tuple<int, int>> const& order)
     {
         fst::one_best<scrf_t> best;
@@ -472,15 +505,19 @@ namespace scrf {
 
             if (u > int(result.in_edges.size()) - 1) {
                 result.in_edges.resize(u + 1);
+                result.in_edges_map.resize(u + 1);
             }
 
             result.in_edges[u].push_back(e);
+            result.in_edges_map[u][parts.at(2)].push_back(e);
 
             if (v > int(result.out_edges.size()) - 1) {
                 result.out_edges.resize(v + 1);
+                result.out_edges_map.resize(v + 1);
             }
 
             result.out_edges[v].push_back(e);
+            result.out_edges_map[v][parts.at(2)].push_back(e);
 
             result.edges.push_back(lattice::edge_data{});
             result.edges.at(e).tail = v;
@@ -645,14 +682,18 @@ namespace scrf {
     real overlap_cost::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const
     {
+        int tail = std::get<0>(fst.tail(e));
+        int head = std::get<0>(fst.head(e));
+
+        int tail_time = fst.fst1->data->vertices.at(tail).time;
+        int head_time = fst.fst1->data->vertices.at(head).time;
+
+        if (tail == head) {
+            return 0;
+        }
+
         if (ebt::in(std::get<0>(e), edge_cache)) {
             
-            int tail = std::get<0>(fst.tail(e));
-            int head = std::get<0>(fst.head(e));
-
-            int tail_time = fst.fst1->data->vertices.at(tail).time;
-            int head_time = fst.fst1->data->vertices.at(head).time;
-
             int min_cost = std::numeric_limits<int>::max();
 
             for (auto& e_g: edge_cache.at(std::get<0>(e))) {
@@ -685,12 +726,6 @@ namespace scrf {
             return min_cost;
 
         }
-
-        int tail = std::get<0>(fst.tail(e));
-        int head = std::get<0>(fst.head(e));
-
-        int tail_time = fst.fst1->data->vertices.at(tail).time;
-        int head_time = fst.fst1->data->vertices.at(head).time;
 
         int max_overlap = 0;
         std::vector<std::tuple<int, int>> max_overlap_edges;
@@ -773,10 +808,18 @@ namespace scrf {
         return result;
     }
 
-    hinge_loss::hinge_loss(fst::path<scrf_t> const& gold, scrf_t& graph)
+    loss_func::~loss_func()
+    {}
+
+    hinge_loss::hinge_loss(fst::path<scrf_t> const& gold, scrf_t const& graph)
         : gold(gold), graph(graph)
     {
         graph_path = shortest_path(graph, graph.topo_order);
+
+        if (graph_path.edges().size() == 0) {
+            std::cout << "no cost aug path" << std::endl;
+            exit(1);
+        }
     }
 
     real hinge_loss::loss()
@@ -832,6 +875,151 @@ namespace scrf {
 
         // std::cout << "grad of <s>: " << result.class_param.at("<s>") << std::endl;
         // std::cout << "grad of </s>: " << result.class_param.at("</s>") << std::endl;
+
+        return result;
+    }
+
+    filtering_loss::filtering_loss(fst::path<scrf_t> const& gold,
+        scrf_t const& graph, real alpha)
+        : gold(gold), graph(graph), alpha(alpha)
+    {
+        graph_path = shortest_path(graph, graph.topo_order);
+
+        auto order = graph.topo_order;
+
+        for (auto v: graph.initials()) {
+            forward.extra[v] = {std::make_tuple(-1, -1), 0};
+            f_param[v] = param_t {};
+        }
+        forward.merge(graph, order);
+
+        for (auto& v: order) {
+            auto e = forward.extra.at(v).pi;
+            if (e == std::make_tuple(-1, -1)) {
+                continue;
+            }
+            param_t p;
+            (*graph.feature_func)(p, *graph.fst, e);
+            p += f_param.at(graph.tail(e));
+            f_param[v] = std::move(p);
+        }
+
+        std::reverse(order.begin(), order.end());
+
+        for (auto v: graph.finals()) {
+            backward.extra[v] = {std::make_tuple(-1, -1), 0};
+            b_param[v] = param_t {};
+        }
+        backward.merge(graph, order);
+
+        for (auto& v: order) {
+            auto e = backward.extra.at(v).pi;
+            if (e == std::make_tuple(-1, -1)) {
+                continue;
+            }
+            param_t p;
+            (*graph.feature_func)(p, *graph.fst, e);
+            p += b_param.at(graph.head(e));
+            b_param[v] = std::move(p);
+        }
+
+        auto fb_alpha = [&](std::tuple<int, int> const& v) {
+            return forward.extra[v].value;
+        };
+
+        auto fb_beta = [&](std::tuple<int, int> const& v) {
+            return backward.extra[v].value;
+        };
+
+        real inf = std::numeric_limits<real>::infinity();
+
+        auto edges = graph.edges();
+
+        real sum = 0;
+        real max = -inf;
+
+        for (auto& e: edges) {
+            auto tail = graph.tail(e);
+            auto head = graph.head(e);
+
+            real s = fb_alpha(tail) + graph.weight(e) + fb_beta(head);
+
+            if (s > max) {
+                max = s;
+            }
+
+            if (s != -inf) {
+                sum += s;
+            }
+        }
+
+        threshold = alpha * max + (1 - alpha) * sum / edges.size();
+
+        real f_max = -inf;
+
+        for (auto v: graph.finals()) {
+            if (forward.extra.at(v).value > f_max) {
+                f_max = forward.extra.at(v).value;
+            }
+        }
+
+        real b_max = -inf;
+
+        for (auto v: graph.initials()) {
+            if (backward.extra.at(v).value > b_max) {
+                b_max = backward.extra.at(v).value;
+            }
+        }
+
+        if (!(std::fabs(f_max - b_max) / std::fabs(b_max) < 0.001
+                && std::fabs(max - b_max) / std::fabs(b_max) < 0.001)) {
+            std::cout << "forward: " << f_max << " backward: " << b_max << " max: " << max << std::endl;
+            exit(1);
+        }
+    }
+
+    real filtering_loss::loss()
+    {
+        real gold_score = 0;
+
+        for (auto e: gold.edges()) {
+            gold_score += gold.weight(e);
+        }
+
+        return std::max<real>(0.0, 1 + threshold - gold_score);
+    }
+
+    param_t filtering_loss::param_grad()
+    {
+        param_t result;
+
+        auto edges = graph.edges();
+
+        for (auto e: edges) {
+            param_t p;
+            (*graph.feature_func)(p, *graph.fst, e);
+            p += f_param.at(graph.tail(e));
+            p += b_param.at(graph.head(e));
+
+            p *= (1 - alpha) / edges.size();
+
+            result += p;
+        }
+
+        for (auto e: graph_path.edges()) {
+            param_t p;
+            (*graph.feature_func)(p, *(graph_path.data->base_fst->fst), e);
+
+            p *= alpha;
+
+            result += p;
+        }
+
+        for (auto e: gold.edges()) {
+            param_t p;
+            (*gold.data->base_fst->feature_func)(p, *(gold.data->base_fst->fst), e);
+            result -= p;
+        }
 
         return result;
     }

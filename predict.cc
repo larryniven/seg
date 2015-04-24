@@ -64,16 +64,19 @@ void prediction_env::run()
             comp.fst2 = lm;
             graph.fst = std::make_shared<decltype(comp)>(comp);
 
+            auto lm_v = lm->vertices();
+            std::reverse(lm_v.begin(), lm_v.end());
+
             std::vector<std::tuple<int, int>> topo_order;
             for (auto& v: lattice::topo_order(*(comp.fst1))) {
-                for (auto& u: lm->vertices()) {
+                for (auto& u: lm_v) {
                     topo_order.push_back(std::make_tuple(v, u));
                 }
             }
             graph.topo_order = std::move(topo_order);
         } else {
             graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
-            graph.topo_order = graph.vertices();
+            graph.topo_order = scrf::topo_order(graph);
         }
         graph.weight_func = std::make_shared<scrf::linear_score>(graph_score);
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);

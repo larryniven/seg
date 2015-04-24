@@ -17,7 +17,7 @@ namespace fst {
         using vertex_type = typename fst::vertex_type;
         using edge_type = typename fst::edge_type;
 
-        fst* base_fst;
+        fst const* base_fst;
         std::vector<vertex_type> vertices;
         std::vector<edge_type> edges;
         std::unordered_map<vertex_type, std::vector<edge_type>> in_edges;
@@ -408,8 +408,11 @@ namespace fst {
 
     };
 
+    template <class... Args>
+    struct composed_fst;
+
     template <class fst_type1, class fst_type2>
-    struct composed_fst {
+    struct composed_fst<fst_type1, fst_type2> {
         using edge_type = std::tuple<typename fst_type1::edge_type,
             typename fst_type2::edge_type>;
         using vertex_type = std::tuple<typename fst_type1::vertex_type,
@@ -548,6 +551,164 @@ namespace fst {
 
     };
 
+    template <class fst_type1, class fst_type2, class fst_type3>
+    struct composed_fst<fst_type1, fst_type2, fst_type3> {
+        using edge_type = std::tuple<typename fst_type1::edge_type,
+            typename fst_type2::edge_type, typename fst_type3::edge_type>;
+        using vertex_type = std::tuple<typename fst_type1::vertex_type,
+            typename fst_type2::vertex_type, typename fst_type3::vertex_type>;
+
+        std::shared_ptr<fst_type1> fst1;
+        std::shared_ptr<fst_type2> fst2;
+        std::shared_ptr<fst_type3> fst3;
+
+        std::vector<vertex_type> vertices() const
+        {
+            std::vector<vertex_type> result;
+
+            for (auto& v1: fst1->vertices()) {
+                for (auto& v2: fst2->vertices()) {
+                    for (auto& v3: fst3->vertices()) {
+                        result.push_back(std::make_tuple(v1, v2, v3));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        std::vector<edge_type> edges() const
+        {
+            std::vector<edge_type> result;
+
+            for (auto& e1: fst1->edges()) {
+                for (auto& e2: fst2->edges()) {
+                    for (auto& e3: fst3->edges()) {
+                        if (fst1->output(e1) == fst2->input(e2) &&
+                                fst2->output(e2) == fst3->input(e3)) {
+                            result.push_back(std::make_tuple(e1, e2, e3));
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        std::vector<edge_type> in_edges(vertex_type const& v) const
+        {
+            std::vector<edge_type> result;
+
+            auto& e2_set = fst2->in_edges_map(std::get<1>(v));
+            auto& e3_set = fst3->in_edges_map(std::get<2>(v));
+
+            for (auto& e1: fst1->in_edges(std::get<0>(v))) {
+                if (!ebt::in(fst1->output(e1), e2_set)) {
+                    continue;
+                }
+
+                for (auto& e2: e2_set.at(fst1->output(e1))) {
+                    if (!ebt::in(fst2->output(e2), e3_set)) {
+                        continue;
+                    }
+
+                    for (auto& e3: e3_set.at(fst2->output(e2))) {
+                        result.push_back(std::make_tuple(e1, e2, e3));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        std::vector<edge_type> out_edges(vertex_type const& v) const
+        {
+            std::vector<edge_type> result;
+
+            auto& e2_set = fst2->out_edges_map(std::get<1>(v));
+            auto& e3_set = fst3->out_edges_map(std::get<2>(v));
+
+            for (auto& e1: fst1->out_edges(std::get<0>(v))) {
+                if (!ebt::in(fst1->output(e1), e2_set)) {
+                    continue;
+                }
+
+                for (auto& e2: e2_set.at(fst1->output(e1))) {
+                    if (!ebt::in(fst2->output(e2), e3_set)) {
+                        continue;
+                    }
+
+                    for (auto& e3: e3_set.at(fst2->output(e2))) {
+                        result.push_back(std::make_tuple(e1, e2, e3));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        real weight(edge_type const& e) const
+        {
+            return fst1->weight(std::get<0>(e)) + fst2->weight(std::get<1>(e))
+                + fst3->weight(std::get<2>(e));
+        }
+
+        vertex_type tail(edge_type const& e) const
+        {
+            return std::make_tuple(fst1->tail(std::get<0>(e)),
+                fst2->tail(std::get<1>(e)),
+                fst3->tail(std::get<2>(e)));
+        }
+
+        vertex_type head(edge_type const& e) const
+        {
+            return std::make_tuple(fst1->head(std::get<0>(e)),
+                fst2->head(std::get<1>(e)),
+                fst3->head(std::get<2>(e)));
+        }
+
+        std::vector<vertex_type> initials() const
+        {
+            std::vector<vertex_type> result;
+
+            for (auto i1: fst1->initials()) {
+                for (auto i2: fst2->initials()) {
+                    for (auto i3: fst3->initials()) {
+                        result.push_back(std::make_tuple(i1, i2, i3));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        std::vector<vertex_type> finals() const
+        {
+            std::vector<vertex_type> result;
+
+            for (auto i1: fst1->finals()) {
+                for (auto i2: fst2->finals()) {
+                    for (auto i3: fst3->finals()) {
+                        result.push_back(std::make_tuple(i1, i2, i3));
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        std::string input(edge_type const& e) const
+        {
+            return fst1->input(std::get<0>(e));
+        }
+
+        std::string output(edge_type const& e) const
+        {
+            return fst3->output(std::get<1>(e));
+        }
+
+    };
+
     template <class fst_type>
     struct beam_search {
         using vertex_type = typename fst_type::vertex_type;
@@ -633,7 +794,7 @@ namespace fst {
 
         std::unordered_map<vertex_type, extra_data> extra;
 
-        void merge(fst_type& fst, std::vector<vertex_type> const& order)
+        void merge(fst_type const& fst, std::vector<vertex_type> const& order)
         {
             auto get_value = [&](vertex_type v) {
                 real inf = std::numeric_limits<real>::infinity();
@@ -648,28 +809,34 @@ namespace fst {
             for (auto& u: order) {
                 real max = get_value(u);
                 edge_type argmax;
+                bool update = false;
 
                 for (auto&& e: fst.in_edges(u)) {
-                    edge_type v = fst.tail(e);
+                    vertex_type v = fst.tail(e);
 
                     real candidate_value = get_value(v) + fst.weight(e);
+
                     if (candidate_value > max) {
                         max = candidate_value;
                         argmax = e;
+                        update = true;
                     }
                 }
 
-                extra[u] = extra_data { argmax, max };
+                if (update) {
+                    extra[u] = extra_data { argmax, max };
+                }
             }
         }
 
-        path<fst_type> best_path(fst_type& fst)
+        path<fst_type> best_path(fst_type const& fst)
         {
-            real max = -std::numeric_limits<real>::infinity();
+            real inf = std::numeric_limits<real>::infinity();
+            real max = -inf;
             vertex_type argmax;
 
             for (auto v: fst.finals()) {
-                if (extra.at(v).value > max) {
+                if (ebt::in(v, extra) && extra.at(v).value > max) {
                     max = extra.at(v).value;
                     argmax = v;
                 }
@@ -677,6 +844,12 @@ namespace fst {
 
             path_data<fst_type> result;
             result.base_fst = &fst;
+
+            if (max == -inf) {
+                path<fst_type> p;
+                p.data = std::make_shared<path_data<fst_type>>(result);
+                return p;
+            }
 
             vertex_type u = argmax;
 
@@ -728,7 +901,7 @@ namespace fst {
 
         std::unordered_map<vertex_type, extra_data> extra;
 
-        void merge(fst_type& fst, std::vector<vertex_type> const& order)
+        void merge(fst_type const& fst, std::vector<vertex_type> const& order)
         {
             auto get_value = [&](vertex_type v) {
                 real inf = std::numeric_limits<real>::infinity();
@@ -743,28 +916,33 @@ namespace fst {
             for (auto& u: order) {
                 real max = get_value(u);
                 edge_type argmax;
+                bool update = false;
 
                 for (auto&& e: fst.out_edges(u)) {
-                    edge_type v = fst.head(e);
+                    vertex_type v = fst.head(e);
 
                     real candidate_value = get_value(v) + fst.weight(e);
                     if (candidate_value > max) {
                         max = candidate_value;
                         argmax = e;
+                        update = true;
                     }
                 }
 
-                extra[u] = extra_data { argmax, max };
+                if (update) {
+                    extra[u] = extra_data { argmax, max };
+                }
             }
         }
 
-        path<fst_type> best_path(fst_type& fst)
+        path<fst_type> best_path(fst_type const& fst)
         {
-            real max = -std::numeric_limits<real>::infinity();
+            real inf = std::numeric_limits<real>::infinity();
+            real max = -inf;
             vertex_type argmax;
 
             for (auto v: fst.initials()) {
-                if (extra.at(v).value > max) {
+                if (ebt::in(v, extra) && extra.at(v).value > max) {
                     max = extra.at(v).value;
                     argmax = v;
                 }
@@ -772,6 +950,12 @@ namespace fst {
 
             path_data<fst_type> result;
             result.base_fst = &fst;
+
+            if (max == -inf) {
+                path<fst_type> p;
+                p.data = std::make_shared<path_data<fst_type>>(result);
+                return p;
+            }
 
             vertex_type u = argmax;
             result.vertices.push_back(u);

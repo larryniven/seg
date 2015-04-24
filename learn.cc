@@ -67,7 +67,7 @@ void learning_env::run()
 
         scrf::backoff_cost bc; 
         gold.weight_func = std::make_shared<scrf::backoff_cost>(bc);
-        gold.topo_order = gold.vertices();
+        gold.topo_order = topo_order(gold);
         fst::path<scrf::scrf_t> gold_path = scrf::shortest_path(gold, gold.topo_order);
 
         gold.weight_func = std::make_shared<scrf::linear_score>(gold_score);
@@ -86,16 +86,19 @@ void learning_env::run()
             comp.fst2 = lm;
             graph.fst = std::make_shared<decltype(comp)>(comp);
 
+            auto lm_v = lm->vertices();
+            std::reverse(lm_v.begin(), lm_v.end());
+
             std::vector<std::tuple<int, int>> topo_order;
-            for (auto& v: lattice::topo_order(*(comp.fst1))) {
-                for (auto& u: lm->vertices()) {
+            for (auto v: lattice::topo_order(*(comp.fst1))) {
+                for (auto u: lm_v) {
                     topo_order.push_back(std::make_tuple(v, u));
                 }
             }
             graph.topo_order = std::move(topo_order);
         } else {
             graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
-            graph.topo_order = graph.vertices();
+            graph.topo_order = scrf::topo_order(graph);
         }
         scrf::composite_weight cost_aug_weight;
         cost_aug_weight.weights.push_back(std::make_shared<scrf::linear_score>(graph_score));
@@ -103,36 +106,30 @@ void learning_env::run()
         graph.weight_func = std::make_shared<scrf::composite_weight>(cost_aug_weight);
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
-        scrf::hinge_loss loss_func { gold_path, graph };
+        std::shared_ptr<scrf::loss_func> loss_func;
+        if (args.at("loss") == "hinge") {
+             loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
+        } else if (args.at("loss") == "filtering") {
+             real alpha = std::stod(args.at("alpha"));
+             loss_func = std::make_shared<scrf::filtering_loss>(scrf::filtering_loss { gold_path, graph, alpha });
+        } else {
+             std::cout << "unknown loss function " << args.at("loss") << std::endl;
+             exit(1);
+        }
 
-        real ell = loss_func.loss();
+        real ell = loss_func->loss();
 
         std::cout << "loss: " << ell << std::endl;
 
         if (ell < 0) {
             std::cout << "loss is less than zero.  skipping." << std::endl;
-            // exit(1);
         }
 
         std::cout << std::endl;
 
         if (ell > 0) {
-            auto param_grad = loss_func.param_grad();
-
-#if 0
-            {
-                real& f = param.class_param.at("<s>").at(0);
-                real tmp = f;
-                f += 1e-8;
-                scrf::hinge_loss loss_func_step { gold_path, graph };
-                std::cout << param_grad.class_param.at("<s>").at(0)
-                    << " " << (loss_func_step.loss() - ell) / 1e-8 << std::endl;
-                f = tmp;
-            }
-#endif
-
+            auto param_grad = loss_func->param_grad();
             scrf::adagrad_update(param, param_grad, opt_data, step_size);
-
             scrf::save_param("param-last", param);
             scrf::save_param("opt-data-last", opt_data);
         }
@@ -162,7 +159,9 @@ int main(int argc, char *argv[])
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
-            {"features", "", true}
+            {"features", "", true},
+            {"alpha", "filtering parameter", false},
+            {"loss", "hinge,filtering", true}
         }
     };
 

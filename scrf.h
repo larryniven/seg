@@ -22,6 +22,7 @@ namespace scrf {
 
     param_t& operator-=(param_t& p1, param_t const& p2);
     param_t& operator+=(param_t& p1, param_t const& p2);
+    param_t& operator*=(param_t& p1, real c);
 
     param_t load_param(std::istream& is);
     param_t load_param(std::string filename);
@@ -231,7 +232,9 @@ namespace scrf {
 
     }
 
-    fst::path<scrf_t> shortest_path(scrf_t& s,
+    std::vector<std::tuple<int, int>> topo_order(scrf_t const& scrf);
+
+    fst::path<scrf_t> shortest_path(scrf_t const& s,
         std::vector<std::tuple<int, int>> const& order);
 
     lattice::fst load_gold(std::istream& is);
@@ -283,26 +286,49 @@ namespace scrf {
     scrf_t make_graph_scrf(int frames,
         std::shared_ptr<lm::fst> lm, int max_seg);
 
-    struct hinge_loss {
-        fst::path<scrf_t> const& gold;
-        scrf_t& graph;
-        fst::path<scrf_t> graph_path;
+    struct loss_func {
 
-        hinge_loss(fst::path<scrf_t> const& gold, scrf_t& graph);
+        virtual ~loss_func();
 
-        real loss();
-        param_t param_grad();
+        virtual real loss() = 0;
+        virtual param_t param_grad() = 0;
+
     };
 
-    struct filtering_loss {
+    struct hinge_loss
+        : public loss_func {
+
         fst::path<scrf_t> const& gold;
-        scrf_t& graph;
+        scrf_t const& graph;
         fst::path<scrf_t> graph_path;
 
-        filtering_loss(fst::path<scrf_t> const& gold, scrf_t& graph);
+        hinge_loss(fst::path<scrf_t> const& gold, scrf_t const& graph);
 
-        real loss();
-        param_t param_grad();
+        virtual real loss() override;
+        virtual param_t param_grad() override;
+    };
+
+    struct filtering_loss
+        : public loss_func {
+
+        fst::path<scrf_t> const& gold;
+        scrf_t const& graph;
+        real alpha;
+
+        fst::path<scrf_t> graph_path;
+        fst::forward_one_best<scrf_t> forward;
+        fst::backward_one_best<scrf_t> backward;
+        std::unordered_map<scrf_t::vertex_type, param_t> f_param;
+        std::unordered_map<scrf_t::vertex_type, param_t> b_param;
+        real threshold;
+
+        filtering_loss(
+            fst::path<scrf_t> const& gold,
+            scrf_t const& graph,
+            real alpha);
+
+        virtual real loss() override;
+        virtual param_t param_grad() override;
     };
 
     composite_feature make_feature(

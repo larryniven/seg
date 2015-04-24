@@ -113,7 +113,7 @@ namespace lm {
             } else {
                 auto parts = ebt::split(line);
 
-                real boff = 0;
+                real boff = 1;
                 if (parts.size() > n + 1) {
                     boff = std::stod(parts.back());
                     parts.pop_back();
@@ -166,7 +166,7 @@ namespace lm {
                 result.out_edges.at(hist.at(tail_h)).push_back(e);
                 result.out_edges_map.at(hist.at(tail_h))[ngram.back()].push_back(e);
 
-                if (boff != 0) {
+                if (boff != 1) {
                     std::vector<std::string> tail_h = head_h;
                     std::vector<std::string> head_h { tail_h.begin() + 1, tail_h.end() };
 

@@ -160,14 +160,9 @@ namespace lattice {
         return f;
     }
 
-    fst add_eps_loops(fst f)
+    fst add_eps_loops(fst f, std::string label)
     {
         auto& data = *(f.data);
-
-        data.in_edges.resize(data.vertices.size());
-        data.in_edges_map.resize(data.vertices.size());
-        data.out_edges.resize(data.vertices.size());
-        data.out_edges_map.resize(data.vertices.size());
 
         std::unordered_set<int> initial_set { data.initials.begin(), data.initials.end() };
         std::unordered_set<int> final_set { data.finals.begin(), data.finals.end() };
@@ -177,15 +172,15 @@ namespace lattice {
                 continue;
             }
 
-            edge_data e_data { .label = std::string("<eps>"),
+            edge_data e_data { .label = label,
                 .tail = i, .head = i, .weight = 0};
             data.edges.push_back(e_data);
 
             data.in_edges[i].push_back(data.edges.size() - 1);
-            data.in_edges_map[i]["<eps>"].push_back(data.edges.size() - 1);
+            data.in_edges_map[i][label].push_back(data.edges.size() - 1);
 
             data.out_edges[i].push_back(data.edges.size() - 1);
-            data.out_edges_map[i]["<eps>"].push_back(data.edges.size() - 1);
+            data.out_edges_map[i][label].push_back(data.edges.size() - 1);
         }
 
         return f;
