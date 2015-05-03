@@ -144,6 +144,9 @@ void learning_env::run()
 #endif
 
     }
+
+    scrf::save_param("param-last", param);
+    scrf::save_param("opt-data-last", opt_data);
 }
 
 int main(int argc, char *argv[])
