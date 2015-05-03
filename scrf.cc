@@ -221,8 +221,8 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            feat.class_param[fst.output(e)].push_back(1);
-            feat.class_param["shared"].push_back(1);
+            feat.class_param["[label] " + fst.output(e)].push_back(1);
+            feat.class_param["[label] shared"].push_back(1);
         }
 
         length_value::length_value(int max_seg)
@@ -241,7 +241,7 @@ namespace scrf {
             int tail_time = lat.data->vertices.at(tail).time;
             int head_time = lat.data->vertices.at(head).time;
 
-            auto& v = feat.class_param[fst.output(e)];
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
 
             v.push_back(head_time - tail_time);
             v.push_back(std::pow(head_time - tail_time, 2));
@@ -263,7 +263,7 @@ namespace scrf {
             int tail_time = lat.data->vertices.at(tail).time;
             int head_time = lat.data->vertices.at(head).time;
 
-            auto& v = feat.class_param[fst.output(e)];
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
             int size = v.size();
             v.resize(size + max_seg + 1);
 
@@ -283,7 +283,7 @@ namespace scrf {
         {
             if (ebt::in(std::get<0>(e), feat_cache)) {
                 auto& u = feat_cache.at(std::get<0>(e));
-                auto& v = feat.class_param[fst.output(e)];
+                auto& v = feat.class_param["[lattice] " + fst.output(e)];
                 v.insert(v.end(), u.begin(), u.end());
                 return;
             }
@@ -312,7 +312,7 @@ namespace scrf {
                 }
             }
 
-            auto& v = feat.class_param[fst.output(e)];
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
             v.insert(v.end(), avg.begin(), avg.end());
 
             feat_cache[std::get<0>(e)] = std::move(avg);
@@ -337,7 +337,7 @@ namespace scrf {
 
             real span = (head_time - tail_time) / samples;
 
-            auto& v = feat.class_param[fst.output(e)];
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
             for (int i = 0; i < samples; ++i) {
                 auto& u = inputs.at(std::min<int>(std::floor(tail_time + (i + 0.5) * span), inputs.size() - 1));
                 v.insert(v.end(), u.begin(), u.end());
@@ -367,12 +367,12 @@ namespace scrf {
 
             if (ebt::in(tail_time, feat_cache)) {
                 auto& u = feat_cache.at(tail_time);
-                auto& v = feat.class_param[lex];
+                auto& v = feat.class_param["[lattice] " + lex];
                 v.insert(v.end(), u.begin(), u.end());
                 return;
             }
 
-            auto& v = feat.class_param[lex];
+            auto& v = feat.class_param["[lattice] " + lex];
 
             std::vector<real> f;
             for (int i = 0; i < 3; ++i) {
@@ -407,12 +407,12 @@ namespace scrf {
 
             if (ebt::in(head_time, feat_cache)) {
                 auto& u = feat_cache.at(head_time);
-                auto& v = feat.class_param[lex];
+                auto& v = feat.class_param["[lattice] " + lex];
                 v.insert(v.end(), u.begin(), u.end());
                 return;
             }
 
-            auto& v = feat.class_param[lex];
+            auto& v = feat.class_param["[lattice] " + lex];
 
             std::vector<real> f;
             for (int i = 0; i < 3; ++i) {
@@ -429,7 +429,7 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            feat.class_param["shared"].push_back(fst.fst2->weight(std::get<1>(e)));
+            feat.class_param["[lm] shared"].push_back(fst.fst2->weight(std::get<1>(e)));
         }
 
         void lattice_score::operator()(
@@ -437,7 +437,74 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            feat.class_param["shared"].push_back(fst.fst1->weight(std::get<0>(e)));
+            feat.class_param["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
+        }
+
+    }
+
+    namespace score {
+
+        label_score::label_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat)
+            : param(param), feat(feat)
+        {}
+
+        real label_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(fst.output(e), cache)) {
+                return cache[fst.output(e)];
+            }
+
+            param_t p;
+            (*feat)(p, fst, e);
+            real s = dot(param, p);
+
+            cache[fst.output(e)] = s;
+
+            return s;
+        }
+
+        lm_score::lm_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat)
+            : param(param), feat(feat)
+        {}
+
+        real lm_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(std::get<1>(e), cache)) {
+                return cache[std::get<1>(e)];
+            }
+
+            param_t p;
+            (*feat)(p, fst, e);
+            real s = dot(param, p);
+
+            cache[std::get<1>(e)] = s;
+
+            return s;
+        }
+
+        lattice_score::lattice_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat)
+            : param(param), feat(feat)
+        {}
+
+        real lattice_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(std::make_tuple(std::get<0>(e), fst.output(e)), cache)) {
+                return cache[std::make_tuple(std::get<0>(e), fst.output(e))];
+            }
+
+            param_t p;
+            (*feat)(p, fst, e);
+            real s = dot(param, p);
+
+            cache[std::make_tuple(std::get<0>(e), fst.output(e))] = s;
+
+            return s;
         }
 
     }
@@ -1061,6 +1128,55 @@ namespace scrf {
             }
         }
     
+        return result;
+    }
+
+    composite_weight make_weight(
+        param_t const& param,
+        std::vector<std::string> features,
+        composite_feature const& feat)
+    {
+        composite_weight result;
+
+        composite_feature label_feat;
+        composite_feature lm_feat;
+        composite_feature lattice_feat;
+
+        for (int i = 0; i < features.size(); ++i) {
+            auto& v = features[i];
+
+            if (v == "frame-avg") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "frame-samples") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "left-boundary") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "right-boundary") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "length-indicator") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "length-value") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "bias") {
+                label_feat.features.push_back(feat.features[i]);
+            } else if (v == "lm-score") {
+                lm_feat.features.push_back(feat.features[i]);
+            } else if (v == "lattice-score") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else {
+                std::cout << "unknown feature type " << v << std::endl;
+                exit(1);
+            }
+        }
+    
+        score::label_score label_score { param, std::make_shared<composite_feature>(label_feat) };
+        score::lm_score lm_score { param, std::make_shared<composite_feature>(lm_feat) };
+        score::lattice_score lattice_score { param, std::make_shared<composite_feature>(lattice_feat) };
+
+        result.weights.push_back(std::make_shared<score::label_score>(label_score));
+        result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
+        result.weights.push_back(std::make_shared<score::lattice_score>(lattice_score));
+
         return result;
     }
 

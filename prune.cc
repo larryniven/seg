@@ -7,6 +7,7 @@
 struct pruning_env {
 
     std::ifstream input_list;
+    std::ifstream lattice_list;
     std::shared_ptr<lm::fst> lm;
     int max_seg;
     scrf::param_t param;
@@ -28,6 +29,9 @@ pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
     input_list.open(args.at("input-list"));
+    if (ebt::in(std::string("lattice-list"), args)) {
+        lattice_list.open(args.at("lattice-list"));
+    }
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
     max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
@@ -58,11 +62,34 @@ void pruning_env::run()
         std::cout << input_file << std::endl;
 
         scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
-        scrf::linear_score graph_score { param, graph_feat_func };
 
-        scrf::scrf_t graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
-        graph.topo_order = graph.vertices();
-        graph.weight_func = std::make_shared<scrf::linear_score>(graph_score);
+        scrf::scrf_t graph;
+
+        if (ebt::in(std::string("lattice-list"), args)) {
+            lattice::fst lat = lattice::load_lattice(lattice_list);
+            lattice::add_eps_loops(lat);
+
+            fst::composed_fst<lattice::fst, lm::fst> comp;
+            comp.fst1 = std::make_shared<lattice::fst>(std::move(lat));
+            comp.fst2 = lm;
+            graph.fst = std::make_shared<decltype(comp)>(comp);
+
+            auto lm_v = lm->vertices();
+            std::reverse(lm_v.begin(), lm_v.end());
+
+            std::vector<std::tuple<int, int>> topo_order;
+            for (auto v: lattice::topo_order(*(comp.fst1))) {
+                for (auto u: lm_v) {
+                    topo_order.push_back(std::make_tuple(v, u));
+                }
+            }
+            graph.topo_order = std::move(topo_order);
+        } else {
+            graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
+            graph.topo_order = graph.vertices();
+        }
+        graph.weight_func = std::make_shared<scrf::composite_weight>(
+            scrf::make_weight(param, features, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         auto edges = graph.edges();
@@ -82,18 +109,28 @@ void pruning_env::run()
         }
         backward.merge(graph, order);
 
+        real inf = std::numeric_limits<real>::infinity();
+
         auto fb_alpha = [&](std::tuple<int, int> const& v) {
-            return forward.extra[v].value;
+            if (ebt::in(v, forward.extra)) {
+                return forward.extra[v].value;
+            } else {
+                return -inf;
+            }
         };
 
         auto fb_beta = [&](std::tuple<int, int> const& v) {
-            return backward.extra[v].value;
+            if (ebt::in(v, forward.extra)) {
+                return backward.extra[v].value;
+            } else {
+                return -inf;
+            }
         };
-
-        real inf = std::numeric_limits<real>::infinity();
 
         real sum = 0;
         real max = -inf;
+
+        int edge_count = 0;
 
         for (auto& e: edges) {
             auto tail = graph.tail(e);
@@ -110,14 +147,32 @@ void pruning_env::run()
 
             if (s != -inf) {
                 sum += s;
+                ++edge_count;
             }
         }
 
-        real threshold = alpha * max + (1 - alpha) * sum / edges.size();
+        real b_max = -inf;
+
+        for (auto& i: graph.initials()) {
+            if (fb_beta(i) > b_max) {
+                b_max = fb_beta(i);
+            }
+        }
+
+        real f_max = -inf;
+
+        for (auto& f: graph.finals()) {
+            if (fb_alpha(f) > f_max) {
+                f_max = fb_alpha(f);
+            }
+        }
+
+        real threshold = alpha * max + (1 - alpha) * sum / edge_count;
 
         std::cout << "frames: " << inputs.size() << std::endl;
-        std::cout << "max: " << max << " avg: " << sum / edges.size()
+        std::cout << "max: " << max << " avg: " << sum / edge_count
             << " threshold: " << threshold << std::endl;
+        std::cout << "forward: " << f_max << " backward: " << b_max << std::endl;
 
         lattice::fst_data result;
 
@@ -215,7 +270,7 @@ void pruning_env::run()
 
         ++i;
 
-#if 0
+#if DEBUG_TOP_10
         if (i == 10) {
             exit(1);
         }
@@ -231,6 +286,7 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"input-list", "", true},
+            {"lattice-list", "", false},
             {"lm", "", true},
             {"max-seg", "", false},
             {"param", "", true},

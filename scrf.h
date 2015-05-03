@@ -232,6 +232,58 @@ namespace scrf {
 
     }
 
+    namespace score {
+
+        struct label_score
+            : public scrf_weight {
+
+            param_t const& param;
+            std::shared_ptr<scrf_feature> feat;
+
+            mutable std::unordered_map<std::string, real> cache;
+
+            label_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat);
+
+            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+            
+        };
+
+        struct lm_score
+            : public scrf_weight {
+
+            param_t const& param;
+            std::shared_ptr<scrf_feature> feat;
+
+            mutable std::unordered_map<int, real> cache;
+
+            lm_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat);
+
+            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+            
+        };
+
+        struct lattice_score
+            : public scrf_weight {
+
+            param_t const& param;
+            std::shared_ptr<scrf_feature> feat;
+
+            mutable std::unordered_map<std::tuple<int, std::string>, real> cache;
+
+            lattice_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat);
+
+            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+            
+        };
+
+    }
+
     std::vector<std::tuple<int, int>> topo_order(scrf_t const& scrf);
 
     fst::path<scrf_t> shortest_path(scrf_t const& s,
@@ -334,6 +386,11 @@ namespace scrf {
     composite_feature make_feature(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg);
+
+    composite_weight make_weight(
+        param_t const& param,
+        std::vector<std::string> features,
+        composite_feature const& feat);
 
     lattice::fst make_lattice(
         std::vector<std::vector<real>> acoustics,

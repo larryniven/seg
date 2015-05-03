@@ -60,7 +60,6 @@ void learning_env::run()
         std::cout << input_file << std::endl;
 
         scrf::composite_feature gold_feat_func = scrf::make_feature(features, inputs, max_seg);
-        scrf::linear_score gold_score { param, gold_feat_func };
 
         lattice::fst gold_lat = scrf::load_gold(gold_list);
         scrf::scrf_t gold = scrf::make_gold_scrf(gold_lat, lm);
@@ -70,11 +69,11 @@ void learning_env::run()
         gold.topo_order = topo_order(gold);
         fst::path<scrf::scrf_t> gold_path = scrf::shortest_path(gold, gold.topo_order);
 
-        gold.weight_func = std::make_shared<scrf::linear_score>(gold_score);
+        gold.weight_func = std::make_shared<scrf::composite_weight>(
+            scrf::make_weight(param, features, gold_feat_func));
         gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
 
         scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
-        scrf::linear_score graph_score { param, graph_feat_func };
 
         scrf::scrf_t graph;
         if (ebt::in(std::string("lattice-list"), args)) {
@@ -101,8 +100,10 @@ void learning_env::run()
             graph.topo_order = scrf::topo_order(graph);
         }
         scrf::composite_weight cost_aug_weight;
-        cost_aug_weight.weights.push_back(std::make_shared<scrf::linear_score>(graph_score));
-        cost_aug_weight.weights.push_back(std::make_shared<scrf::overlap_cost>(scrf::overlap_cost { gold_path }));
+        cost_aug_weight.weights.push_back(std::make_shared<scrf::composite_weight>(
+            scrf::make_weight(param, features, graph_feat_func)));
+        cost_aug_weight.weights.push_back(std::make_shared<scrf::overlap_cost>(
+            scrf::overlap_cost { gold_path }));
         graph.weight_func = std::make_shared<scrf::composite_weight>(cost_aug_weight);
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
@@ -136,7 +137,7 @@ void learning_env::run()
 
         ++i;
 
-#if 0
+#if DEBUG_TOP_10
         if (i == 10) {
             exit(1);
         }
