@@ -444,6 +444,21 @@ namespace scrf {
 
     namespace score {
 
+        linear_score::linear_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat)
+            : param(param), feat(feat)
+        {}
+
+        real linear_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            param_t p;
+            (*feat)(p, fst, e);
+            real s = dot(param, p);
+
+            return s;
+        }
+
         label_score::label_score(param_t const& param,
                 std::shared_ptr<scrf_feature> feat)
             : param(param), feat(feat)
@@ -1141,6 +1156,7 @@ namespace scrf {
         composite_feature label_feat;
         composite_feature lm_feat;
         composite_feature lattice_feat;
+        composite_feature rest_feat;
 
         for (int i = 0; i < features.size(); ++i) {
             auto& v = features[i];
@@ -1150,9 +1166,9 @@ namespace scrf {
             } else if (v == "frame-samples") {
                 lattice_feat.features.push_back(feat.features[i]);
             } else if (v == "left-boundary") {
-                lattice_feat.features.push_back(feat.features[i]);
+                rest_feat.features.push_back(feat.features[i]);
             } else if (v == "right-boundary") {
-                lattice_feat.features.push_back(feat.features[i]);
+                rest_feat.features.push_back(feat.features[i]);
             } else if (v == "length-indicator") {
                 lattice_feat.features.push_back(feat.features[i]);
             } else if (v == "length-value") {
@@ -1172,10 +1188,12 @@ namespace scrf {
         score::label_score label_score { param, std::make_shared<composite_feature>(label_feat) };
         score::lm_score lm_score { param, std::make_shared<composite_feature>(lm_feat) };
         score::lattice_score lattice_score { param, std::make_shared<composite_feature>(lattice_feat) };
+        score::linear_score rest_score { param, std::make_shared<composite_feature>(rest_feat) };
 
         result.weights.push_back(std::make_shared<score::label_score>(label_score));
         result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
         result.weights.push_back(std::make_shared<score::lattice_score>(lattice_score));
+        result.weights.push_back(std::make_shared<score::linear_score>(rest_score));
 
         return result;
     }

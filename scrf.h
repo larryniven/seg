@@ -234,6 +234,19 @@ namespace scrf {
 
     namespace score {
 
+        struct linear_score
+            : public scrf_weight {
+
+            param_t const& param;
+            std::shared_ptr<scrf_feature> feat;
+
+            linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
+
+            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
+        };
+
         struct label_score
             : public scrf_weight {
 
