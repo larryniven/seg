@@ -704,7 +704,7 @@ namespace fst {
 
         std::string output(edge_type const& e) const
         {
-            return fst3->output(std::get<1>(e));
+            return fst3->output(std::get<2>(e));
         }
 
     };

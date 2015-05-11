@@ -304,11 +304,6 @@ namespace scrf {
 
     lattice::fst load_gold(std::istream& is);
 
-    std::vector<std::vector<real>> load_features(std::string filename);
-    std::vector<std::vector<real>> load_features(std::string filename, int nfeat);
-
-    std::unordered_set<std::string> load_phone_set(std::string filename);
-
     scrf_t make_gold_scrf(lattice::fst gold,
         std::shared_ptr<lm::fst> lm);
 

@@ -617,63 +617,6 @@ namespace scrf {
         return f;
     }
     
-    std::vector<std::vector<real>> load_features(std::string filename)
-    {
-        std::vector<std::vector<real>> result;
-        std::ifstream ifs { filename };
-    
-        std::string line;
-        while (std::getline(ifs, line)) {
-            std::vector<real> vec;
-    
-            std::vector<std::string> parts = ebt::split(line);
-            for (auto& p: parts) {
-                vec.push_back(std::stod(p));
-            }
-    
-            result.push_back(vec);
-        }
-    
-        return result;
-    }
-
-    std::vector<std::vector<real>> load_features(std::string filename, int nfeat)
-    {
-        std::vector<std::vector<real>> result;
-        std::ifstream ifs { filename };
-    
-        std::string line;
-        while (std::getline(ifs, line)) {
-            std::vector<real> vec;
-    
-            std::vector<std::string> parts = ebt::split(line);
-            for (auto& p: parts) {
-                if (vec.size() == nfeat) {
-                    break;
-                }
-                vec.push_back(std::stod(p));
-            }
-    
-            result.push_back(vec);
-        }
-    
-        return result;
-    }
-    
-    std::unordered_set<std::string> load_phone_set(std::string filename)
-    {
-        std::unordered_set<std::string> result;
-    
-        std::ifstream ifs{filename};
-    
-        std::string line;
-        while (std::getline(ifs, line)) {
-            result.insert(line);
-        }
-    
-        return result;
-    }
-
     lattice::fst make_segmentation_lattice(int frames, int max_seg)
     {
         lattice::fst_data data;

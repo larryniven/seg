@@ -2,6 +2,7 @@
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
+#include "speech-util/speech.h"
 #include <fstream>
 
 struct pruning_env {
@@ -57,7 +58,7 @@ void pruning_env::run()
     int i = 0;
     while (std::getline(input_list, input_file)) {
 
-        std::vector<std::vector<real>> inputs = scrf::load_features(input_file);
+        std::vector<std::vector<real>> inputs = speech::load_frames(input_file);
 
         std::cout << input_file << std::endl;
 

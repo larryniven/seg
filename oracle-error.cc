@@ -2,6 +2,7 @@
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
+#include "speech-util/speech.h"
 #include <fstream>
 
 struct oracle_env {
@@ -23,7 +24,7 @@ oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
 {
     lattice_list.open(args.at("lattice-list"));
     gold_list.open(args.at("gold-list"));
-    phone_set = scrf::load_phone_set(args.at("phone-set"));
+    phone_set = speech::load_phone_set(args.at("phone-set"));
 }
 
 lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
@@ -52,9 +53,9 @@ lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
             lm::edge_data e_data { 0, 0, -1, "<eps1>", p1};
             data.edges.push_back(e_data);
             data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0][p1].push_back(data.edges.size() - 1);
+            data.in_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
             data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0][p1].push_back(data.edges.size() - 1);
+            data.out_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
         }
 
         for (auto& p2: phone_set) {
@@ -121,7 +122,7 @@ void oracle_env::run()
         for (auto& i: comp.initials()) {
             one_best.extra[i] = { std::make_tuple(-1, -1, -1), 0 };
         }
-        
+
         one_best.merge(comp, topo_order);
 
         double max = -std::numeric_limits<double>::infinity();
