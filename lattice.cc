@@ -115,7 +115,9 @@ namespace lattice {
                 weight = std::stod(parts.at(5));
             }
 
-            edge_data e_data { .label = parts[2], .tail = tail, .head = head, .weight = weight };
+            std::string label = parts[2] == "<eps>" ? "<spe>" : parts[2];
+
+            edge_data e_data { .label = label, .tail = tail, .head = head, .weight = weight };
 
             result.edges.push_back(e_data);
 
@@ -131,8 +133,8 @@ namespace lattice {
             result.in_edges[head].push_back(e);
             result.out_edges[tail].push_back(e);
 
-            result.out_edges_map.at(tail)[parts[2]].push_back(e);
-            result.in_edges_map.at(head)[parts[2]].push_back(e);
+            result.out_edges_map.at(tail)[label].push_back(e);
+            result.in_edges_map.at(head)[label].push_back(e);
 
             if (max_time < result.vertices.at(head).time) {
                 max_time = result.vertices.at(head).time;
@@ -188,12 +190,61 @@ namespace lattice {
 
     std::vector<int> topo_order(lattice::fst const& fst)
     {
-        auto vertices = fst.vertices();
-        std::sort(vertices.begin(), vertices.end(),
-            [&](int v1, int v2) {
-                return fst.data->vertices.at(v1).time < fst.data->vertices.at(v2).time;
-            });
-        return vertices;
+        std::vector<int> order;
+        std::unordered_set<int> order_set;
+        std::vector<int> stack = fst.initials();
+        std::unordered_set<int> traversed { stack.begin(), stack.end() };
+
+        std::vector<int> path;
+
+        auto is_parent = [&](int u, int v) {
+            for (int e: fst.out_edges(u)) {
+                if (v == fst.head(e)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        while (stack.size() > 0) {
+            int u = stack.back();
+            stack.pop_back();
+
+            while (path.size() > 0 && !is_parent(path.back(), u)) {
+                int v = path.back();
+                if (!ebt::in(v, order_set)) {
+                    order.push_back(v);
+                    order_set.insert(v);
+                }
+                path.pop_back();
+            }
+
+            path.push_back(u);
+
+            for (int e: fst.out_edges(u)) {
+                int v = fst.head(e);
+
+                if (!ebt::in(v, traversed)) {
+                    stack.push_back(v);
+                    traversed.insert(v);
+                }
+            }
+        }
+
+        while (path.size() > 0) {
+            int v = path.back();
+            if (!ebt::in(v, order_set)) {
+                order.push_back(v);
+                order_set.insert(v);
+            }
+            order.push_back(v);
+            path.pop_back();
+        }
+
+        std::reverse(order.begin(), order.end());
+
+        return order;
     }
 
 }

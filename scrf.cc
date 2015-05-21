@@ -3,6 +3,7 @@
 #include <fstream>
 #include "ebt/ebt.h"
 #include "opt/opt.h"
+#include "scrf/weiran.h"
 
 namespace scrf {
 
@@ -1053,6 +1054,17 @@ namespace scrf {
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg)
     {
+        return make_feature(features, inputs, max_seg,
+            std::vector<real>(), std::vector<real>(), weiran::nn_t());
+    }
+
+    composite_feature make_feature(
+        std::vector<std::string> features,
+        std::vector<std::vector<real>> const& inputs, int max_seg,
+        std::vector<real> const& cm_mean,
+        std::vector<real> const& cm_stddev,
+        weiran::nn_t const& nn)
+    {
         composite_feature result;
     
         for (auto& v: features) {
@@ -1080,6 +1092,8 @@ namespace scrf {
                 result.features.push_back(std::make_shared<feature::lm_score>(feature::lm_score{}));
             } else if (v == "lattice-score") {
                 result.features.push_back(std::make_shared<feature::lattice_score>(feature::lattice_score{}));
+            } else if (v == "weiran") {
+                result.features.push_back(std::make_shared<weiran::weiran_feature>(weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn }));
             } else {
                 std::cout << "unknown feature type " << v << std::endl;
                 exit(1);
@@ -1121,6 +1135,8 @@ namespace scrf {
             } else if (v == "lm-score") {
                 lm_feat.features.push_back(feat.features[i]);
             } else if (v == "lattice-score") {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (v == "weiran") {
                 lattice_feat.features.push_back(feat.features[i]);
             } else {
                 std::cout << "unknown feature type " << v << std::endl;

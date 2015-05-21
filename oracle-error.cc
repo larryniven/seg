@@ -50,6 +50,15 @@ lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
         }
 
         {
+            lm::edge_data e_data { 0, 0, 0, "<eps>", "<eps2>"};
+            data.edges.push_back(e_data);
+            data.in_edges[0].push_back(data.edges.size() - 1);
+            data.in_edges_map[0]["<eps>"].push_back(data.edges.size() - 1);
+            data.out_edges[0].push_back(data.edges.size() - 1);
+            data.out_edges_map[0]["<eps>"].push_back(data.edges.size() - 1);
+        }
+
+        {
             lm::edge_data e_data { 0, 0, -1, "<eps1>", p1};
             data.edges.push_back(e_data);
             data.in_edges[0].push_back(data.edges.size() - 1);
@@ -115,7 +124,12 @@ void oracle_env::run()
         comp.fst2 = std::make_shared<lm::fst>(cost);
         comp.fst3 = std::make_shared<lattice::fst>(gold);
 
-        std::vector<std::tuple<int, int, int>> topo_order = comp.vertices();
+        std::vector<std::tuple<int, int, int>> topo_order;
+        for (auto& v: lattice::topo_order(lat)) {
+            for (auto& u: gold.vertices()) {
+                topo_order.push_back(std::make_tuple(v, 0, u));
+            }
+        }
 
         fst::one_best<decltype(comp)> one_best;
 
@@ -137,10 +151,10 @@ void oracle_env::run()
         error_sum += -max;
         length_sum += gold_edges;
         rate_sum += -max / gold_edges;
-        density_sum += lat_edges / gold_edges;
+        density_sum += double(lat_edges) / gold_edges;
 
         std::cout << ebt::format("error: {} length: {} rate: {} density: {}", -max,
-            gold.edges().size(), -max / gold.edges().size(), lat_edges / gold_edges) << std::endl;
+            gold_edges, -max / gold_edges, double(lat_edges) / gold_edges) << std::endl;
 
         ++i;
     }

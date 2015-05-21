@@ -814,6 +814,8 @@ namespace fst {
                 for (auto&& e: fst.in_edges(u)) {
                     vertex_type v = fst.tail(e);
 
+                    // std::cout << u << " " << v << " " << get_value(v) << " " << fst.input(e) << " " << fst.output(e) << std::endl;
+
                     real candidate_value = get_value(v) + fst.weight(e);
 
                     if (candidate_value > max) {

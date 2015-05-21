@@ -3,6 +3,7 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech-util/speech.h"
+#include "scrf/weiran.h"
 #include <fstream>
 
 struct prediction_env {
@@ -12,6 +13,11 @@ struct prediction_env {
     std::shared_ptr<lm::fst> lm;
     int max_seg;
     scrf::param_t param;
+
+    std::vector<real> cm_mean;
+    std::vector<real> cm_stddev;
+    weiran::param_t nn_param;
+    weiran::nn_t nn;
 
     std::vector<std::string> features;
 
@@ -36,6 +42,31 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
         max_seg = std::stoi(args.at("max-seg"));
     }
 
+    if (ebt::in(std::string("cm-mean"), args)) {
+        std::ifstream ifs { args.at("cm-mean") };
+        std::string line;
+        std::getline(ifs, line);
+        std::vector<std::string> parts = ebt::split(line);
+        for (auto& v: parts) {
+            cm_mean.push_back(std::stod(v));
+        }
+    }
+
+    if (ebt::in(std::string("cm-stddev"), args)) {
+        std::ifstream ifs { args.at("cm-stddev") };
+        std::string line;
+        std::getline(ifs, line);
+        std::vector<std::string> parts = ebt::split(line);
+        for (auto& v: parts) {
+            cm_stddev.push_back(std::stod(v));
+        }
+    }
+
+    if (ebt::in(std::string("nn-param"), args)) {
+        nn_param = weiran::load_param(args.at("nn-param"));
+        nn = weiran::make_nn(nn_param);
+    }
+
     param = scrf::load_param(args.at("param"));
     features = ebt::split(args.at("features"), ",");    
 }
@@ -51,7 +82,9 @@ void prediction_env::run()
 
         std::vector<std::vector<real>> inputs = speech::load_frames(input_file);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
+        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
+            cm_mean, cm_stddev, nn);
+
         scrf::linear_score graph_score { param, graph_feat_func };
 
         scrf::scrf_t graph;
@@ -105,7 +138,10 @@ int main(int argc, char *argv[])
             {"lm", "", true},
             {"max-seg", "", false},
             {"param", "", true},
-            {"features", "", true}
+            {"features", "", true},
+            {"cm-mean", "", false},
+            {"cm-stddev", "", false},
+            {"nn-param", "", false}
         }
     };
 

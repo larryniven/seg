@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech-util
+CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech-util -L ../autodiff
 
 bin = learn predict prune oracle-error
 
@@ -8,14 +8,14 @@ clean:
 	-rm *.o
 	-rm $(bin)
 
-learn: learn.o scrf.o lm.o lattice.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lebt
+learn: learn.o scrf.o lm.o lattice.o weiran.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lebt
 
-predict: predict.o scrf.o lm.o lattice.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lebt
+predict: predict.o scrf.o lm.o lattice.o weiran.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lebt
 
-prune: prune.o scrf.o lm.o lattice.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lebt
+prune: prune.o scrf.o lm.o lattice.o weiran.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lebt
 
 oracle-error: oracle-error.o scrf.o lm.o lattice.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lebt
@@ -27,3 +27,4 @@ learn.o: fst.h scrf.h util.h
 predict.o: fst.h scrf.h util.h
 prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
+weiran.o: weiran.h

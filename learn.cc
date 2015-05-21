@@ -3,6 +3,7 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech-util/speech.h"
+#include "scrf/weiran.h"
 #include <fstream>
 
 struct learning_env {
@@ -15,6 +16,11 @@ struct learning_env {
     scrf::param_t param;
     scrf::param_t opt_data;
     real step_size;
+
+    std::vector<real> cm_mean;
+    std::vector<real> cm_stddev;
+    weiran::param_t nn_param;
+    weiran::nn_t nn;
 
     std::vector<std::string> features;
 
@@ -40,6 +46,31 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         max_seg = std::stoi(args.at("max-seg"));
     }
 
+    if (ebt::in(std::string("cm-mean"), args)) {
+        std::ifstream ifs { args.at("cm-mean") };
+        std::string line;
+        std::getline(ifs, line);
+        std::vector<std::string> parts = ebt::split(line);
+        for (auto& v: parts) {
+            cm_mean.push_back(std::stod(v));
+        }
+    }
+
+    if (ebt::in(std::string("cm-stddev"), args)) {
+        std::ifstream ifs { args.at("cm-stddev") };
+        std::string line;
+        std::getline(ifs, line);
+        std::vector<std::string> parts = ebt::split(line);
+        for (auto& v: parts) {
+            cm_stddev.push_back(std::stod(v));
+        }
+    }
+
+    if (ebt::in(std::string("nn-param"), args)) {
+        nn_param = weiran::load_param(args.at("nn-param"));
+        nn = weiran::make_nn(nn_param);
+    }
+
     param = scrf::load_param(args.at("param"));
     opt_data = scrf::load_param(args.at("opt-data"));
     step_size = std::stod(args.at("step-size"));
@@ -60,7 +91,8 @@ void learning_env::run()
 
         std::cout << input_file << std::endl;
 
-        scrf::composite_feature gold_feat_func = scrf::make_feature(features, inputs, max_seg);
+        scrf::composite_feature gold_feat_func = scrf::make_feature(features, inputs, max_seg,
+            cm_mean, cm_stddev, nn);
 
         lattice::fst gold_lat = scrf::load_gold(gold_list);
         scrf::scrf_t gold = scrf::make_gold_scrf(gold_lat, lm);
@@ -74,7 +106,8 @@ void learning_env::run()
             scrf::make_weight(param, features, gold_feat_func));
         gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
+        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
+            cm_mean, cm_stddev, nn);
 
         scrf::scrf_t graph;
         if (ebt::in(std::string("lattice-list"), args)) {
@@ -166,7 +199,10 @@ int main(int argc, char *argv[])
             {"step-size", "", true},
             {"features", "", true},
             {"alpha", "filtering parameter", false},
-            {"loss", "hinge,filtering", true}
+            {"loss", "hinge,filtering", true},
+            {"cm-mean", "", false},
+            {"cm-stddev", "", false},
+            {"nn-param", "", false}
         }
     };
 
