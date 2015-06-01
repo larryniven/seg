@@ -162,10 +162,13 @@ namespace scrf {
             : public scrf_feature {
 
             std::vector<std::vector<real>> const& inputs;
+            int start_dim;
+            int end_dim;
 
             mutable std::unordered_map<int, std::vector<real>> feat_cache;
 
-            frame_avg(std::vector<std::vector<real>> const& inputs);
+            frame_avg(std::vector<std::vector<real>> const& inputs,
+                int start_dim = -1, int end_dim = -1);
 
             virtual void operator()(
                 param_t& feat,
@@ -178,8 +181,11 @@ namespace scrf {
 
             std::vector<std::vector<real>> const& inputs;
             int samples;
+            int start_dim;
+            int end_dim;
 
-            frame_samples(std::vector<std::vector<real>> const& inputs, int samples);
+            frame_samples(std::vector<std::vector<real>> const& inputs, int samples,
+                int start_dim = -1, int end_dim = -1);
 
             virtual void operator()(
                 param_t& feat,
@@ -191,10 +197,13 @@ namespace scrf {
             : public scrf_feature {
 
             std::vector<std::vector<real>> const& inputs;
+            int start_dim;
+            int end_dim;
 
             mutable std::unordered_map<int, std::vector<real>> feat_cache;
 
-            left_boundary(std::vector<std::vector<real>> const& inputs);
+            left_boundary(std::vector<std::vector<real>> const& inputs,
+                int start_dim = -1, int end_dim = -1);
 
             virtual void operator()(
                 param_t& feat,
@@ -206,10 +215,13 @@ namespace scrf {
             : public scrf_feature {
 
             std::vector<std::vector<real>> const& inputs;
+            int start_dim;
+            int end_dim;
 
             mutable std::unordered_map<int, std::vector<real>> feat_cache;
 
-            right_boundary(std::vector<std::vector<real>> const& inputs);
+            right_boundary(std::vector<std::vector<real>> const& inputs,
+                int start_dim = -1, int end_dim = -1);
 
             virtual void operator()(
                 param_t& feat,

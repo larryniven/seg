@@ -17,8 +17,8 @@ predict: predict.o scrf.o lm.o lattice.o weiran.o
 prune: prune.o scrf.o lm.o lattice.o weiran.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lebt
 
-oracle-error: oracle-error.o scrf.o lm.o lattice.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lebt
+oracle-error: oracle-error.o scrf.o lm.o lattice.o weiran.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lebt
 
 scrf.o: scrf.h fst.h lattice.h lm.h
 lm.o: lm.h

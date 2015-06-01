@@ -38,30 +38,41 @@ namespace weiran {
     nn_t make_nn(param_t const& param)
     {
         nn_t nn;
+        std::vector<real> v;
 
         auto h = autodiff::var();
-        std::vector<real> v;
-        v.resize(param.weight[0].front().size());
+        v.resize(param.weight[0].front().size(), 0);
         h->output = std::make_shared<std::vector<real>>(std::move(v));
         nn.layers.push_back(h);
 
-        for (int i = 0; i < param.weight.size() - 1; ++i) {
-            h = autodiff::logistic(autodiff::mult(autodiff::var(param.weight[i]), h));
-            std::vector<real> v;
-            v.resize(param.weight[i].size());
-            v.push_back(1);
-            h->output = std::make_shared<std::vector<real>>(std::move(v));
-            // std::cout << "layer " << i << ": " << param.weight[i].size() << " " << param.weight[i].front().size() << std::endl;
-            nn.layers.push_back(h);
-        }
+        auto f = autodiff::var();
+        v = std::vector<real>();
+        v.resize(param.weight[0].size(), 0);
+        f->output = std::make_shared<std::vector<real>>(std::move(v));
+
+        h = autodiff::relu(autodiff::add(
+            autodiff::mult(autodiff::var(param.weight[0]), h), f));
+        v = std::vector<real>();
+        v.resize(param.weight[0].size(), 0);
+        v.push_back(1);
+        h->output = std::make_shared<std::vector<real>>(std::move(v));
+        nn.layers.push_back(h);
+
+        // std::cout << param.weight[0].size() << " " << param.weight[0].front().size() << std::endl;
+        // std::cout << param.weight.back().size() << " " << param.weight.back().front().size() << std::endl;
 
         h = autodiff::logsoftmax(autodiff::mult(autodiff::var(param.weight.back()), h));
-        // std::cout << "layer " << param.weight.size() - 1 << ": " << param.weight.back().size() << " " << param.weight.back().front().size() << std::endl;
-        std::vector<real> w;
-        w.resize(param.weight.back().size());
-        w.push_back(1);
-        h->output = std::make_shared<std::vector<real>>(std::move(w));
+        v = std::vector<real>();
+        v.resize(param.weight.back().size(), 0);
+        h->output = std::make_shared<std::vector<real>>(std::move(v));
         nn.layers.push_back(h);
+
+        /*
+        std::cout << "make_nn" << std::endl;
+        for (int i = 0; i < nn.layers.size(); ++i) {
+            std::cout << i << " " << autodiff::get_output<std::vector<real>>(nn.layers.at(i)).size() << std::endl;
+        }
+        */
 
         return nn;
     }
@@ -86,9 +97,18 @@ namespace weiran {
         std::vector<std::vector<real>> const& frames,
         std::vector<real> const& cm_mean,
         std::vector<real> const& cm_stddev,
-        nn_t nn)
-        : frames(frames), cm_mean(cm_mean), cm_stddev(cm_stddev), nn(nn)
-    {}
+        nn_t nn,
+        int start_dim,
+        int end_dim)
+        : frames(frames), cm_mean(cm_mean), cm_stddev(cm_stddev), nn(nn), start_dim(start_dim), end_dim(end_dim)
+    {
+        if (start_dim == -1) {
+            start_dim = 0;
+        }
+        if (end_dim == -1) {
+            end_dim = frames.front().size() - 1;
+        }
+    }
 
     void weiran_feature::operator()(
         scrf::param_t& feat,
@@ -102,27 +122,22 @@ namespace weiran {
             int tail_time = std::min<int>(frames.size() - 1, std::max<int>(0, fst.fst1->data->vertices.at(tail).time));
             int head_time = std::min<int>(frames.size() - 1, std::max<int>(0, fst.fst1->data->vertices.at(head).time));
 
-            auto& f = frames.at((tail_time + head_time) / 2);
-            std::vector<real> v { f.begin() + 39, f.end() };
-            std::vector<real> cm_feat = speech::clarkson_moreno_feature(frames, tail_time, head_time, 39);
+            std::vector<real> cm_feat = speech::clarkson_moreno_feature(frames, tail_time, head_time, start_dim, end_dim);
 
             for (int i = 0; i < cm_mean.size(); ++i) {
                 cm_feat[i] = (cm_feat[i] - cm_mean[i]) / cm_stddev[i];
             }
 
-            v.insert(v.end(), cm_feat.begin(), cm_feat.end());
+            nn.layers.at(0)->output = std::make_shared<std::vector<real>>(std::move(cm_feat));
 
-            nn.layers.at(0)->output = std::make_shared<std::vector<real>>(std::move(v));
+            auto& f = frames.at((tail_time + head_time) / 2);
+            std::vector<real> cnn_mult_cache { f.begin() + 39, f.end() };
+            nn.layers.at(1)->children.at(0)->children.at(1)->output
+                = std::make_shared<std::vector<real>>(std::move(cnn_mult_cache));
 
             autodiff::eval(nn.layers.back(), autodiff::eval_funcs);
 
-            /*
-            for (int i = 0; i < nn.layers.size(); ++i) {
-                std::cout << "hidden " << i << ": " << autodiff::get_output<std::vector<real>>(nn.layers[i]).size() << std::endl;
-            }
-            */
-
-            feat_cache[std::get<0>(e)] = std::move(autodiff::get_output<std::vector<real>>(nn.layers.back()));
+            feat_cache[std::get<0>(e)] = autodiff::get_output<std::vector<real>>(nn.layers.back());
         }
 
         auto& u = feat.class_param["[lattice] " + fst.output(e)];

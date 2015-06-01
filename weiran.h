@@ -35,6 +35,8 @@ namespace weiran {
         std::vector<real> const& cm_mean;
         std::vector<real> const& cm_stddev;
         nn_t nn;
+        int start_dim;
+        int end_dim;
 
         mutable std::unordered_map<int, std::vector<real>> feat_cache;
 
@@ -42,7 +44,9 @@ namespace weiran {
             std::vector<std::vector<real>> const& frames,
             std::vector<real> const& cm_mean,
             std::vector<real> const& cm_stddev,
-            nn_t nn);
+            nn_t nn,
+            int start_dim = -1,
+            int end_dim = -1);
 
         virtual void operator()(
             scrf::param_t& feat,

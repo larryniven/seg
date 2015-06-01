@@ -273,9 +273,17 @@ namespace scrf {
             }
         }
 
-        frame_avg::frame_avg(std::vector<std::vector<real>> const& inputs)
-            : inputs(inputs)
-        {}
+        frame_avg::frame_avg(std::vector<std::vector<real>> const& inputs,
+            int start_dim, int end_dim)
+            : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (start_dim == -1) {
+                start_dim = 0;
+            }
+            if (end_dim == -1) {
+                end_dim = inputs.front().size() - 1;
+            }
+        }
 
         void frame_avg::operator()(
             param_t& feat,
@@ -303,7 +311,7 @@ namespace scrf {
                 for (int i = tail_time; i < head_time; ++i) {
                     auto const& v = inputs.at(i);
 
-                    for (int j = 0; j < v.size(); ++j) {
+                    for (int j = start_dim; j < end_dim + 1; ++j) {
                         avg[j] += v.at(j);
                     }
                 }
@@ -320,9 +328,16 @@ namespace scrf {
         }
 
         frame_samples::frame_samples(std::vector<std::vector<real>> const& inputs,
-            int samples)
-            : inputs(inputs), samples(samples)
-        {}
+            int samples, int start_dim, int end_dim)
+            : inputs(inputs), samples(samples), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (start_dim == -1) {
+                start_dim = 0;
+            }
+            if (end_dim == -1) {
+                end_dim = inputs.front().size() - 1;
+            }
+        }
 
         void frame_samples::operator()(
             param_t& feat,
@@ -341,13 +356,21 @@ namespace scrf {
             auto& v = feat.class_param["[lattice] " + fst.output(e)];
             for (int i = 0; i < samples; ++i) {
                 auto& u = inputs.at(std::min<int>(std::floor(tail_time + (i + 0.5) * span), inputs.size() - 1));
-                v.insert(v.end(), u.begin(), u.end());
+                v.insert(v.end(), u.begin() + start_dim, u.end() + end_dim + 1);
             }
         }
 
-        left_boundary::left_boundary(std::vector<std::vector<real>> const& inputs)
-            : inputs(inputs)
-        {}
+        left_boundary::left_boundary(std::vector<std::vector<real>> const& inputs,
+            int start_dim, int end_dim)
+            : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (start_dim == -1) {
+                start_dim = 0;
+            }
+            if (end_dim == -1) {
+                end_dim = inputs.front().size() - 1;
+            }
+        }
 
         void left_boundary::operator()(
             param_t& feat,
@@ -378,16 +401,24 @@ namespace scrf {
             std::vector<real> f;
             for (int i = 0; i < 3; ++i) {
                 auto& tail_u = inputs.at(std::min<int>(inputs.size() - 1, std::max<int>(tail_time - i, 0)));
-                f.insert(f.end(), tail_u.begin(), tail_u.end());
+                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.end() + end_dim + 1);
             }
             v.insert(v.end(), f.begin(), f.end());
 
             feat_cache[tail_time] = std::move(f);
         }
 
-        right_boundary::right_boundary(std::vector<std::vector<real>> const& inputs)
+        right_boundary::right_boundary(std::vector<std::vector<real>> const& inputs,
+            int start_dim, int end_dim)
             : inputs(inputs)
-        {}
+        {
+            if (start_dim == -1) {
+                start_dim = 0;
+            }
+            if (end_dim == -1) {
+                end_dim = inputs.front().size() - 1;
+            }
+        }
 
         void right_boundary::operator()(
             param_t& feat,
@@ -418,7 +449,7 @@ namespace scrf {
             std::vector<real> f;
             for (int i = 0; i < 3; ++i) {
                 auto& tail_u = inputs.at(std::min<int>(head_time + i, inputs.size() - 1));
-                f.insert(f.end(), tail_u.begin(), tail_u.end());
+                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.end() + end_dim + 1);
             }
             v.insert(v.end(), f.begin(), f.end());
 
@@ -1068,32 +1099,69 @@ namespace scrf {
         composite_feature result;
     
         for (auto& v: features) {
-            if (v == "frame-avg") {
-                result.features.push_back(std::make_shared<feature::frame_avg>(
-                    feature::frame_avg { inputs }));
-            } else if (v == "frame-samples") {
-                result.features.push_back(std::make_shared<feature::frame_samples>(
-                    feature::frame_samples { inputs, 3 }));
-            } else if (v == "left-boundary") {
-                result.features.push_back(std::make_shared<feature::left_boundary>(
-                    feature::left_boundary { inputs }));
-            } else if (v == "right-boundary") {
-                result.features.push_back(std::make_shared<feature::right_boundary>(
-                    feature::right_boundary { inputs }));
-            } else if (v == "length-indicator") {
+            if (ebt::startswith(v, "frame-avg")) {
+                std::vector<std::string> parts = ebt::split(v, ":");
+                if (parts.size() == 2) {
+                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    result.features.push_back(std::make_shared<feature::frame_avg>(
+                        feature::frame_avg { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                } else {
+                    result.features.push_back(std::make_shared<feature::frame_avg>(
+                        feature::frame_avg { inputs }));
+                }
+            } else if (ebt::startswith(v, "frame-samples")) {
+                std::vector<std::string> parts = ebt::split(v, ":");
+                if (parts.size() == 2) {
+                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    result.features.push_back(std::make_shared<feature::frame_samples>(
+                        feature::frame_samples { inputs, 3, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                } else {
+                    result.features.push_back(std::make_shared<feature::frame_samples>(
+                        feature::frame_samples { inputs, 3 }));
+                }
+            } else if (ebt::startswith(v, "left-boundary")) {
+                std::vector<std::string> parts = ebt::split(v, ":");
+                if (parts.size() == 2) {
+                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    result.features.push_back(std::make_shared<feature::left_boundary>(
+                        feature::left_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                } else {
+                    result.features.push_back(std::make_shared<feature::left_boundary>(
+                        feature::left_boundary { inputs }));
+                }
+            } else if (ebt::startswith(v, "right-boundary")) {
+                std::vector<std::string> parts = ebt::split(v, ":");
+                if (parts.size() == 2) {
+                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    result.features.push_back(std::make_shared<feature::right_boundary>(
+                        feature::right_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                } else {
+                    result.features.push_back(std::make_shared<feature::right_boundary>(
+                        feature::right_boundary { inputs }));
+                }
+            } else if (ebt::startswith(v, "length-indicator")) {
                 result.features.push_back(std::make_shared<feature::length_indicator>(
                     feature::length_indicator { max_seg }));
-            } else if (v == "length-value") {
+            } else if (ebt::startswith(v, "length-value")) {
                 result.features.push_back(std::make_shared<feature::length_value>(
                     feature::length_value { max_seg }));
-            } else if (v == "bias") {
+            } else if (ebt::startswith(v, "bias")) {
                 result.features.push_back(std::make_shared<feature::bias>(feature::bias{}));
-            } else if (v == "lm-score") {
+            } else if (ebt::startswith(v, "lm-score")) {
                 result.features.push_back(std::make_shared<feature::lm_score>(feature::lm_score{}));
-            } else if (v == "lattice-score") {
+            } else if (ebt::startswith(v, "lattice-score")) {
                 result.features.push_back(std::make_shared<feature::lattice_score>(feature::lattice_score{}));
-            } else if (v == "weiran") {
-                result.features.push_back(std::make_shared<weiran::weiran_feature>(weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn }));
+            } else if (ebt::startswith(v, "weiran")) {
+                std::vector<std::string> parts = ebt::split(v, ":");
+                if (parts.size() == 2) {
+                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    result.features.push_back(std::make_shared<weiran::weiran_feature>(
+                        weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn,
+                        std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                } else {
+                    result.features.push_back(std::make_shared<weiran::weiran_feature>(
+                        weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn }));
+                }
             } else {
                 std::cout << "unknown feature type " << v << std::endl;
                 exit(1);
@@ -1118,25 +1186,25 @@ namespace scrf {
         for (int i = 0; i < features.size(); ++i) {
             auto& v = features[i];
 
-            if (v == "frame-avg") {
+            if (ebt::startswith(v, "frame-avg")) {
                 lattice_feat.features.push_back(feat.features[i]);
-            } else if (v == "frame-samples") {
+            } else if (ebt::startswith(v, "frame-samples")) {
                 lattice_feat.features.push_back(feat.features[i]);
-            } else if (v == "left-boundary") {
+            } else if (ebt::startswith(v, "left-boundary")) {
                 rest_feat.features.push_back(feat.features[i]);
-            } else if (v == "right-boundary") {
+            } else if (ebt::startswith(v, "right-boundary")) {
                 rest_feat.features.push_back(feat.features[i]);
-            } else if (v == "length-indicator") {
+            } else if (ebt::startswith(v, "length-indicator")) {
                 lattice_feat.features.push_back(feat.features[i]);
-            } else if (v == "length-value") {
+            } else if (ebt::startswith(v, "length-value")) {
                 lattice_feat.features.push_back(feat.features[i]);
-            } else if (v == "bias") {
+            } else if (ebt::startswith(v, "bias")) {
                 label_feat.features.push_back(feat.features[i]);
-            } else if (v == "lm-score") {
+            } else if (ebt::startswith(v, "lm-score")) {
                 lm_feat.features.push_back(feat.features[i]);
-            } else if (v == "lattice-score") {
+            } else if (ebt::startswith(v, "lattice-score")) {
                 lattice_feat.features.push_back(feat.features[i]);
-            } else if (v == "weiran") {
+            } else if (ebt::startswith(v, "weiran")) {
                 lattice_feat.features.push_back(feat.features[i]);
             } else {
                 std::cout << "unknown feature type " << v << std::endl;
