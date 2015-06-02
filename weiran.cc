@@ -102,11 +102,11 @@ namespace weiran {
         int end_dim)
         : frames(frames), cm_mean(cm_mean), cm_stddev(cm_stddev), nn(nn), start_dim(start_dim), end_dim(end_dim)
     {
-        if (start_dim == -1) {
-            start_dim = 0;
+        if (this->start_dim == -1) {
+            this->start_dim = 0;
         }
-        if (end_dim == -1) {
-            end_dim = frames.front().size() - 1;
+        if (this->end_dim == -1) {
+            this->end_dim = frames.front().size() - 1;
         }
     }
 
@@ -122,7 +122,8 @@ namespace weiran {
             int tail_time = std::min<int>(frames.size() - 1, std::max<int>(0, fst.fst1->data->vertices.at(tail).time));
             int head_time = std::min<int>(frames.size() - 1, std::max<int>(0, fst.fst1->data->vertices.at(head).time));
 
-            std::vector<real> cm_feat = speech::clarkson_moreno_feature(frames, tail_time, head_time, start_dim, end_dim);
+            std::vector<real> cm_feat = speech::clarkson_moreno_feature(frames, tail_time,
+                head_time, start_dim, start_dim + 38);
 
             for (int i = 0; i < cm_mean.size(); ++i) {
                 cm_feat[i] = (cm_feat[i] - cm_mean[i]) / cm_stddev[i];
@@ -131,7 +132,7 @@ namespace weiran {
             nn.layers.at(0)->output = std::make_shared<std::vector<real>>(std::move(cm_feat));
 
             auto& f = frames.at((tail_time + head_time) / 2);
-            std::vector<real> cnn_mult_cache { f.begin() + 39, f.end() };
+            std::vector<real> cnn_mult_cache { f.begin() + 39 + start_dim, f.begin() + end_dim + 1 };
             nn.layers.at(1)->children.at(0)->children.at(1)->output
                 = std::make_shared<std::vector<real>>(std::move(cnn_mult_cache));
 

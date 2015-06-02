@@ -277,11 +277,11 @@ namespace scrf {
             int start_dim, int end_dim)
             : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
         {
-            if (start_dim == -1) {
-                start_dim = 0;
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
             }
-            if (end_dim == -1) {
-                end_dim = inputs.front().size() - 1;
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
             }
         }
 
@@ -331,11 +331,11 @@ namespace scrf {
             int samples, int start_dim, int end_dim)
             : inputs(inputs), samples(samples), start_dim(start_dim), end_dim(end_dim)
         {
-            if (start_dim == -1) {
-                start_dim = 0;
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
             }
-            if (end_dim == -1) {
-                end_dim = inputs.front().size() - 1;
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
             }
         }
 
@@ -356,7 +356,7 @@ namespace scrf {
             auto& v = feat.class_param["[lattice] " + fst.output(e)];
             for (int i = 0; i < samples; ++i) {
                 auto& u = inputs.at(std::min<int>(std::floor(tail_time + (i + 0.5) * span), inputs.size() - 1));
-                v.insert(v.end(), u.begin() + start_dim, u.end() + end_dim + 1);
+                v.insert(v.end(), u.begin() + start_dim, u.begin() + end_dim + 1);
             }
         }
 
@@ -364,11 +364,11 @@ namespace scrf {
             int start_dim, int end_dim)
             : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
         {
-            if (start_dim == -1) {
-                start_dim = 0;
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
             }
-            if (end_dim == -1) {
-                end_dim = inputs.front().size() - 1;
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
             }
         }
 
@@ -401,7 +401,7 @@ namespace scrf {
             std::vector<real> f;
             for (int i = 0; i < 3; ++i) {
                 auto& tail_u = inputs.at(std::min<int>(inputs.size() - 1, std::max<int>(tail_time - i, 0)));
-                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.end() + end_dim + 1);
+                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.begin() + end_dim + 1);
             }
             v.insert(v.end(), f.begin(), f.end());
 
@@ -410,13 +410,13 @@ namespace scrf {
 
         right_boundary::right_boundary(std::vector<std::vector<real>> const& inputs,
             int start_dim, int end_dim)
-            : inputs(inputs)
+            : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
         {
-            if (start_dim == -1) {
-                start_dim = 0;
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
             }
-            if (end_dim == -1) {
-                end_dim = inputs.front().size() - 1;
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
             }
         }
 
@@ -449,7 +449,7 @@ namespace scrf {
             std::vector<real> f;
             for (int i = 0; i < 3; ++i) {
                 auto& tail_u = inputs.at(std::min<int>(head_time + i, inputs.size() - 1));
-                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.end() + end_dim + 1);
+                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.begin() + end_dim + 1);
             }
             v.insert(v.end(), f.begin(), f.end());
 
@@ -1102,7 +1102,7 @@ namespace scrf {
             if (ebt::startswith(v, "frame-avg")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
-                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    std::vector<std::string> indices = ebt::split(parts.back(), "-");
                     result.features.push_back(std::make_shared<feature::frame_avg>(
                         feature::frame_avg { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
@@ -1112,7 +1112,7 @@ namespace scrf {
             } else if (ebt::startswith(v, "frame-samples")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
-                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    std::vector<std::string> indices = ebt::split(parts.back(), "-");
                     result.features.push_back(std::make_shared<feature::frame_samples>(
                         feature::frame_samples { inputs, 3, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
@@ -1122,7 +1122,7 @@ namespace scrf {
             } else if (ebt::startswith(v, "left-boundary")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
-                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    std::vector<std::string> indices = ebt::split(parts.back(), "-");
                     result.features.push_back(std::make_shared<feature::left_boundary>(
                         feature::left_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
@@ -1132,7 +1132,7 @@ namespace scrf {
             } else if (ebt::startswith(v, "right-boundary")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
-                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    std::vector<std::string> indices = ebt::split(parts.back(), "-");
                     result.features.push_back(std::make_shared<feature::right_boundary>(
                         feature::right_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
@@ -1154,7 +1154,7 @@ namespace scrf {
             } else if (ebt::startswith(v, "weiran")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
-                    std::vector<std::string> indices = ebt::split(parts.front(), "-");
+                    std::vector<std::string> indices = ebt::split(parts.back(), "-");
                     result.features.push_back(std::make_shared<weiran::weiran_feature>(
                         weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn,
                         std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
