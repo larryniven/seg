@@ -1,7 +1,7 @@
 #include "scrf/weiran.h"
 #include <fstream>
 #include "ebt/ebt.h"
-#include "speech-util/speech.h"
+#include "speech/speech.h"
 
 namespace weiran {
 
@@ -117,7 +117,7 @@ namespace weiran {
     {
         if (!ebt::in(std::get<0>(e), feat_cache)) {
             int tail = std::get<0>(fst.tail(e));
-            int head = std::get<1>(fst.head(e));
+            int head = std::get<0>(fst.head(e));
 
             int tail_time = std::min<int>(frames.size() - 1, std::max<int>(0, fst.fst1->data->vertices.at(tail).time));
             int head_time = std::min<int>(frames.size() - 1, std::max<int>(0, fst.fst1->data->vertices.at(head).time));

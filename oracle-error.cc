@@ -2,7 +2,7 @@
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
-#include "speech-util/speech.h"
+#include "speech/speech.h"
 #include <fstream>
 
 struct oracle_env {

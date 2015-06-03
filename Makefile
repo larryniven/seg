@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech-util -L ../autodiff
+CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff
 
 bin = learn predict prune oracle-error
 
