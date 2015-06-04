@@ -1081,6 +1081,77 @@ namespace scrf {
         return result;
     }
 
+    hinge_loss_beam::hinge_loss_beam(fst::path<scrf_t> const& gold, scrf_t const& graph,
+        int beam_width)
+        : gold(gold), graph(graph), beam_width(beam_width)
+    {
+        fst::beam_search<scrf_t> beam_search;
+        beam_search.search(graph, beam_width);
+        graph_path = beam_search.best_path(graph);
+
+        if (graph_path.edges().size() == 0) {
+            std::cout << "no cost aug path" << std::endl;
+            exit(1);
+        }
+    }
+
+    real hinge_loss_beam::loss()
+    {
+        real gold_score = 0;
+
+        std::cout << "gold: ";
+        for (auto& e: gold.edges()) {
+            std::cout << gold.output(e) << " ";
+            gold_score += gold.weight(e);
+        }
+        std::cout << std::endl;
+
+        std::cout << "gold score: " << gold_score << std::endl;
+
+        real graph_score = 0;
+
+        std::cout << "cost aug: ";
+        for (auto& e: graph_path.edges()) {
+            std::cout << graph.output(e) << " ";
+            graph_score += graph_path.weight(e);
+        }
+        std::cout << std::endl;
+
+        std::cout << "cost aug score: " << graph_score << std::endl; 
+
+        return graph_score - gold_score;
+    }
+
+    param_t hinge_loss_beam::param_grad()
+    {
+        param_t result;
+
+        auto const& gold_feat = *(gold.data->base_fst->feature_func);
+
+        for (auto& e: gold.edges()) {
+            param_t p;
+            gold_feat(p, *(gold.data->base_fst->fst), e);
+
+            result -= p;
+        }
+
+        // std::cout << result.class_param.at("<s>") << std::endl;
+
+        auto const& graph_feat = *(graph.feature_func);
+
+        for (auto& e: graph_path.edges()) {
+            param_t p;
+            graph_feat(p, *(graph_path.data->base_fst->fst), e);
+
+            result += p;
+        }
+
+        // std::cout << "grad of <s>: " << result.class_param.at("<s>") << std::endl;
+        // std::cout << "grad of </s>: " << result.class_param.at("</s>") << std::endl;
+
+        return result;
+    }
+
     composite_feature make_feature(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg)
@@ -1224,288 +1295,5 @@ namespace scrf {
 
         return result;
     }
-
-#if 0
-    lattice::fst make_lattice(
-        std::vector<std::vector<real>> acoustics,
-        std::unordered_set<std::string> phone_set,
-        int seg_size)
-    {
-        lattice::fst_data result;
-
-        result.initial = 0;
-        result.final = acoustics.size();
-
-        for (int i = 0; i <= acoustics.size(); ++i) {
-            lattice::vertex_data v_data;
-            v_data.time = i;
-            result.vertices.push_back(v_data);
-        }
-
-        for (int i = 0; i <= acoustics.size(); ++i) {
-            for (auto& p: phone_set) {
-                if (p == "<eps>") {
-                    continue;
-                }
-
-                for (int j = 1; j <= seg_size && i + j <= acoustics.size(); ++j) {
-                    int tail = i;
-                    int head = i + j;
-
-                    result.edges.push_back(lattice::edge_data { .label = p,
-                        .tail = tail, .head = head });
-
-                    if (std::max(tail, head) >= int(result.in_edges.size()) - 1) {
-                        result.in_edges.resize(std::max(tail, head) + 1);
-                        result.out_edges.resize(std::max(tail, head) + 1);
-                        result.in_edges_map.resize(std::max(tail, head) + 1);
-                        result.out_edges_map.resize(std::max(tail, head) + 1);
-                    }
-
-                    result.in_edges[head].push_back(int(result.edges.size()) - 1);
-                    result.out_edges[tail].push_back(int(result.edges.size()) - 1);
-
-                    result.out_edges_map.at(tail)[p].push_back(result.edges.size() - 1);
-                    result.in_edges_map.at(head)[p].push_back(result.edges.size() - 1);
-                }
-            }
-        }
-
-        lattice::fst f;
-        f.data = std::make_shared<lattice::fst_data>(std::move(result));
-    
-        return f;
-    }
-
-    void forward_backward_alg::forward_score(scrf const& s)
-    {
-        alpha.reserve(s.topo_order.size());
-        real inf = std::numeric_limits<real>::infinity();
-
-        alpha[s.topo_order.front()] = 0;
-
-        for (int i = 1; i < s.topo_order.size(); ++i) {
-            auto const& u = s.topo_order.at(i);
-
-            real value = -std::numeric_limits<real>::infinity();
-            for (auto& e: s.in_edges(u)) {
-                std::tuple<int, int> v = s.tail(e);
-                if (alpha.at(v) != -inf) {
-                    value = ebt::log_add(value, alpha.at(v) + s.weight(e));
-                }
-            }
-            alpha[u] = value;
-        }
-    }
-
-    void forward_backward_alg::backward_score(scrf const& s)
-    {
-        beta.reserve(s.topo_order.size());
-        real inf = std::numeric_limits<real>::infinity();
-
-        beta[s.topo_order.back()] = 0;
-        for (int i = s.topo_order.size() - 2; i >= 0; --i) {
-            auto const& u = s.topo_order.at(i);
-
-            real value = -std::numeric_limits<real>::infinity();
-            for (auto& e: s.out_edges(u)) {
-                std::tuple<int, int> v = s.head(e);
-                if (beta.at(v) != -inf) {
-                    value = ebt::log_add(value, beta.at(v) + s.weight(e));
-                }
-            }
-            beta[u] = value;
-        }
-    }
-
-    std::unordered_map<std::string, std::vector<real>>
-    forward_backward_alg::feature_expectation(scrf const& s)
-    {
-        /*
-        real logZ = alpha.at(s.final());
-        auto const& feat_func = *(s.feature_func);
-        real inf = std::numeric_limits<real>::infinity();
-
-        std::unordered_map<std::string, std::vector<real>> result;
-
-        for (auto& p2: fst2_edge_index) {
-            for (auto& e1: s.fst->fst1->edges()) {
-                auto const& feat = feat_func();
-
-                real prob_sum = -inf;
-
-                for (auto& e2: p2.second) {
-                    auto e = std::make_tuple(e1, e2);
-
-                    auto tail = s.tail(e);
-                    auto head = s.head(e);
-
-                    if (alpha.at(tail) == -inf || beta.at(head) == -inf) {
-                        continue;
-                    }
-
-                    real prob = alpha.at(tail) + beta.at(head) + s.weight(e) - logZ;
-                    prob_sum = ebt::log_add(prob, prob_sum);
-                }
-
-                prob_sum = std::exp(prob_sum);
-
-                for (auto& p: feat) {
-                    result[p.first].resize(p.second.size());
-                    auto& v = result.at(p.first);
-                    for (int i = 0; i < p.second.size(); ++i) {
-                        v.at(i) += p.second.at(i) * prob_sum;
-                    }
-                }
-            }
-        }
-
-        return result;
-        */
-    }
-
-    log_loss::log_loss(fst::path<scrf> const& gold, scrf const& lat)
-        : gold(gold), lat(lat)
-    {
-        fb.forward_score(lat);
-        fb.backward_score(lat);
-        std::cout << fb.alpha.at(lat.final()) << " " << fb.beta.at(lat.initial()) << std::endl;
-    }
-
-    real log_loss::loss()
-    {
-        real sum = 0;
-        for (auto& e: gold.edges()) {
-            sum += gold.weight(e);
-        }
-
-        return -sum + fb.alpha.at(lat.final());
-    }
-
-    std::unordered_map<std::string, std::vector<real>> const& log_loss::model_grad()
-    {
-        /*
-        result.clear();
-
-        auto const& gold_feat = *(gold.data->base_fst->feature_func);
-
-        for (auto& e: gold.edges()) {
-            for (auto& p: gold_feat(e)) {
-                result[p.first].resize(p.second.size());
-                auto& v = result.at(p.first);
-                for (int i = 0; i < p.second.size(); ++i) {
-                    v.at(i) -= p.second.at(i);
-                }
-            }
-        }
-
-        auto const& graph_feat = fb.feature_expectation(lat);
-
-        for (auto& p: graph_feat) {
-            result[p.first].resize(p.second.size());
-            auto& v = result.at(p.first);
-            for (int i = 0; i < p.second.size(); ++i) {
-                v.at(i) += p.second.at(i);
-            }
-        }
-
-        return result;
-        */
-    }
-
-    frame_feature::frame_feature(std::vector<std::vector<real>> const& inputs)
-        : inputs(inputs)
-    {
-        cache.reserve(4000);
-    }
-
-    std::unordered_map<std::string, std::vector<real>> const&
-    frame_feature::operator()(std::string const& y, int start_time, int end_time) const
-    {
-        auto k = std::make_tuple(start_time, end_time);
-
-        if (ebt::in(k, cache)) {
-            auto& m = cache.at(k);
-
-            std::string ell;
-
-            for (auto& p: m) {
-                if (p.first != "shared") {
-                    ell = p.first;
-                    break;
-                }
-            }
-
-            std::vector<real> vec = std::move(m.at(ell));
-
-            m[y] = std::move(vec);
-
-            return m;
-        }
-
-        std::unordered_map<std::string, std::vector<real>> result;
-
-        real span = (end_time - start_time) / 10;
-
-        auto& vec = result[y];
-
-        for (int i = 0; i < 10; ++i) {
-            int frame = std::floor(start_time + (i + 0.5) * span);
-
-            vec.insert(vec.end(), inputs.at(frame).begin(), inputs.at(frame).end());
-        }
-
-        cache[k] = std::move(result);
-
-        return cache.at(k);
-    }
-
-    frame_score::frame_score(frame_feature const& feat, param_t const& model)
-        : feat(feat), model(model)
-    {
-        cache.reserve(3000000);
-    }
-
-    real frame_score::operator()(std::string const& y, int start_time, int end_time) const
-    {
-        auto k = std::make_tuple(y, start_time, end_time);
-
-        if (ebt::in(k, cache)) {
-            return cache.at(k);
-        }
-
-        real sum = 0;
-        for (auto& p: feat(y, start_time, end_time)) {
-            auto const& w = model.weights.at(p.first);
-
-            for (int i = 0; i < p.second.size(); ++i) {
-                sum += w.at(i) * p.second.at(i);
-            }
-        }
-
-        cache[k] = sum;
-
-        return sum;
-    }
-
-    linear_score::linear_score(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-        frame_score const& f_score)
-        : fst(fst), f_score(f_score)
-    {
-    }
-
-    real linear_score::operator()(std::tuple<int, int> const& e) const
-    {
-        auto const& lat = *(fst.fst1);
-
-        int tail = lat.tail(std::get<0>(e));
-        int head = lat.head(std::get<0>(e));
-
-        int tail_time = lat.data->vertices.at(tail).time;
-        int head_time = lat.data->vertices.at(head).time;
-
-        return f_score(fst.output(e), tail_time, head_time);
-    }
-#endif
 
 }

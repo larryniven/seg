@@ -721,8 +721,10 @@ namespace fst {
         {
             ebt::MaxHeap<vertex_type, real> to_expand;
 
-            to_expand.insert(fst.initial(), 0);
-            score[fst.initial()] = 0;
+            for (auto& i: fst.initials()) {
+                to_expand.insert(i, 0);
+                score[i] = 0;
+            }
 
             real inf = std::numeric_limits<real>::infinity();
 
@@ -750,12 +752,21 @@ namespace fst {
             }
         }
 
-        path<fst_type> backtrack(fst_type& fst, vertex_type const& v)
+        path<fst_type> best_path(fst_type const& fst)
         {
-            path_data<fst_type> result { fst };
+            path_data<fst_type> result { &fst };
 
-            result.final = v;
-            result.vertices.push_back(v);
+            double inf = std::numeric_limits<double>::infinity();
+            double max = -inf;
+            vertex_type argmax;
+            for (auto& f: fst.finals()) {
+                if (ebt::get(score, f, -inf) > max) {
+                    max = ebt::get(score, f, -inf);
+                    argmax = f;
+                }
+            }
+            result.finals.push_back(argmax);
+            result.vertices.push_back(argmax);
 
             auto add_edge = [&](edge_type const& e) {
                 result.vertices.push_back(fst.tail(e));
@@ -764,13 +775,13 @@ namespace fst {
                 result.out_edges[fst.tail(e)].push_back(e);
             };
 
-            auto u = v;
+            auto u = argmax;
             while (ebt::in(u, pi)) {
                 add_edge(pi.at(u));
                 u = fst.tail(pi.at(u));
             }
 
-            result.initial = u;
+            result.initials.push_back(u);
 
             std::reverse(result.edges.begin(), result.edges.end());
 

@@ -22,6 +22,8 @@ struct learning_env {
     weiran::param_t nn_param;
     weiran::nn_t nn;
 
+    int beam_width;
+
     std::vector<std::string> features;
 
     std::unordered_map<std::string, std::string> args;
@@ -74,6 +76,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     param = scrf::load_param(args.at("param"));
     opt_data = scrf::load_param(args.at("opt-data"));
     step_size = std::stod(args.at("step-size"));
+
+    if (ebt::in(std::string("beam-width"), args)) {
+        beam_width = std::stoi(args.at("beam-width"));
+    }
 
     features = ebt::split(args.at("features"), ",");
 }
@@ -144,6 +150,8 @@ void learning_env::run()
         std::shared_ptr<scrf::loss_func> loss_func;
         if (args.at("loss") == "hinge") {
              loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
+        } else if (args.at("loss") == "hinge-beam") {
+             loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
         } else if (args.at("loss") == "filtering") {
              real alpha = std::stod(args.at("alpha"));
              loss_func = std::make_shared<scrf::filtering_loss>(scrf::filtering_loss { gold_path, graph, alpha });
@@ -202,7 +210,8 @@ int main(int argc, char *argv[])
             {"loss", "hinge,filtering", true},
             {"cm-mean", "", false},
             {"cm-stddev", "", false},
-            {"nn-param", "", false}
+            {"nn-param", "", false},
+            {"beam-width", "", false}
         }
     };
 

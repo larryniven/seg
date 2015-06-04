@@ -409,6 +409,20 @@ namespace scrf {
         virtual param_t param_grad() override;
     };
 
+    struct hinge_loss_beam
+        : public loss_func {
+
+        fst::path<scrf_t> const& gold;
+        scrf_t const& graph;
+        fst::path<scrf_t> graph_path;
+        int beam_width;
+
+        hinge_loss_beam(fst::path<scrf_t> const& gold, scrf_t const& graph, int beam_width);
+
+        virtual real loss() override;
+        virtual param_t param_grad() override;
+    };
+
     composite_feature make_feature(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg);
@@ -428,70 +442,6 @@ namespace scrf {
         std::vector<std::vector<real>> acoustics,
         std::unordered_set<std::string> phone_set,
         int seg_size);
-
-#if 0
-    struct forward_backward_alg {
-
-        std::unordered_map<std::tuple<int, int>, real> alpha;
-        std::unordered_map<std::tuple<int, int>, real> beta;
-
-        void forward_score(scrf const& s);
-        void backward_score(scrf const& s);
-
-        std::unordered_map<std::string, std::vector<real>> feature_expectation(scrf const& s);
-    };
-
-    struct log_loss {
-
-        fst::path<scrf> const& gold;
-        scrf const& lat;
-        forward_backward_alg fb;
-
-        std::unordered_map<std::string, std::vector<real>> result;
-
-        log_loss(fst::path<scrf> const& gold, scrf const& lat);
-
-        real loss();
-        std::unordered_map<std::string, std::vector<real>> const& model_grad();
-
-    };
-
-    struct frame_feature {
-        std::vector<std::vector<real>> const& inputs;
-
-        mutable std::unordered_map<std::tuple<int, int>,
-            std::unordered_map<std::string, std::vector<real>>> cache;
-
-        frame_feature(std::vector<std::vector<real>> const& inputs);
-
-        std::unordered_map<std::string, std::vector<real>> const&
-        operator()(std::string const& y, int start_time, int end_time) const;
-    };
-
-    struct frame_score {
-        frame_feature const& feat;
-        param_t const& model;
-
-        mutable std::unordered_map<std::tuple<std::string, int, int>, real> cache;
-
-        frame_score(frame_feature const& feat, param_t const& model);
-
-        real operator()(std::string const& y, int start_time, int end_time) const;
-    };
-
-    struct linear_score
-        : public scrf_weight {
-
-        fst::composed_fst<lattice::fst, lm::fst> const& fst;
-        frame_score const& f_score;
-
-        linear_score(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            frame_score const& f_score);
-
-        virtual real operator()(std::tuple<int, int> const& e) const override;
-
-    };
-#endif
 
 }
 
