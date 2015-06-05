@@ -735,6 +735,7 @@ namespace fst {
 
                 while (to_expand.size()) {
                     auto v = to_expand.extract_max();
+                    to_expand_set.erase(v);
 
                     for (auto& e: fst.out_edges(v)) {
                         vertex_type const& head = fst.head(e);
