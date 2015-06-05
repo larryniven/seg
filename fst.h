@@ -720,6 +720,7 @@ namespace fst {
         void search(fst_type const& fst, int top_k)
         {
             ebt::MaxHeap<vertex_type, real> to_expand;
+            std::unordered_set<vertex_type> to_expand_set;
 
             for (auto& i: fst.initials()) {
                 to_expand.insert(i, 0);
@@ -730,6 +731,7 @@ namespace fst {
 
             while (to_expand.size()) {
                 ebt::MaxHeap<vertex_type, real> expanded;
+                std::unordered_set<vertex_type> expanded_set;
 
                 while (to_expand.size()) {
                     auto v = to_expand.extract_max();
@@ -738,7 +740,12 @@ namespace fst {
                         vertex_type const& head = fst.head(e);
                         real s = fst.weight(e) + score.at(v);
                         if (s > ebt::get(score, head, -inf)) {
-                            expanded.insert(head, s);
+                            if (ebt::in(head, expanded_set)) {
+                                expanded.increase_key(head, s);
+                            } else {
+                                expanded.insert(head, s);
+                                expanded_set.insert(head);
+                            }
                             score[head] = s;
                             pi[head] = e;
                         }
@@ -747,7 +754,12 @@ namespace fst {
 
                 for (int i = 0; i < top_k && expanded.size() > 0; ++i) {
                     auto v = expanded.extract_max();
-                    to_expand.insert(v, score.at(v));
+                    if (ebt::in(v, to_expand_set)) {
+                        to_expand.increase_key(v, score.at(v));
+                    } else {
+                        to_expand.insert(v, score.at(v));
+                        to_expand_set.insert(v);
+                    }
                 }
             }
         }
