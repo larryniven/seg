@@ -22,6 +22,7 @@ struct learning_env {
     weiran::param_t nn_param;
     weiran::param_t nn_opt_data;
     weiran::nn_t nn;
+    real nn_step_size;
 
     int beam_width;
 
@@ -76,6 +77,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
 
     if (ebt::in(std::string("nn-opt-data"), args)) {
         nn_opt_data = weiran::load_param(args.at("nn-opt-data"));
+    }
+
+    if (ebt::in(std::string("nn-step-size"), args)) {
+        nn_step_size = std::stod(args.at("nn-step-size"));
     }
 
     param = scrf::load_param(args.at("param"));
@@ -182,7 +187,7 @@ void learning_env::run()
                 weiran::param_t nn_grad = weiran::hinge_nn_grad(
                     nn, nn_param, param, hinge_loss.gold, hinge_loss.graph_path,
                     features, graph_feat_func);
-                weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, step_size);
+                weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
                 weiran::save_param(nn_param, "nn-param-last");
                 weiran::save_param(nn_opt_data, "nn-opt-data-last");
             }
@@ -226,6 +231,7 @@ int main(int argc, char *argv[])
             {"cm-stddev", "", false},
             {"nn-param", "", false},
             {"nn-opt-data", "", false},
+            {"nn-step-size", "", false},
             {"backprop", "", false},
             {"beam-width", "", false}
         }
