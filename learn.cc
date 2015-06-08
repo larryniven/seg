@@ -212,6 +212,7 @@ void learning_env::run()
     scrf::save_param("opt-data-last", opt_data);
 
     if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
+        weiran::move_in_param(nn, nn_param);
         weiran::save_param(nn_param, "nn-param-last");
         weiran::save_param(nn_opt_data, "nn-opt-data-last");
     }
