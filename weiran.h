@@ -63,7 +63,6 @@ namespace weiran {
 
     param_t hinge_nn_grad(
         nn_t& nn,
-        param_t const& nn_param,
         scrf::param_t const& scrf_param,
         fst::path<scrf::scrf_t> const& gold,
         fst::path<scrf::scrf_t> const& cost_aug,

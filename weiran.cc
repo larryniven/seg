@@ -92,16 +92,16 @@ namespace weiran {
 
     void move_in_param(nn_t& nn, param_t& param)
     {
-        for (int i = 0; i < param.weight.size(); ++i) {
-            auto w = nn.layers[i+1]->children[0]->children[0];
+        for (int i = 0; i < nn.weights.size(); ++i) {
+            auto w = nn.weights[i];
             w->output = std::make_shared<std::vector<std::vector<real>>>(std::move(param.weight[i]));
         }
     }
 
     void move_out_param(nn_t& nn, param_t& param)
     {
-        for (int i = 0; i < param.weight.size(); ++i) {
-            auto w = nn.layers[i+1]->children[0]->children[0];
+        for (int i = 0; i < nn.weights.size(); ++i) {
+            auto w = nn.weights[i];
             param.weight[i] = std::move(autodiff::get_output<std::vector<std::vector<real>>>(w));
         }
     }
@@ -167,7 +167,6 @@ namespace weiran {
 
     param_t hinge_nn_grad(
         nn_t& nn,
-        param_t const& nn_param,
         scrf::param_t const& scrf_param,
         fst::path<scrf::scrf_t> const& gold,
         fst::path<scrf::scrf_t> const& cost_aug,
@@ -190,11 +189,12 @@ namespace weiran {
 
         param_t nn_grad;
 
-        nn_grad.weight.resize(nn_param.weight.size());
-        for (int i = 0; i < nn_param.weight.size(); ++i) {
-            nn_grad.weight[i].resize(nn_param.weight[i].size());
-            for (int j = 0; j < nn_param.weight[i].size(); ++j) {
-                nn_grad.weight[i][j].resize(nn_param.weight[i][j].size());
+        nn_grad.weight.resize(nn.weights.size());
+        for (int i = 0; i < nn.weights.size(); ++i) {
+            auto& w = autodiff::get_output<std::vector<std::vector<real>>>(nn.weights[i]);
+            nn_grad.weight[i].resize(w.size());
+            for (int j = 0; j < w.size(); ++j) {
+                nn_grad.weight[i][j].resize(w[j].size());
             }
         }
 

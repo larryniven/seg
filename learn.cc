@@ -185,11 +185,13 @@ void learning_env::run()
             if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
                 scrf::hinge_loss& hinge_loss = static_cast<scrf::hinge_loss&>(*loss_func);
                 weiran::param_t nn_grad = weiran::hinge_nn_grad(
-                    nn, nn_param, param, hinge_loss.gold, hinge_loss.graph_path,
+                    nn, param, hinge_loss.gold, hinge_loss.graph_path,
                     features, graph_feat_func);
+                weiran::move_out_param(nn, nn_param);
                 weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
                 weiran::save_param(nn_param, "nn-param-last");
                 weiran::save_param(nn_opt_data, "nn-opt-data-last");
+                weiran::move_in_param(nn, nn_param);
             }
             scrf::adagrad_update(param, param_grad, opt_data, step_size);
             scrf::save_param("param-last", param);
@@ -208,6 +210,11 @@ void learning_env::run()
 
     scrf::save_param("param-last", param);
     scrf::save_param("opt-data-last", opt_data);
+
+    if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
+        weiran::save_param(nn_param, "nn-param-last");
+        weiran::save_param(nn_opt_data, "nn-opt-data-last");
+    }
 }
 
 int main(int argc, char *argv[])
