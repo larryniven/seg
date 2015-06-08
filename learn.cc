@@ -20,6 +20,7 @@ struct learning_env {
     std::vector<real> cm_mean;
     std::vector<real> cm_stddev;
     weiran::param_t nn_param;
+    weiran::param_t nn_opt_data;
     weiran::nn_t nn;
 
     int beam_width;
@@ -71,6 +72,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     if (ebt::in(std::string("nn-param"), args)) {
         nn_param = weiran::load_param(args.at("nn-param"));
         nn = weiran::make_nn(nn_param);
+    }
+
+    if (ebt::in(std::string("nn-opt-data"), args)) {
+        nn_opt_data = weiran::load_param(args.at("nn-opt-data"));
     }
 
     param = scrf::load_param(args.at("param"));
@@ -172,6 +177,15 @@ void learning_env::run()
 
         if (ell > 0) {
             auto param_grad = loss_func->param_grad();
+            if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
+                scrf::hinge_loss& hinge_loss = static_cast<scrf::hinge_loss&>(*loss_func);
+                weiran::param_t nn_grad = weiran::hinge_nn_grad(
+                    nn, nn_param, param, hinge_loss.gold, hinge_loss.graph_path,
+                    features, graph_feat_func);
+                weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, step_size);
+                weiran::save_param(nn_param, "nn-param-last");
+                weiran::save_param(nn_opt_data, "nn-opt-data-last");
+            }
             scrf::adagrad_update(param, param_grad, opt_data, step_size);
             scrf::save_param("param-last", param);
             scrf::save_param("opt-data-last", opt_data);
@@ -211,6 +225,8 @@ int main(int argc, char *argv[])
             {"cm-mean", "", false},
             {"cm-stddev", "", false},
             {"nn-param", "", false},
+            {"nn-opt-data", "", false},
+            {"backprop", "", false},
             {"beam-width", "", false}
         }
     };

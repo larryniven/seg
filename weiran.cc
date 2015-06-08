@@ -2,6 +2,8 @@
 #include <fstream>
 #include "ebt/ebt.h"
 #include "speech/speech.h"
+#include "la/la.h"
+#include "opt/opt.h"
 
 namespace weiran {
 
@@ -35,6 +37,14 @@ namespace weiran {
         save_param(param, ofs);
     }
 
+    void adagrad_update(param_t& param, param_t const& grad,
+        param_t& accu_grad_sq, double step_size)
+    {
+        for (int i = 0; i < param.weight.size(); ++i) {
+            opt::adagrad_update(param.weight[i], grad.weight[i], accu_grad_sq.weight[i], step_size);
+        }
+    }
+
     nn_t make_nn(param_t const& param)
     {
         nn_t nn;
@@ -50,8 +60,9 @@ namespace weiran {
         v.resize(param.weight[0].size(), 0);
         f->output = std::make_shared<std::vector<real>>(std::move(v));
 
-        h = autodiff::relu(autodiff::add(
-            autodiff::mult(autodiff::var(param.weight[0]), h), f));
+        auto w1 = autodiff::var(param.weight[0]);
+        nn.weights.push_back(w1);
+        h = autodiff::relu(autodiff::add(autodiff::mult(w1, h), f));
         v = std::vector<real>();
         v.resize(param.weight[0].size(), 0);
         v.push_back(1);
@@ -61,7 +72,9 @@ namespace weiran {
         // std::cout << param.weight[0].size() << " " << param.weight[0].front().size() << std::endl;
         // std::cout << param.weight.back().size() << " " << param.weight.back().front().size() << std::endl;
 
-        h = autodiff::logsoftmax(autodiff::mult(autodiff::var(param.weight.back()), h));
+        auto w2 = autodiff::var(param.weight.back());
+        nn.weights.push_back(w2);
+        h = autodiff::logsoftmax(autodiff::mult(w2, h));
         v = std::vector<real>();
         v.resize(param.weight.back().size(), 0);
         h->output = std::make_shared<std::vector<real>>(std::move(v));
@@ -110,6 +123,11 @@ namespace weiran {
         }
     }
 
+    int weiran_feature::size() const
+    {
+        return autodiff::get_output<std::vector<real>>(nn.layers.back()).size();
+    }
+
     void weiran_feature::operator()(
         scrf::param_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -145,6 +163,110 @@ namespace weiran {
         auto& v = feat_cache.at(std::get<0>(e));
 
         u.insert(u.end(), v.begin(), v.end());
+    }
+
+    param_t hinge_nn_grad(
+        nn_t& nn,
+        param_t const& nn_param,
+        scrf::param_t const& scrf_param,
+        fst::path<scrf::scrf_t> const& gold,
+        fst::path<scrf::scrf_t> const& cost_aug,
+        std::vector<std::string> const& features,
+        scrf::composite_feature const& feat_func)
+    {
+        int index = -1;
+        for (int i = 0; i < features.size(); ++i) {
+            if (ebt::startswith(features.at(i), std::string("weiran"))) {
+                index = i;
+                break;
+            }
+        }
+
+        int start_dim = 0;
+        for (int i = 0; i < index; ++i) {
+            start_dim += feat_func.features.at(i)->size();
+        }
+        int end_dim = start_dim + feat_func.features.at(index)->size() - 1;
+
+        param_t nn_grad;
+
+        nn_grad.weight.resize(nn_param.weight.size());
+        for (int i = 0; i < nn_param.weight.size(); ++i) {
+            nn_grad.weight[i].resize(nn_param.weight[i].size());
+            for (int j = 0; j < nn_param.weight[i].size(); ++j) {
+                nn_grad.weight[i][j].resize(nn_param.weight[i][j].size());
+            }
+        }
+
+        for (auto& e: gold.edges()) {
+            std::vector<real> top_grad;
+            top_grad.resize(end_dim - start_dim + 1);
+
+            std::string key = "[lattice] " + gold.output(e);
+
+            if (!ebt::in(key, scrf_param.class_param)) {
+                continue;
+            }
+
+            auto& v = scrf_param.class_param.at("[lattice] " + gold.output(e));
+            for (int i = start_dim; i < end_dim + 1; ++i) {
+                top_grad[i - start_dim] -= v[i];
+            }
+
+            scrf::param_t feat;
+
+            // force fead forward
+            (*feat_func.features.at(index))(feat, *gold.data->base_fst->fst, e);
+
+            nn.layers.back()->grad = std::make_shared<std::vector<real>>(std::move(top_grad));
+
+            for (auto& w: nn.weights) {
+                w->grad = nullptr;
+            }
+
+            autodiff::grad(nn.layers.back(), autodiff::grad_funcs);
+
+            for (int i = 0; i < nn.weights.size(); ++i) {
+                la::iadd(nn_grad.weight[i],
+                    autodiff::get_grad<std::vector<std::vector<real>>>(nn.weights.at(i)));
+            }
+        }
+
+        for (auto& e: cost_aug.edges()) {
+            std::vector<real> top_grad;
+            top_grad.resize(end_dim - start_dim + 1);
+
+            std::string key = "[lattice] " + cost_aug.output(e);
+
+            if (!ebt::in(key, scrf_param.class_param)) {
+                continue;
+            }
+
+            auto& v = scrf_param.class_param.at("[lattice] " + cost_aug.output(e));
+            for (int i = start_dim; i < end_dim + 1; ++i) {
+                top_grad[i - start_dim] += v[i];
+            }
+
+            scrf::param_t feat;
+
+            // force fead forward
+            (*feat_func.features.at(index))(feat, *cost_aug.data->base_fst->fst, e);
+
+            nn.layers.back()->grad = std::make_shared<std::vector<real>>(std::move(top_grad));
+
+            for (auto& w: nn.weights) {
+                w->grad = nullptr;
+            }
+
+            autodiff::grad(nn.layers.back(), autodiff::grad_funcs);
+
+            for (int i = 0; i < nn.weights.size(); ++i) {
+                la::iadd(nn_grad.weight[i],
+                    autodiff::get_grad<std::vector<std::vector<real>>>(nn.weights.at(i)));
+            }
+        }
+
+        return nn_grad;
     }
 
 }

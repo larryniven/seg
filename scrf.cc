@@ -4,6 +4,7 @@
 #include "ebt/ebt.h"
 #include "opt/opt.h"
 #include "scrf/weiran.h"
+#include "la/la.h"
 
 namespace scrf {
 
@@ -43,9 +44,7 @@ namespace scrf {
 
             v.resize(std::max(v.size(), p.second.size()));
 
-            for (int i = 0; i < p.second.size(); ++i) {
-                v[i] -= p.second[i];
-            }
+            la::isub(v, p.second);
         }
 
         return p1;
@@ -58,9 +57,7 @@ namespace scrf {
 
             v.resize(std::max(v.size(), p.second.size()));
 
-            for (int i = 0; i < p.second.size(); ++i) {
-                v[i] += p.second[i];
-            }
+            la::iadd(v, p.second);
         }
 
         return p1;
@@ -73,9 +70,7 @@ namespace scrf {
         }
 
         for (auto& t: p.class_param) {
-            for (int i = 0; i < t.second.size(); ++i) {
-                t.second[i] *= c;
-            }
+            la::imul(t.second, c);
         }
 
         return p;
@@ -92,9 +87,7 @@ namespace scrf {
 
             auto& v = p1.class_param.at(p.first);
 
-            for (int i = 0; i < p.second.size(); ++i) {
-                sum += v[i] * p.second[i];
-            }
+            sum += la::dot(v, p.second);
         }
 
         return sum;
@@ -117,6 +110,15 @@ namespace scrf {
 
     scrf_feature::~scrf_feature()
     {}
+
+    int composite_feature::size() const
+    {
+        int sum = 0;
+        for (auto& f: features) {
+            sum += f->size();
+        }
+        return sum;
+    }
 
     void composite_feature::operator()(
         param_t& feat,
@@ -217,6 +219,11 @@ namespace scrf {
         bias::bias()
         {}
 
+        int bias::size() const
+        {
+            return 2;
+        }
+
         void bias::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -229,6 +236,11 @@ namespace scrf {
         length_value::length_value(int max_seg)
             : max_seg(max_seg)
         {}
+
+        int length_value::size() const
+        {
+            return 1;
+        }
 
         void length_value::operator()(
             param_t& feat,
@@ -251,6 +263,11 @@ namespace scrf {
         length_indicator::length_indicator(int max_seg)
             : max_seg(max_seg)
         {}
+
+        int length_indicator::size() const
+        {
+            return max_seg + 1;
+        }
 
         void length_indicator::operator()(
             param_t& feat,
@@ -283,6 +300,11 @@ namespace scrf {
             if (this->end_dim == -1) {
                 this->end_dim = inputs.front().size() - 1;
             }
+        }
+
+        int frame_avg::size() const
+        {
+            return end_dim - start_dim + 1;
         }
 
         void frame_avg::operator()(
@@ -339,6 +361,11 @@ namespace scrf {
             }
         }
 
+        int frame_samples::size() const
+        {
+            return samples * (end_dim - start_dim + 1);
+        }
+
         void frame_samples::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -370,6 +397,11 @@ namespace scrf {
             if (this->end_dim == -1) {
                 this->end_dim = inputs.front().size() - 1;
             }
+        }
+
+        int left_boundary::size() const
+        {
+            return 3 * (end_dim - start_dim + 1);
         }
 
         void left_boundary::operator()(
@@ -420,6 +452,11 @@ namespace scrf {
             }
         }
 
+        int right_boundary::size() const
+        {
+            return 3 * (end_dim - start_dim + 1);
+        }
+
         void right_boundary::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -464,12 +501,22 @@ namespace scrf {
             feat.class_param["[lm] shared"].push_back(fst.fst2->weight(std::get<1>(e)));
         }
 
+        int lm_score::size() const
+        {
+            return 1;
+        }
+
         void lattice_score::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
             feat.class_param["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
+        }
+
+        int lattice_score::size() const
+        {
+            return 1;
         }
 
     }
