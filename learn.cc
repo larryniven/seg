@@ -24,6 +24,8 @@ struct learning_env {
     weiran::nn_t nn;
     real nn_step_size;
 
+    int save_every;
+
     int beam_width;
 
     std::vector<std::string> features;
@@ -91,6 +93,12 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         beam_width = std::stoi(args.at("beam-width"));
     }
 
+    if (ebt::in(std::string("save-every"), args)) {
+        save_every = std::stoi(args.at("save-every"));
+    } else {
+        save_every = std::numeric_limits<int>::max();
+    }
+
     features = ebt::split(args.at("features"), ",");
 }
 
@@ -100,7 +108,7 @@ void learning_env::run()
 
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
-    int i = 0;
+    int i = 1;
     while (std::getline(input_list, input_file)) {
 
         std::vector<std::vector<real>> inputs = speech::load_frames(input_file);
@@ -189,16 +197,19 @@ void learning_env::run()
                     features, graph_feat_func);
                 weiran::move_out_param(nn, nn_param);
                 weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
-                weiran::save_param(nn_param, "nn-param-last");
-                weiran::save_param(nn_opt_data, "nn-opt-data-last");
+                if (i % save_every == 0) {
+                    weiran::save_param(nn_param, "nn-param-last");
+                    weiran::save_param(nn_opt_data, "nn-opt-data-last");
+                }
                 weiran::move_in_param(nn, nn_param);
             }
             scrf::adagrad_update(param, param_grad, opt_data, step_size);
-            scrf::save_param("param-last", param);
-            scrf::save_param("opt-data-last", opt_data);
-        }
 
-        ++i;
+            if (i % save_every == 0) {
+                scrf::save_param("param-last", param);
+                scrf::save_param("opt-data-last", opt_data);
+            }
+        }
 
 #if DEBUG_TOP_10
         if (i == 10) {
@@ -206,6 +217,7 @@ void learning_env::run()
         }
 #endif
 
+        ++i;
     }
 
     scrf::save_param("param-last", param);
@@ -241,7 +253,8 @@ int main(int argc, char *argv[])
             {"nn-opt-data", "", false},
             {"nn-step-size", "", false},
             {"backprop", "", false},
-            {"beam-width", "", false}
+            {"beam-width", "", false},
+            {"save-every", "", false}
         }
     };
 
