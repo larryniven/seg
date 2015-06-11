@@ -128,6 +128,11 @@ namespace weiran {
         return autodiff::get_output<std::vector<real>>(nn.layers.back()).size();
     }
 
+    std::string weiran_feature::name() const
+    {
+        return "weiran";
+    }
+
     void weiran_feature::operator()(
         scrf::param_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -170,12 +175,14 @@ namespace weiran {
         scrf::param_t const& scrf_param,
         fst::path<scrf::scrf_t> const& gold,
         fst::path<scrf::scrf_t> const& cost_aug,
-        std::vector<std::string> const& features,
         scrf::composite_feature const& feat_func)
     {
+        scrf::composite_feature const& lattice_feat =
+            static_cast<scrf::composite_feature const&>(*feat_func.features[0]);
+
         int index = -1;
-        for (int i = 0; i < features.size(); ++i) {
-            if (ebt::startswith(features.at(i), std::string("weiran"))) {
+        for (int i = 0; i < lattice_feat.features.size(); ++i) {
+            if (ebt::startswith(lattice_feat.features.at(i)->name(), std::string("weiran"))) {
                 index = i;
                 break;
             }
@@ -183,9 +190,9 @@ namespace weiran {
 
         int start_dim = 0;
         for (int i = 0; i < index; ++i) {
-            start_dim += feat_func.features.at(i)->size();
+            start_dim += lattice_feat.features.at(i)->size();
         }
-        int end_dim = start_dim + feat_func.features.at(index)->size() - 1;
+        int end_dim = start_dim + lattice_feat.features.at(index)->size() - 1;
 
         param_t nn_grad;
 
@@ -209,6 +216,7 @@ namespace weiran {
             }
 
             auto& v = scrf_param.class_param.at("[lattice] " + gold.output(e));
+
             for (int i = start_dim; i < end_dim + 1; ++i) {
                 top_grad[i - start_dim] -= v[i];
             }
@@ -216,7 +224,7 @@ namespace weiran {
             scrf::param_t feat;
 
             // force fead forward
-            (*feat_func.features.at(index))(feat, *gold.data->base_fst->fst, e);
+            (*lattice_feat.features.at(index))(feat, *gold.data->base_fst->fst, e);
 
             nn.layers.back()->grad = std::make_shared<std::vector<real>>(std::move(top_grad));
 
@@ -250,7 +258,7 @@ namespace weiran {
             scrf::param_t feat;
 
             // force fead forward
-            (*feat_func.features.at(index))(feat, *cost_aug.data->base_fst->fst, e);
+            (*lattice_feat.features.at(index))(feat, *cost_aug.data->base_fst->fst, e);
 
             nn.layers.back()->grad = std::make_shared<std::vector<real>>(std::move(top_grad));
 

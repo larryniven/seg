@@ -45,6 +45,8 @@ namespace scrf {
 
         virtual int size() const = 0;
 
+        virtual std::string name() const = 0;
+
         virtual void operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -57,12 +59,19 @@ namespace scrf {
 
         std::vector<std::shared_ptr<scrf_feature>> features;
 
+        composite_feature(std::string name);
+
         virtual int size() const override;
+
+        virtual std::string name() const override;
 
         virtual void operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const override;
+
+    private:
+        std::string name_;
         
     };
 
@@ -129,6 +138,8 @@ namespace scrf {
 
             bias();
 
+            virtual std::string name() const override;
+
             virtual int size() const override;
 
             virtual void operator()(
@@ -147,6 +158,8 @@ namespace scrf {
 
             virtual int size() const override;
 
+            virtual std::string name() const override;
+
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -161,6 +174,8 @@ namespace scrf {
             length_indicator(int max_seg);
 
             virtual int size() const override;
+
+            virtual std::string name() const override;
 
             virtual void operator()(
                 param_t& feat,
@@ -182,6 +197,8 @@ namespace scrf {
 
             virtual int size() const override;
 
+            virtual std::string name() const override;
+
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -200,6 +217,8 @@ namespace scrf {
                 int start_dim = -1, int end_dim = -1);
 
             virtual int size() const override;
+
+            virtual std::string name() const override;
 
             virtual void operator()(
                 param_t& feat,
@@ -221,6 +240,8 @@ namespace scrf {
 
             virtual int size() const override;
 
+            virtual std::string name() const override;
+
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -241,6 +262,8 @@ namespace scrf {
 
             virtual int size() const override;
 
+            virtual std::string name() const override;
+
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -252,6 +275,8 @@ namespace scrf {
 
             virtual int size() const override;
 
+            virtual std::string name() const override;
+
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -262,6 +287,8 @@ namespace scrf {
             : public scrf_feature {
 
             virtual int size() const override;
+
+            virtual std::string name() const override;
 
             virtual void operator()(
                 param_t& feat,
@@ -457,7 +484,6 @@ namespace scrf {
 
     composite_weight make_weight(
         param_t const& param,
-        std::vector<std::string> features,
         composite_feature const& feat);
 
     lattice::fst make_lattice(

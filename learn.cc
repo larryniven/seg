@@ -127,7 +127,7 @@ void learning_env::run()
         fst::path<scrf::scrf_t> gold_path = scrf::shortest_path(gold, gold.topo_order);
 
         gold.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, features, gold_feat_func));
+            scrf::make_weight(param, gold_feat_func));
         gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
 
         scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
@@ -159,7 +159,7 @@ void learning_env::run()
         }
         scrf::composite_weight cost_aug_weight;
         cost_aug_weight.weights.push_back(std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, features, graph_feat_func)));
+            scrf::make_weight(param, graph_feat_func)));
         cost_aug_weight.weights.push_back(std::make_shared<scrf::overlap_cost>(
             scrf::overlap_cost { gold_path }));
         graph.weight_func = std::make_shared<scrf::composite_weight>(cost_aug_weight);
@@ -194,7 +194,7 @@ void learning_env::run()
                 scrf::hinge_loss& hinge_loss = static_cast<scrf::hinge_loss&>(*loss_func);
                 weiran::param_t nn_grad = weiran::hinge_nn_grad(
                     nn, param, hinge_loss.gold, hinge_loss.graph_path,
-                    features, graph_feat_func);
+                    graph_feat_func);
                 weiran::move_out_param(nn, nn_param);
                 weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
                 if (i % save_every == 0) {

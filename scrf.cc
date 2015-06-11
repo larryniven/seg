@@ -111,6 +111,10 @@ namespace scrf {
     scrf_feature::~scrf_feature()
     {}
 
+    composite_feature::composite_feature(std::string name)
+        : name_(name)
+    {}
+
     int composite_feature::size() const
     {
         int sum = 0;
@@ -118,6 +122,11 @@ namespace scrf {
             sum += f->size();
         }
         return sum;
+    }
+
+    std::string composite_feature::name() const
+    {
+        return name_;
     }
 
     void composite_feature::operator()(
@@ -224,6 +233,11 @@ namespace scrf {
             return 2;
         }
 
+        std::string bias::name() const
+        {
+            return "bias";
+        }
+
         void bias::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -240,6 +254,11 @@ namespace scrf {
         int length_value::size() const
         {
             return 1;
+        }
+
+        std::string length_value::name() const
+        {
+            return "length-value";
         }
 
         void length_value::operator()(
@@ -267,6 +286,11 @@ namespace scrf {
         int length_indicator::size() const
         {
             return max_seg + 1;
+        }
+
+        std::string length_indicator::name() const
+        {
+            return "length-indicator";
         }
 
         void length_indicator::operator()(
@@ -305,6 +329,11 @@ namespace scrf {
         int frame_avg::size() const
         {
             return end_dim - start_dim + 1;
+        }
+
+        std::string frame_avg::name() const
+        {
+            return "frame-avg";
         }
 
         void frame_avg::operator()(
@@ -366,6 +395,11 @@ namespace scrf {
             return samples * (end_dim - start_dim + 1);
         }
 
+        std::string frame_samples::name() const
+        {
+            return "frame-samples";
+        }
+
         void frame_samples::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -402,6 +436,11 @@ namespace scrf {
         int left_boundary::size() const
         {
             return 3 * (end_dim - start_dim + 1);
+        }
+
+        std::string left_boundary::name() const
+        {
+            return "left-boundary";
         }
 
         void left_boundary::operator()(
@@ -457,6 +496,11 @@ namespace scrf {
             return 3 * (end_dim - start_dim + 1);
         }
 
+        std::string right_boundary::name() const
+        {
+            return "right-boundary";
+        }
+
         void right_boundary::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -493,6 +537,16 @@ namespace scrf {
             feat_cache[head_time] = std::move(f);
         }
 
+        int lm_score::size() const
+        {
+            return 1;
+        }
+
+        std::string lm_score::name() const
+        {
+            return "lm-score";
+        }
+
         void lm_score::operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -501,9 +555,14 @@ namespace scrf {
             feat.class_param["[lm] shared"].push_back(fst.fst2->weight(std::get<1>(e)));
         }
 
-        int lm_score::size() const
+        int lattice_score::size() const
         {
             return 1;
+        }
+
+        std::string lattice_score::name() const
+        {
+            return "lattice-score";
         }
 
         void lattice_score::operator()(
@@ -512,11 +571,6 @@ namespace scrf {
             std::tuple<int, int> const& e) const
         {
             feat.class_param["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
-        }
-
-        int lattice_score::size() const
-        {
-            return 1;
         }
 
     }
@@ -1214,70 +1268,76 @@ namespace scrf {
         std::vector<real> const& cm_stddev,
         weiran::nn_t const& nn)
     {
-        composite_feature result;
+        composite_feature result { "all" };
     
+        composite_feature lex_lattice_feat { "lex-lattice-feat" };
+        composite_feature tied_lattice_feat { "tied-lattice-feat" };
+        composite_feature lm_feat { "lm-feat" };
+        composite_feature label_feat { "label-feat" };
+        composite_feature rest_feat { "rest-feat" };
+
         for (auto& v: features) {
             if (ebt::startswith(v, "frame-avg")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
                     std::vector<std::string> indices = ebt::split(parts.back(), "-");
-                    result.features.push_back(std::make_shared<feature::frame_avg>(
+                    lex_lattice_feat.features.push_back(std::make_shared<feature::frame_avg>(
                         feature::frame_avg { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
-                    result.features.push_back(std::make_shared<feature::frame_avg>(
+                    lex_lattice_feat.features.push_back(std::make_shared<feature::frame_avg>(
                         feature::frame_avg { inputs }));
                 }
             } else if (ebt::startswith(v, "frame-samples")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
                     std::vector<std::string> indices = ebt::split(parts.back(), "-");
-                    result.features.push_back(std::make_shared<feature::frame_samples>(
+                    lex_lattice_feat.features.push_back(std::make_shared<feature::frame_samples>(
                         feature::frame_samples { inputs, 3, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
-                    result.features.push_back(std::make_shared<feature::frame_samples>(
+                    lex_lattice_feat.features.push_back(std::make_shared<feature::frame_samples>(
                         feature::frame_samples { inputs, 3 }));
                 }
             } else if (ebt::startswith(v, "left-boundary")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
                     std::vector<std::string> indices = ebt::split(parts.back(), "-");
-                    result.features.push_back(std::make_shared<feature::left_boundary>(
+                    rest_feat.features.push_back(std::make_shared<feature::left_boundary>(
                         feature::left_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
-                    result.features.push_back(std::make_shared<feature::left_boundary>(
+                    rest_feat.features.push_back(std::make_shared<feature::left_boundary>(
                         feature::left_boundary { inputs }));
                 }
             } else if (ebt::startswith(v, "right-boundary")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
                     std::vector<std::string> indices = ebt::split(parts.back(), "-");
-                    result.features.push_back(std::make_shared<feature::right_boundary>(
+                    rest_feat.features.push_back(std::make_shared<feature::right_boundary>(
                         feature::right_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
-                    result.features.push_back(std::make_shared<feature::right_boundary>(
+                    rest_feat.features.push_back(std::make_shared<feature::right_boundary>(
                         feature::right_boundary { inputs }));
                 }
             } else if (ebt::startswith(v, "length-indicator")) {
-                result.features.push_back(std::make_shared<feature::length_indicator>(
+                lex_lattice_feat.features.push_back(std::make_shared<feature::length_indicator>(
                     feature::length_indicator { max_seg }));
             } else if (ebt::startswith(v, "length-value")) {
-                result.features.push_back(std::make_shared<feature::length_value>(
+                lex_lattice_feat.features.push_back(std::make_shared<feature::length_value>(
                     feature::length_value { max_seg }));
             } else if (ebt::startswith(v, "bias")) {
-                result.features.push_back(std::make_shared<feature::bias>(feature::bias{}));
+                label_feat.features.push_back(std::make_shared<feature::bias>(feature::bias{}));
             } else if (ebt::startswith(v, "lm-score")) {
-                result.features.push_back(std::make_shared<feature::lm_score>(feature::lm_score{}));
+                lm_feat.features.push_back(std::make_shared<feature::lm_score>(feature::lm_score{}));
             } else if (ebt::startswith(v, "lattice-score")) {
-                result.features.push_back(std::make_shared<feature::lattice_score>(feature::lattice_score{}));
+                tied_lattice_feat.features.push_back(std::make_shared<feature::lattice_score>(feature::lattice_score{}));
             } else if (ebt::startswith(v, "weiran")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
                     std::vector<std::string> indices = ebt::split(parts.back(), "-");
-                    result.features.push_back(std::make_shared<weiran::weiran_feature>(
+                    lex_lattice_feat.features.push_back(std::make_shared<weiran::weiran_feature>(
                         weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn,
                         std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
                 } else {
-                    result.features.push_back(std::make_shared<weiran::weiran_feature>(
+                    lex_lattice_feat.features.push_back(std::make_shared<weiran::weiran_feature>(
                         weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn }));
                 }
             } else {
@@ -1286,58 +1346,33 @@ namespace scrf {
             }
         }
     
+        result.features.push_back(std::make_shared<composite_feature>(lex_lattice_feat));
+        result.features.push_back(std::make_shared<composite_feature>(tied_lattice_feat));
+        result.features.push_back(std::make_shared<composite_feature>(lm_feat));
+        result.features.push_back(std::make_shared<composite_feature>(label_feat));
+        result.features.push_back(std::make_shared<composite_feature>(rest_feat));
+
         return result;
     }
 
     composite_weight make_weight(
         param_t const& param,
-        std::vector<std::string> features,
         composite_feature const& feat)
     {
         composite_weight result;
 
-        composite_feature label_feat;
-        composite_feature lm_feat;
-        composite_feature lattice_feat;
-        composite_feature rest_feat;
+        composite_feature lattice_feat { "lattice-feat" };
+        lattice_feat.features.push_back(feat.features[0]);
+        lattice_feat.features.push_back(feat.features[1]);
 
-        for (int i = 0; i < features.size(); ++i) {
-            auto& v = features[i];
-
-            if (ebt::startswith(v, "frame-avg")) {
-                lattice_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "frame-samples")) {
-                lattice_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "left-boundary")) {
-                rest_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "right-boundary")) {
-                rest_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "length-indicator")) {
-                lattice_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "length-value")) {
-                lattice_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "bias")) {
-                label_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "lm-score")) {
-                lm_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "lattice-score")) {
-                lattice_feat.features.push_back(feat.features[i]);
-            } else if (ebt::startswith(v, "weiran")) {
-                lattice_feat.features.push_back(feat.features[i]);
-            } else {
-                std::cout << "unknown feature type " << v << std::endl;
-                exit(1);
-            }
-        }
-    
-        score::label_score label_score { param, std::make_shared<composite_feature>(label_feat) };
-        score::lm_score lm_score { param, std::make_shared<composite_feature>(lm_feat) };
         score::lattice_score lattice_score { param, std::make_shared<composite_feature>(lattice_feat) };
-        score::linear_score rest_score { param, std::make_shared<composite_feature>(rest_feat) };
+        score::lm_score lm_score { param, feat.features[1] };
+        score::label_score label_score { param, feat.features[2] };
+        score::linear_score rest_score { param, feat.features[3] };
 
-        result.weights.push_back(std::make_shared<score::label_score>(label_score));
-        result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
         result.weights.push_back(std::make_shared<score::lattice_score>(lattice_score));
+        result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
+        result.weights.push_back(std::make_shared<score::label_score>(label_score));
         result.weights.push_back(std::make_shared<score::linear_score>(rest_score));
 
         return result;

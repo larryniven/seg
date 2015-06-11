@@ -54,6 +54,8 @@ namespace weiran {
 
         virtual int size() const override;
 
+        virtual std::string name() const override;
+
         virtual void operator()(
             scrf::param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -66,7 +68,6 @@ namespace weiran {
         scrf::param_t const& scrf_param,
         fst::path<scrf::scrf_t> const& gold,
         fst::path<scrf::scrf_t> const& cost_aug,
-        std::vector<std::string> const& features,
         scrf::composite_feature const& feat_func);
 
 }

@@ -90,7 +90,7 @@ void pruning_env::run()
             graph.topo_order = graph.vertices();
         }
         graph.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, features, graph_feat_func));
+            scrf::make_weight(param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         auto edges = graph.edges();
