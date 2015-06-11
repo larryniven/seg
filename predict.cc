@@ -110,8 +110,8 @@ void prediction_env::run()
             graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
             graph.topo_order = scrf::topo_order(graph);
         }
-        graph.weight_func = std::make_shared<scrf::composite_score>(
-            scrf::make_score(param, graph_feat_func));
+        graph.weight_func = std::make_shared<scrf::composite_weight>(
+            scrf::make_weight(param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best = scrf::shortest_path(graph, graph.topo_order);
