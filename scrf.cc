@@ -356,7 +356,7 @@ namespace scrf {
             int head_time = std::min<int>(inputs.size(), lat.data->vertices.at(head).time);
 
             std::vector<real> avg;
-            avg.resize(inputs.front().size());
+            avg.resize(end_dim - start_dim + 1);
 
             if (tail_time < head_time) {
                 for (int i = tail_time; i < head_time; ++i) {
@@ -1366,9 +1366,9 @@ namespace scrf {
         lattice_feat.features.push_back(feat.features[1]);
 
         score::lattice_score lattice_score { param, std::make_shared<composite_feature>(lattice_feat) };
-        score::lm_score lm_score { param, feat.features[1] };
-        score::label_score label_score { param, feat.features[2] };
-        score::linear_score rest_score { param, feat.features[3] };
+        score::lm_score lm_score { param, feat.features[2] };
+        score::label_score label_score { param, feat.features[3] };
+        score::linear_score rest_score { param, feat.features[4] };
 
         result.weights.push_back(std::make_shared<score::lattice_score>(lattice_score));
         result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
