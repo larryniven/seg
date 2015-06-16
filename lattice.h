@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
+#include "ebt/ebt.h"
 
 namespace lattice {
 
@@ -32,6 +33,8 @@ namespace lattice {
 
         std::vector<std::unordered_map<std::string, std::vector<int>>> in_edges_map;
         std::vector<std::unordered_map<std::string, std::vector<int>>> out_edges_map;
+
+        std::vector<ebt::SparseVector> features;
     };
 
     struct fst {

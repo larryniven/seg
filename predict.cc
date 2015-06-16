@@ -32,11 +32,16 @@ struct prediction_env {
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    input_list.open(args.at("input-list"));
+    if (ebt::in(std::string("input-list"), args)) {
+        input_list.open(args.at("input-list"));
+    }
+
     if (ebt::in(std::string("lattice-list"), args)) {
         lattice_list.open(args.at("lattice-list"));
     }
+
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+
     max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
         max_seg = std::stoi(args.at("max-seg"));
@@ -78,9 +83,13 @@ void prediction_env::run()
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
     int i = 0;
-    while (std::getline(input_list, input_file)) {
+    while (1) {
 
-        std::vector<std::vector<real>> inputs = speech::load_frames(input_file);
+        std::vector<std::vector<real>> inputs;
+
+        if (std::getline(input_list, input_file)) {
+            inputs = speech::load_frames(input_file);
+        }
 
         scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
             cm_mean, cm_stddev, nn);
@@ -89,6 +98,14 @@ void prediction_env::run()
 
         if (ebt::in(std::string("lattice-list"), args)) {
             lattice::fst lat = lattice::load_lattice(lattice_list);
+
+            std::cout << "vertices: " << lat.data->vertices.size()
+                << " edges: " << lat.data->edges.size() << std::endl;
+
+            if (!lattice_list) {
+                break;
+            }
+
             lattice::add_eps_loops(lat);
 
             fst::composed_fst<lattice::fst, lm::fst> comp;
@@ -110,10 +127,8 @@ void prediction_env::run()
             graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
             graph.topo_order = scrf::topo_order(graph);
         }
-        // graph.weight_func = std::make_shared<scrf::composite_weight>(
-        //     scrf::make_weight(param, graph_feat_func));
-        graph.weight_func = std::make_shared<scrf::linear_score>(
-            scrf::linear_score { param, graph_feat_func});
+        graph.weight_func = std::make_shared<scrf::composite_weight>(
+            scrf::make_weight(param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best = scrf::shortest_path(graph, graph.topo_order);
@@ -124,7 +139,6 @@ void prediction_env::run()
         std::cout << "(" << input_file << ")" << std::endl;
 
         ++i;
-
     }
 }
 
@@ -134,7 +148,7 @@ int main(int argc, char *argv[])
         "learn",
         "Learn segmental CRF",
         {
-            {"input-list", "", true},
+            {"input-list", "", false},
             {"lattice-list", "", false},
             {"lm", "", true},
             {"max-seg", "", false},

@@ -89,7 +89,12 @@ namespace lattice {
 
         std::string line;
 
-        std::getline(is, line);
+        // read filename
+        if (!std::getline(is, line)) {
+            fst f;
+            f.data = std::make_shared<fst_data>(result);
+            return f;
+        }
 
         int min_time = std::numeric_limits<int>::max();
         std::unordered_set<int> initials;
@@ -97,25 +102,59 @@ namespace lattice {
         int max_time = std::numeric_limits<int>::min();
         std::unordered_set<int> finals;
 
+        while (std::getline(is, line) && line != "#") {
+            if (line == ".") {
+                std::cout << "\"#\" was not found between vertices and edges." << std::endl;
+                exit(1);
+            }
+
+            auto parts = ebt::split(line);
+
+            int v = std::stoi(parts[0]);
+
+            if (v >= result.vertices.size()) {
+                result.vertices.resize(v + 1);
+            }
+
+            std::unordered_map<std::string, std::string> attr;
+            auto pairs = ebt::split(parts[1], ",");
+            for (auto& p: pairs) {
+                auto pair = ebt::split(p, "=");
+                attr[pair[0]] = pair[1];
+            }
+
+            result.vertices.at(v).time = std::stoi(attr.at("time")) / 1e5;
+        }
+
         while (std::getline(is, line) && line != ".") {
             auto parts = ebt::split(line);
 
-            int tail = std::stoi(parts[3]);
-            int head = std::stoi(parts[4]);
+            int tail = std::stoi(parts[0]);
+            int head = std::stoi(parts[1]);
 
-            if (std::max(tail, head) >= result.vertices.size()) {
-                result.vertices.resize(std::max<int>(tail, head) + 1);
+            if (tail >= result.vertices.size()) {
+                std::cout << "Vertex " << tail << " is not declared." << std::endl;
+                exit(1);
             }
 
-            result.vertices.at(tail).time = std::stoi(parts[0]) / 1e5;
-            result.vertices.at(head).time = std::stoi(parts[1]) / 1e5;
+            if (head >= result.vertices.size()) {
+                std::cout << "Vertex " << head << " is not declared." << std::endl;
+                exit(1);
+            }
+
+            std::unordered_map<std::string, std::string> attr;
+            auto pairs = ebt::split(parts[2], ",");
+            for (auto& p: pairs) {
+                auto pair = ebt::split(p, "=");
+                attr[pair[0]] = pair[1];
+            }
 
             real weight = 0;
-            if (parts.size() > 5) {
-                weight = std::stod(parts.at(5));
+            if (ebt::in(std::string("weight"), attr)) {
+                weight = std::stod(attr.at("weight"));
             }
 
-            std::string label = parts[2] == "<eps>" ? "<spe>" : parts[2];
+            std::string label = parts[2] == "<eps>" ? "<spe>" : attr.at("label");
 
             edge_data e_data { .label = label, .tail = tail, .head = head, .weight = weight };
 
@@ -135,6 +174,18 @@ namespace lattice {
 
             result.out_edges_map.at(tail)[label].push_back(e);
             result.in_edges_map.at(head)[label].push_back(e);
+
+            if (e >= result.features.size()) {
+                result.features.resize(e + 1);
+            }
+
+            for (auto& p: attr) {
+                if (p.first == "weight" || p.first == "label") {
+                    continue;
+                }
+
+                result.features[e](p.first) = std::stod(p.second);
+            }
 
             if (max_time < result.vertices.at(head).time) {
                 max_time = result.vertices.at(head).time;

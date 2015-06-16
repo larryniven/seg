@@ -573,6 +573,96 @@ namespace scrf {
             feat.class_param["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
         }
 
+        lex_lattice_feature::lex_lattice_feature(std::vector<std::string> features)
+            : features_(features)
+        {}
+
+        int lex_lattice_feature::size() const
+        {
+            return features_.size();
+        }
+
+        std::string lex_lattice_feature::name() const
+        {
+            return "lex-lattice-feature";
+        }
+
+        void lex_lattice_feature::operator()(
+            param_t& param,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(std::get<0>(e), cache_)) {
+                std::vector<real>& v = cache_.at(std::get<0>(e));
+                auto& u = param.class_param["[lattice] " + fst.output(e)];
+                u.insert(u.end(), v.begin(), v.end());
+                return;
+            }
+
+            std::vector<real> result;
+
+            auto& feat = fst.fst1->data->features.at(std::get<0>(e));
+
+            for (auto& f: features_) {
+                if (ebt::startswith(f, "lex@")) {
+                    result.push_back(feat(f.substr(4)));
+                } else {
+                    std::cout << "Features " << f << " are expected to be lexicalized." << std::endl;
+                    exit(1);
+                }
+            }
+
+            cache_[std::get<0>(e)] = result;
+
+            auto& u = param.class_param["[lattice] " + fst.output(e)];
+            u.insert(u.end(), result.begin(), result.end());
+        }
+
+        tied_lattice_feature::tied_lattice_feature(std::vector<std::string> features)
+            : features_(features)
+        {}
+
+        int tied_lattice_feature::size() const
+        {
+            return features_.size();
+        }
+
+        std::string tied_lattice_feature::name() const
+        {
+            return "shared-lattice-feature";
+        }
+
+        void tied_lattice_feature::operator()(
+            param_t& param,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(std::get<0>(e), cache_)) {
+                std::vector<real>& v = cache_.at(std::get<0>(e));
+                auto& u = param.class_param["[lattice] shared"];
+                u.insert(u.end(), v.begin(), v.end());
+                return;
+            }
+
+            std::vector<real> result;
+
+            auto& feat = fst.fst1->data->features.at(std::get<0>(e));
+
+            for (auto& f: features_) {
+                if (ebt::startswith(f, "@")) {
+                    result.push_back(feat(f.substr(1)));
+                } else {
+                    std::cout << "Features " << f << " are not expected to be lexicalized." << std::endl;
+                    exit(1);
+                }
+            }
+
+            cache_[std::get<0>(e)] = result;
+
+            auto& u = param.class_param["[lattice] shared"];
+            u.insert(u.end(), result.begin(), result.end());
+        }
+
     }
 
     namespace score {
@@ -1276,6 +1366,9 @@ namespace scrf {
         composite_feature label_feat { "label-feat" };
         composite_feature rest_feat { "rest-feat" };
 
+        std::vector<std::string> lex_lat_features;
+        std::vector<std::string> tied_lat_features;
+
         for (auto& v: features) {
             if (ebt::startswith(v, "frame-avg")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
@@ -1312,7 +1405,8 @@ namespace scrf {
                 if (parts.size() == 2) {
                     std::vector<std::string> indices = ebt::split(parts.back(), "-");
                     rest_feat.features.push_back(std::make_shared<feature::right_boundary>(
-                        feature::right_boundary { inputs, std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                        feature::right_boundary { inputs, std::stoi(indices.at(0)),
+                        std::stoi(indices.at(1)) }));
                 } else {
                     rest_feat.features.push_back(std::make_shared<feature::right_boundary>(
                         feature::right_boundary { inputs }));
@@ -1328,7 +1422,8 @@ namespace scrf {
             } else if (ebt::startswith(v, "lm-score")) {
                 lm_feat.features.push_back(std::make_shared<feature::lm_score>(feature::lm_score{}));
             } else if (ebt::startswith(v, "lattice-score")) {
-                tied_lattice_feat.features.push_back(std::make_shared<feature::lattice_score>(feature::lattice_score{}));
+                tied_lattice_feat.features.push_back(std::make_shared<feature::lattice_score>(
+                    feature::lattice_score{}));
             } else if (ebt::startswith(v, "weiran")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {
@@ -1340,12 +1435,21 @@ namespace scrf {
                     lex_lattice_feat.features.push_back(std::make_shared<weiran::weiran_feature>(
                         weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn }));
                 }
+            } else if (ebt::startswith(v, "lex@")) {
+                lex_lat_features.push_back(v);
+            } else if (ebt::startswith(v, "@")) {
+                tied_lat_features.push_back(v);
             } else {
-                std::cout << "unknown feature type " << v << std::endl;
+                std::cout << "unknown featre type " << v << std::endl;
                 exit(1);
             }
         }
     
+        lex_lattice_feat.features.push_back(std::make_shared<feature::lex_lattice_feature>(
+            feature::lex_lattice_feature { lex_lat_features }));
+        tied_lattice_feat.features.push_back(std::make_shared<feature::tied_lattice_feature>(
+            feature::tied_lattice_feature { tied_lat_features }));
+
         result.features.push_back(std::make_shared<composite_feature>(lex_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(tied_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(lm_feat));

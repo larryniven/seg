@@ -297,6 +297,48 @@ namespace scrf {
 
         };
 
+        struct tied_lattice_feature
+            : public scrf_feature {
+
+            tied_lattice_feature(std::vector<std::string> features);
+
+            virtual int size() const override;
+
+            virtual std::string name() const override;
+
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
+        private:
+            mutable std::unordered_map<int, std::vector<real>> cache_;
+
+            std::vector<std::string> features_;
+
+        };
+
+        struct lex_lattice_feature
+            : public scrf_feature {
+
+            lex_lattice_feature(std::vector<std::string> features);
+
+            virtual int size() const override;
+
+            virtual std::string name() const override;
+
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
+        private:
+            mutable std::unordered_map<int, std::vector<real>> cache_;
+
+            std::vector<std::string> features_;
+
+        };
+
     }
 
     namespace score {
