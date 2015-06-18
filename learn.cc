@@ -41,12 +41,18 @@ struct learning_env {
 learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    input_list.open(args.at("input-list"));
+    if (ebt::in(std::string("input-list"), args)) {
+        input_list.open(args.at("input-list"));
+    }
+
     if (ebt::in(std::string("lattice-list"), args)) {
         lattice_list.open(args.at("lattice-list"));
     }
+
     gold_list.open(args.at("gold-list"));
+
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+
     max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
         max_seg = std::stoi(args.at("max-seg"));
@@ -109,16 +115,25 @@ void learning_env::run()
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
     int i = 1;
-    while (std::getline(input_list, input_file)) {
+    while (1) {
 
-        std::vector<std::vector<real>> inputs = speech::load_frames(input_file);
+        std::vector<std::vector<real>> inputs;
+
+        if (std::getline(input_list, input_file)) {
+            inputs = speech::load_frames(input_file);
+        }
+
+        lattice::fst gold_lat = lattice::load_lattice(gold_list);
+
+        if (!gold_list) {
+            break;
+        }
 
         std::cout << input_file << std::endl;
 
         scrf::composite_feature gold_feat_func = scrf::make_feature(features, inputs, max_seg,
             cm_mean, cm_stddev, nn);
 
-        lattice::fst gold_lat = scrf::load_gold(gold_list);
         scrf::scrf_t gold = scrf::make_gold_scrf(gold_lat, lm);
 
         scrf::backoff_cost bc; 
@@ -136,6 +151,11 @@ void learning_env::run()
         scrf::scrf_t graph;
         if (ebt::in(std::string("lattice-list"), args)) {
             lattice::fst lat = lattice::load_lattice(lattice_list);
+
+            if (!lattice_list) {
+                break;
+            }
+
             lattice::add_eps_loops(lat);
 
             fst::composed_fst<lattice::fst, lm::fst> comp;
@@ -236,7 +256,7 @@ int main(int argc, char *argv[])
         "learn",
         "Learn segmental CRF",
         {
-            {"input-list", "", true},
+            {"input-list", "", false},
             {"lattice-list", "", false},
             {"gold-list", "", true},
             {"lm", "", true},

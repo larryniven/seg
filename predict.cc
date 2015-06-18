@@ -91,9 +91,6 @@ void prediction_env::run()
             inputs = speech::load_frames(input_file);
         }
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
-            cm_mean, cm_stddev, nn);
-
         scrf::scrf_t graph;
 
         if (ebt::in(std::string("lattice-list"), args)) {
@@ -127,6 +124,10 @@ void prediction_env::run()
             graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
             graph.topo_order = scrf::topo_order(graph);
         }
+
+        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
+            cm_mean, cm_stddev, nn);
+
         graph.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);

@@ -592,6 +592,10 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
+            if (features_.size() == 0) {
+                return;
+            }
+
             if (ebt::in(std::get<0>(e), cache_)) {
                 std::vector<real>& v = cache_.at(std::get<0>(e));
                 auto& u = param.class_param["[lattice] " + fst.output(e)];
@@ -637,6 +641,10 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
+            if (features_.size() == 0) {
+                return;
+            }
+
             if (ebt::in(std::get<0>(e), cache_)) {
                 std::vector<real>& v = cache_.at(std::get<0>(e));
                 auto& u = param.class_param["[lattice] shared"];
