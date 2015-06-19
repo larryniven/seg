@@ -729,7 +729,7 @@ namespace fst {
 
             real inf = std::numeric_limits<real>::infinity();
 
-            while (to_expand.size()) {
+            while (to_expand.size() > 0) {
                 ebt::MaxHeap<vertex_type, real> expanded;
                 std::unordered_set<vertex_type> expanded_set;
 
@@ -741,14 +741,17 @@ namespace fst {
                         vertex_type const& head = fst.head(e);
                         real s = fst.weight(e) + score.at(v);
                         if (s > ebt::get(score, head, -inf)) {
-                            if (ebt::in(head, expanded_set)) {
-                                expanded.increase_key(head, s);
-                            } else {
-                                expanded.insert(head, s);
-                                expanded_set.insert(head);
-                            }
                             score[head] = s;
                             pi[head] = e;
+                        }
+
+                        if (ebt::in(head, expanded_set)) {
+                            if (s > ebt::get(score, head, -inf)) {
+                                expanded.increase_key(head, s);
+                            }
+                        } else {
+                            expanded.insert(head, score.at(head));
+                            expanded_set.insert(head);
                         }
                     }
                 }
