@@ -25,8 +25,10 @@ struct learning_env {
     real nn_step_size;
 
     int save_every;
-
     int beam_width;
+
+    std::string output_param;
+    std::string output_opt_data;
 
     std::vector<std::string> features;
 
@@ -106,6 +108,16 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     }
 
     features = ebt::split(args.at("features"), ",");
+
+    output_param = "param-last";
+    if (ebt::in(std::string("output-param"), args)) {
+        output_param = args.at("output-param");
+    }
+
+    output_opt_data = "opt-data-last";
+    if (ebt::in(std::string("output-opt-data"), args)) {
+        output_opt_data = args.at("output-opt-data");
+    }
 }
 
 void learning_env::run()
@@ -240,8 +252,8 @@ void learning_env::run()
         ++i;
     }
 
-    scrf::save_param("param-last", param);
-    scrf::save_param("opt-data-last", opt_data);
+    scrf::save_param(output_param, param);
+    scrf::save_param(output_opt_data, opt_data);
 
     if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
         weiran::move_out_param(nn, nn_param);
@@ -274,7 +286,9 @@ int main(int argc, char *argv[])
             {"nn-step-size", "", false},
             {"backprop", "", false},
             {"beam-width", "", false},
-            {"save-every", "", false}
+            {"save-every", "", false},
+            {"output-param", "", false},
+            {"output-opt-data", "", false}
         }
     };
 
