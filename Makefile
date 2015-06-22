@@ -8,16 +8,16 @@ clean:
 	-rm *.o
 	-rm $(bin)
 
-learn: learn.o scrf.o lm.o lattice.o weiran.o
+learn: learn.o scrf.o lm.o lattice.o nn.o weiran.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-predict: predict.o scrf.o lm.o lattice.o weiran.o
+predict: predict.o scrf.o lm.o lattice.o nn.o weiran.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-prune: prune.o scrf.o lm.o lattice.o weiran.o
+prune: prune.o scrf.o lm.o lattice.o nn.o weiran.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-oracle-error: oracle-error.o scrf.o lm.o lattice.o weiran.o
+oracle-error: oracle-error.o scrf.o lm.o lattice.o nn.o weiran.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 scrf.o: scrf.h fst.h lattice.h lm.h
@@ -28,3 +28,4 @@ predict.o: fst.h scrf.h util.h
 prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
 weiran.o: weiran.h
+nn.o: nn.h

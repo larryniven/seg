@@ -1356,7 +1356,7 @@ namespace scrf {
         std::vector<std::vector<real>> const& inputs, int max_seg)
     {
         return make_feature(features, inputs, max_seg,
-            std::vector<real>(), std::vector<real>(), weiran::nn_t());
+            std::vector<real>(), std::vector<real>(), nn::nn_t());
     }
 
     composite_feature make_feature(
@@ -1364,7 +1364,7 @@ namespace scrf {
         std::vector<std::vector<real>> const& inputs, int max_seg,
         std::vector<real> const& cm_mean,
         std::vector<real> const& cm_stddev,
-        weiran::nn_t const& nn)
+        nn::nn_t const& nn)
     {
         composite_feature result { "all" };
     
@@ -1432,6 +1432,17 @@ namespace scrf {
             } else if (ebt::startswith(v, "lattice-score")) {
                 tied_lattice_feat.features.push_back(std::make_shared<feature::lattice_score>(
                     feature::lattice_score{}));
+            } else if (ebt::startswith(v, "nn")) {
+                std::vector<std::string> parts = ebt::split(v, ":");
+                if (parts.size() == 2) {
+                    std::vector<std::string> indices = ebt::split(parts.back(), "-");
+                    lex_lattice_feat.features.push_back(std::make_shared<nn::nn_feature>(
+                        nn::nn_feature { inputs, cm_mean, cm_stddev, nn,
+                        std::stoi(indices.at(0)), std::stoi(indices.at(1)) }));
+                } else {
+                    lex_lattice_feat.features.push_back(std::make_shared<nn::nn_feature>(
+                        nn::nn_feature { inputs, cm_mean, cm_stddev, nn }));
+                }
             } else if (ebt::startswith(v, "weiran")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
                 if (parts.size() == 2) {

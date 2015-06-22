@@ -3,6 +3,7 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech/speech.h"
+#include "scrf/nn.h"
 #include "scrf/weiran.h"
 #include <fstream>
 
@@ -19,9 +20,9 @@ struct learning_env {
 
     std::vector<real> cm_mean;
     std::vector<real> cm_stddev;
-    weiran::param_t nn_param;
-    weiran::param_t nn_opt_data;
-    weiran::nn_t nn;
+    nn::param_t nn_param;
+    nn::param_t nn_opt_data;
+    nn::nn_t nn;
     real nn_step_size;
 
     int save_every;
@@ -81,12 +82,17 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     }
 
     if (ebt::in(std::string("nn-param"), args)) {
-        nn_param = weiran::load_param(args.at("nn-param"));
+        nn_param = nn::load_param(args.at("nn-param"));
+        nn = nn::make_nn(nn_param);
+    }
+
+    if (ebt::in(std::string("weiran-nn-param"), args)) {
+        nn_param = nn::load_param(args.at("weiran-nn-param"));
         nn = weiran::make_nn(nn_param);
     }
 
     if (ebt::in(std::string("nn-opt-data"), args)) {
-        nn_opt_data = weiran::load_param(args.at("nn-opt-data"));
+        nn_opt_data = nn::load_param(args.at("nn-opt-data"));
     }
 
     if (ebt::in(std::string("nn-step-size"), args)) {
@@ -224,16 +230,16 @@ void learning_env::run()
             auto param_grad = loss_func->param_grad();
             if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
                 scrf::hinge_loss& hinge_loss = static_cast<scrf::hinge_loss&>(*loss_func);
-                weiran::param_t nn_grad = weiran::hinge_nn_grad(
+                nn::param_t nn_grad = nn::hinge_nn_grad(
                     nn, param, hinge_loss.gold, hinge_loss.graph_path,
                     graph_feat_func);
-                weiran::move_out_param(nn, nn_param);
-                weiran::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
+                nn::move_out_param(nn, nn_param);
+                nn::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
                 if (i % save_every == 0) {
-                    weiran::save_param(nn_param, "nn-param-last");
-                    weiran::save_param(nn_opt_data, "nn-opt-data-last");
+                    nn::save_param(nn_param, "nn-param-last");
+                    nn::save_param(nn_opt_data, "nn-opt-data-last");
                 }
-                weiran::move_in_param(nn, nn_param);
+                nn::move_in_param(nn, nn_param);
             }
             scrf::adagrad_update(param, param_grad, opt_data, step_size);
 
@@ -256,9 +262,9 @@ void learning_env::run()
     scrf::save_param(output_opt_data, opt_data);
 
     if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
-        weiran::move_out_param(nn, nn_param);
-        weiran::save_param(nn_param, "nn-param-last");
-        weiran::save_param(nn_opt_data, "nn-opt-data-last");
+        nn::move_out_param(nn, nn_param);
+        nn::save_param(nn_param, "nn-param-last");
+        nn::save_param(nn_opt_data, "nn-opt-data-last");
     }
 }
 
@@ -281,6 +287,7 @@ int main(int argc, char *argv[])
             {"loss", "hinge,filtering", true},
             {"cm-mean", "", false},
             {"cm-stddev", "", false},
+            {"weiran-nn-param", "", false},
             {"nn-param", "", false},
             {"nn-opt-data", "", false},
             {"nn-step-size", "", false},

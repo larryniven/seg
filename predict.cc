@@ -3,7 +3,7 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech/speech.h"
-#include "scrf/weiran.h"
+#include "scrf/nn.h"
 #include <fstream>
 
 struct prediction_env {
@@ -16,8 +16,8 @@ struct prediction_env {
 
     std::vector<real> cm_mean;
     std::vector<real> cm_stddev;
-    weiran::param_t nn_param;
-    weiran::nn_t nn;
+    nn::param_t nn_param;
+    nn::nn_t nn;
 
     std::vector<std::string> features;
 
@@ -68,8 +68,8 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
     }
 
     if (ebt::in(std::string("nn-param"), args)) {
-        nn_param = weiran::load_param(args.at("nn-param"));
-        nn = weiran::make_nn(nn_param);
+        nn_param = nn::load_param(args.at("nn-param"));
+        nn = nn::make_nn(nn_param);
     }
 
     param = scrf::load_param(args.at("param"));
@@ -96,9 +96,6 @@ void prediction_env::run()
         if (ebt::in(std::string("lattice-list"), args)) {
             lattice::fst lat = lattice::load_lattice(lattice_list);
 
-            std::cout << "vertices: " << lat.data->vertices.size()
-                << " edges: " << lat.data->edges.size() << std::endl;
-
             if (!lattice_list) {
                 break;
             }
@@ -123,6 +120,10 @@ void prediction_env::run()
         } else {
             graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
             graph.topo_order = scrf::topo_order(graph);
+        }
+
+        if (!input_list) {
+            break;
         }
 
         scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
@@ -157,7 +158,8 @@ int main(int argc, char *argv[])
             {"features", "", true},
             {"cm-mean", "", false},
             {"cm-stddev", "", false},
-            {"nn-param", "", false}
+            {"nn-param", "", false},
+            {"weiran-nn-param", "", false}
         }
     };
 

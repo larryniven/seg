@@ -14,7 +14,7 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 
-namespace weiran {
+namespace nn {
 
     struct nn_t;
 
@@ -522,7 +522,7 @@ namespace scrf {
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg,
         std::vector<real> const& cm_mean, std::vector<real> const& cm_stddev,
-        weiran::nn_t const& nn);
+        nn::nn_t const& nn);
 
     composite_weight make_weight(
         param_t const& param,
