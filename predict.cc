@@ -4,6 +4,7 @@
 #include "scrf/lattice.h"
 #include "speech/speech.h"
 #include "scrf/nn.h"
+#include "scrf/weiran.h"
 #include <fstream>
 
 struct prediction_env {
@@ -70,6 +71,11 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
     if (ebt::in(std::string("nn-param"), args)) {
         nn_param = nn::load_param(args.at("nn-param"));
         nn = nn::make_nn(nn_param);
+    }
+
+    if (ebt::in(std::string("weiran-nn-param"), args)) {
+        nn_param = nn::load_param(args.at("weiran-nn-param"));
+        nn = weiran::make_nn(nn_param);
     }
 
     param = scrf::load_param(args.at("param"));
