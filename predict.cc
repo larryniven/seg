@@ -20,6 +20,8 @@ struct prediction_env {
     nn::param_t nn_param;
     nn::nn_t nn;
 
+    int beam_width;
+
     std::vector<std::string> features;
 
     std::unordered_map<std::string, std::string> args;
@@ -80,6 +82,10 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
 
     param = scrf::load_param(args.at("param"));
     features = ebt::split(args.at("features"), ",");    
+
+    if (ebt::in(std::string("beam-width"), args)) {
+        beam_width = std::stoi(args.at("beam-width"));
+    }
 }
 
 void prediction_env::run()
@@ -139,12 +145,22 @@ void prediction_env::run()
             scrf::make_weight(param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
-        fst::path<scrf::scrf_t> one_best = scrf::shortest_path(graph, graph.topo_order);
+        fst::path<scrf::scrf_t> one_best;
+        if (ebt::in(std::string("beam-width"), args)) {
+            fst::beam_search<scrf::scrf_t> beam_search;
+            beam_search.search(graph, beam_width);
+            one_best = beam_search.best_path(graph);
+        } else {
+            one_best = scrf::shortest_path(graph, graph.topo_order);
+        }
 
+        double weight = 0;
         for (auto& e: one_best.edges()) {
             std::cout << one_best.output(e) << " ";
+            weight += one_best.weight(e);
         }
         std::cout << "(" << input_file << ")" << std::endl;
+        std::cout << "weight: " << weight << std::endl;
 
         ++i;
     }
@@ -165,7 +181,8 @@ int main(int argc, char *argv[])
             {"cm-mean", "", false},
             {"cm-stddev", "", false},
             {"nn-param", "", false},
-            {"weiran-nn-param", "", false}
+            {"weiran-nn-param", "", false},
+            {"beam-width", "", false}
         }
     };
 
