@@ -217,11 +217,8 @@ namespace nn {
             // force fead forward
             (*lattice_feat.features.at(index))(feat, *gold.data->base_fst->fst, e);
 
+            autodiff::clear_grad(nn.layers.back());
             nn.layers.back()->grad = std::make_shared<std::vector<real>>(std::move(top_grad));
-
-            for (auto& w: nn.weights) {
-                w->grad = nullptr;
-            }
 
             autodiff::grad(nn.layers.back(), autodiff::grad_funcs);
 
@@ -251,11 +248,8 @@ namespace nn {
             // force fead forward
             (*lattice_feat.features.at(index))(feat, *cost_aug.data->base_fst->fst, e);
 
+            autodiff::clear_grad(nn.layers.back());
             nn.layers.back()->grad = std::make_shared<std::vector<real>>(std::move(top_grad));
-
-            for (auto& w: nn.weights) {
-                w->grad = nullptr;
-            }
 
             autodiff::grad(nn.layers.back(), autodiff::grad_funcs);
 
