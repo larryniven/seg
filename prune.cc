@@ -252,15 +252,20 @@ void pruning_env::run()
 
         ofs << input_file << std::endl;
 
+        for (int i = 0; i < result_fst.vertices().size(); ++i) {
+            ofs << i << " "
+                << "time=" << result_fst.data->vertices.at(i).time * 1e5 << std::endl;
+        }
+
+        ofs << "#" << std::endl;
+
         for (int e = 0; e < result.edges.size(); ++e) {
             int tail = result_fst.tail(e);
             int head = result_fst.head(e);
 
-            ofs << int(result_fst.data->vertices.at(tail).time * 1e5)
-                << " " << int(result_fst.data->vertices.at(head).time *1e5)
-                << " " << result_fst.output(e)
-                << " " << tail << " " << head
-                << " " << result.edges.at(e).weight << std::endl;
+            ofs << tail << " " << head << " "
+                << "label=" << result_fst.output(e) << ","
+                << "weight=" << result.edges.at(e).weight << std::endl;
         }
         ofs << "." << std::endl;
 

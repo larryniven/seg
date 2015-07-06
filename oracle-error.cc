@@ -109,7 +109,7 @@ void oracle_env::run()
 
         lattice::add_eps_loops(lat, "<eps1>");
 
-        lattice::fst gold = scrf::load_gold(gold_list);
+        lattice::fst gold = lattice::load_lattice(gold_list);
 
         if (!gold_list) {
             break;
