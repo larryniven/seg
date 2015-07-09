@@ -363,7 +363,7 @@ namespace scrf {
                     auto const& v = inputs.at(i);
 
                     for (int j = start_dim; j < end_dim + 1; ++j) {
-                        avg[j] += v.at(j);
+                        avg[j - start_dim] += v.at(j);
                     }
                 }
 
@@ -373,6 +373,7 @@ namespace scrf {
             }
 
             auto& v = feat.class_param["[lattice] " + fst.output(e)];
+
             v.insert(v.end(), avg.begin(), avg.end());
 
             feat_cache[std::get<0>(e)] = std::move(avg);
