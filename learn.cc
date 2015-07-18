@@ -5,6 +5,9 @@
 #include "speech/speech.h"
 #include "scrf/nn.h"
 #include "scrf/weiran.h"
+#include "scrf/loss.h"
+#include "scrf/cost.h"
+#include "scrf/make_feature.h"
 #include <fstream>
 
 struct learning_env {

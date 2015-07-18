@@ -22,6 +22,8 @@ namespace lattice {
         real weight;
     };
 
+    bool operator==(edge_data const& e1, edge_data const& e2);
+
     struct fst_data {
         std::vector<int> initials;
         std::vector<int> finals;
@@ -36,6 +38,9 @@ namespace lattice {
 
         std::vector<ebt::SparseVector> features;
     };
+
+    void add_vertex(fst_data& data, int v, long time);
+    void add_edge(fst_data& data, int e, std::string label, int tail, int head, real weight);
 
     struct fst {
         using vertex_type = int;

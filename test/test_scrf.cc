@@ -95,8 +95,10 @@ std::vector<std::pair<std::string, std::function<void(void)>>> tests {
 
             fst::one_best<scrf::scrf_t> one_best;
 
-            one_best.extra[scrf.initial()] = fst::one_best<scrf::scrf_t>::extra_data {
-                std::make_tuple(-1, -1), 0 };
+            for (auto& i: scrf.initials()) {
+                one_best.extra[i] = fst::one_best<scrf::scrf_t>::extra_data {
+                    std::make_tuple(-1, -1), 0 };
+            }
 
             one_best.merge(scrf, scrf.vertices());
 
@@ -140,8 +142,10 @@ std::vector<std::pair<std::string, std::function<void(void)>>> tests {
 
             fst::one_best<scrf::scrf_t> one_best;
 
-            one_best.extra[scrf.initial()] = fst::one_best<scrf::scrf_t>::extra_data {
-                std::make_tuple(-1, -1), 0 };
+            for (auto& i: scrf.initials()) {
+                one_best.extra[i] = fst::one_best<scrf::scrf_t>::extra_data {
+                    std::make_tuple(-1, -1), 0 };
+            }
 
             one_best.merge(scrf, scrf.vertices());
 

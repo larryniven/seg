@@ -25,8 +25,8 @@ std::vector<std::pair<std::string, std::function<void(void)>>> tests {
             std::string trivial_lattice =
                 "filename\n"
                 "0 time=0\n"
-                "1 time=100000\n"
-                "2 time=200000\n"
+                "1 time=1\n"
+                "2 time=2\n"
                 "#\n"
                 "0 1 weight=1.2,label=foo,graph_score=1.0\n"
                 "1 2 weight=3.4,label=bar,graph_score=2.0\n"
@@ -54,6 +54,7 @@ std::vector<std::pair<std::string, std::function<void(void)>>> tests {
 int main()
 {
     for (auto& p: tests) {
+        std::cout << p.first << std::endl;
         p.second();
     }
 

@@ -4,6 +4,46 @@
 
 namespace lattice {
 
+    bool operator==(edge_data const& e1, edge_data const& e2)
+    {
+        return e1.label == e2.label && e1.tail == e2.tail
+            && e1.head == e2.head && e1.weight == e2.weight;
+    }
+
+    void add_vertex(fst_data& data, int v, long time)
+    {
+        ebt::assert(v <= data.vertices.size(), ebt::format("refuse to add vertex {}", v));
+
+        if (v < data.vertices.size()) {
+            ebt::assert(data.vertices.at(v).time == time, "vertex already exists");
+        } else if (v == data.vertices.size()) {
+            data.vertices.push_back(vertex_data { time });
+            data.in_edges.resize(data.vertices.size());
+            data.out_edges.resize(data.vertices.size());
+            data.in_edges_map.resize(data.vertices.size());
+            data.out_edges_map.resize(data.vertices.size());
+        }
+    }
+
+    void add_edge(fst_data& data, int e, std::string label, int tail, int head, real weight)
+    {
+        ebt::assert(head < data.vertices.size(), "vertex does not exist");
+        ebt::assert(tail < data.vertices.size(), "vertex does not exist");
+
+        ebt::assert(e <= data.edges.size(), "refuse to add edge");
+
+        if (e < data.edges.size()) {
+            ebt::assert(edge_data {label, tail, head, weight} == data.edges.at(e),
+                "edge already exists");
+        } else if (e == data.edges.size()) {
+            data.edges.push_back(edge_data {label, tail, head, weight});
+            data.in_edges[head].push_back(e);
+            data.out_edges[tail].push_back(e);
+            data.out_edges_map.at(tail)[label].push_back(e);
+            data.in_edges_map.at(head)[label].push_back(e);
+        }
+    }
+
     std::vector<int> fst::vertices() const
     {
         std::vector<int> result;
@@ -112,10 +152,6 @@ namespace lattice {
 
             int v = std::stoi(parts[0]);
 
-            if (v >= result.vertices.size()) {
-                result.vertices.resize(v + 1);
-            }
-
             std::unordered_map<std::string, std::string> attr;
             auto pairs = ebt::split(parts[1], ",");
             for (auto& p: pairs) {
@@ -123,7 +159,7 @@ namespace lattice {
                 attr[pair[0]] = pair[1];
             }
 
-            result.vertices.at(v).time = std::stoi(attr.at("time")) / 1e5;
+            add_vertex(result, v, std::stoi(attr.at("time")));
         }
 
         while (std::getline(is, line) && line != ".") {
@@ -131,16 +167,6 @@ namespace lattice {
 
             int tail = std::stoi(parts[0]);
             int head = std::stoi(parts[1]);
-
-            if (tail >= result.vertices.size()) {
-                std::cout << "Vertex " << tail << " is not declared." << std::endl;
-                exit(1);
-            }
-
-            if (head >= result.vertices.size()) {
-                std::cout << "Vertex " << head << " is not declared." << std::endl;
-                exit(1);
-            }
 
             std::unordered_map<std::string, std::string> attr;
             auto pairs = ebt::split(parts[2], ",");
@@ -154,30 +180,10 @@ namespace lattice {
                 weight = std::stod(attr.at("weight"));
             }
 
-            std::string label = parts[2] == "<eps>" ? "<spe>" : attr.at("label");
+            std::string label = attr.at("label");
 
-            edge_data e_data { .label = label, .tail = tail, .head = head, .weight = weight };
-
-            result.edges.push_back(e_data);
-
-            if (std::max(tail, head) >= result.in_edges.size()) {
-                result.in_edges.resize(std::max(tail, head) + 1);
-                result.out_edges.resize(std::max(tail, head) + 1);
-                result.in_edges_map.resize(std::max(tail, head) + 1);
-                result.out_edges_map.resize(std::max(tail, head) + 1);
-            }
-
-            int e = int(result.edges.size()) - 1;
-
-            result.in_edges[head].push_back(e);
-            result.out_edges[tail].push_back(e);
-
-            result.out_edges_map.at(tail)[label].push_back(e);
-            result.in_edges_map.at(head)[label].push_back(e);
-
-            if (e >= result.features.size()) {
-                result.features.resize(e + 1);
-            }
+            int e = int(result.edges.size());
+            add_edge(result, e, label, tail, head, weight);
 
             for (auto& p: attr) {
                 if (p.first == "weight" || p.first == "label") {
@@ -225,15 +231,8 @@ namespace lattice {
                 continue;
             }
 
-            edge_data e_data { .label = label,
-                .tail = i, .head = i, .weight = 0};
-            data.edges.push_back(e_data);
-
-            data.in_edges[i].push_back(data.edges.size() - 1);
-            data.in_edges_map[i][label].push_back(data.edges.size() - 1);
-
-            data.out_edges[i].push_back(data.edges.size() - 1);
-            data.out_edges_map[i][label].push_back(data.edges.size() - 1);
+            int e = int(data.edges.size());
+            add_edge(data, e, label, i, i, 0);
         }
 
         return f;
@@ -248,21 +247,15 @@ namespace lattice {
 
         std::vector<int> path;
 
-        auto is_parent = [&](int u, int v) {
-            for (int e: fst.out_edges(u)) {
-                if (v == fst.head(e)) {
-                    return true;
-                }
-            }
-
-            return false;
-        };
-
         while (stack.size() > 0) {
             int u = stack.back();
             stack.pop_back();
 
-            while (path.size() > 0 && !is_parent(path.back(), u)) {
+            // TODO: alternatively make in_edges return an unordered_set?
+            auto u_in_edges = fst.in_edges(u);
+            std::unordered_set<int> u_in_edge_set { u_in_edges.begin(), u_in_edges.end() };
+
+            while (path.size() > 0 && !ebt::in(path.back(), u_in_edge_set)) {
                 int v = path.back();
                 if (!ebt::in(v, order_set)) {
                     order.push_back(v);

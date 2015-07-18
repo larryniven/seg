@@ -1,4 +1,5 @@
 #include "scrf/util.h"
+#include "scrf/make_feature.h"
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"

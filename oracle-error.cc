@@ -1,5 +1,5 @@
 #include "scrf/util.h"
-#include "scrf/scrf.h"
+#include "scrf/fst.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech/speech.h"
