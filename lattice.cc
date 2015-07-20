@@ -1,6 +1,7 @@
 #include "scrf/lattice.h"
 #include "ebt/ebt.h"
 #include <algorithm>
+#include <cassert>
 
 namespace lattice {
 
@@ -12,10 +13,10 @@ namespace lattice {
 
     void add_vertex(fst_data& data, int v, long time)
     {
-        ebt::assert(v <= data.vertices.size(), ebt::format("refuse to add vertex {}", v));
+        assert(v <= data.vertices.size());
 
         if (v < data.vertices.size()) {
-            ebt::assert(data.vertices.at(v).time == time, "vertex already exists");
+            assert(data.vertices.at(v).time == time);
         } else if (v == data.vertices.size()) {
             data.vertices.push_back(vertex_data { time });
             data.in_edges.resize(data.vertices.size());
@@ -27,14 +28,13 @@ namespace lattice {
 
     void add_edge(fst_data& data, int e, std::string label, int tail, int head, real weight)
     {
-        ebt::assert(head < data.vertices.size(), "vertex does not exist");
-        ebt::assert(tail < data.vertices.size(), "vertex does not exist");
+        assert(head < data.vertices.size());
+        assert(tail < data.vertices.size());
 
-        ebt::assert(e <= data.edges.size(), "refuse to add edge");
+        assert(e <= data.edges.size());
 
         if (e < data.edges.size()) {
-            ebt::assert(edge_data {label, tail, head, weight} == data.edges.at(e),
-                "edge already exists");
+            assert((edge_data {label, tail, head, weight} == data.edges.at(e)));
         } else if (e == data.edges.size()) {
             data.edges.push_back(edge_data {label, tail, head, weight});
             data.in_edges[head].push_back(e);

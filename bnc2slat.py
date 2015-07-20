@@ -39,7 +39,7 @@ while True:
         line = f.readline()
 
     for u in range(v + 1):
-        print('{} time={}'.format(u, time[u]))
+        print('{} time={}'.format(u, int(int(time[u]) / 1e5)))
 
     print('#')
 

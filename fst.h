@@ -7,8 +7,8 @@
 #include <vector>
 #include <limits>
 #include <algorithm>
-#include "ebt/ebt.h"
 #include <memory>
+#include "ebt/ebt.h"
 
 namespace fst {
 
