@@ -67,6 +67,26 @@ namespace scrf {
 
     };
 
+    struct collapsed_feature
+        : public scrf_feature {
+
+        std::shared_ptr<scrf_feature> feat_func;
+        std::string name_;
+
+        collapsed_feature(std::string name,
+            std::shared_ptr<scrf_feature> feat_func);
+
+        virtual int size() const override;
+
+        virtual std::string name() const override;
+
+        virtual void operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const override;
+
+    };
+
     struct composite_feature
         : public scrf_feature {
 

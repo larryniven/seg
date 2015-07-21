@@ -149,9 +149,44 @@ namespace scrf {
             exit(1);
         }
 
-        for (auto& p: feat_tmp.class_param) {
-            feat.class_param[label_tuple + " " + p.first] = std::move(p.second);
+        if (label_tuple.size() > 0) {
+            label_tuple += " ";
         }
+
+        for (auto& p: feat_tmp.class_param) {
+            feat.class_param[label_tuple + p.first] = std::move(p.second);
+        }
+    }
+
+    collapsed_feature::collapsed_feature(
+        std::string name,
+        std::shared_ptr<scrf_feature> feat_func)
+        : name_(name), feat_func(feat_func)
+    {}
+
+    int collapsed_feature::size() const
+    {
+        return 0;
+    }
+
+    std::string collapsed_feature::name() const
+    {
+        return "";
+    }
+
+    void collapsed_feature::operator()(
+        param_t& feat,
+        fst::composed_fst<lattice::fst, lm::fst> const& fst,
+        std::tuple<int, int> const& e) const
+    {
+        param_t feat_tmp;
+        (*feat_func)(feat_tmp, fst, e);
+
+        std::vector<real> result;
+        for (auto& p: feat_tmp.class_param) {
+            result.insert(result.end(), p.second.begin(), p.second.end());
+        }
+        feat.class_param[name_] = std::move(result);
     }
 
     composite_feature::composite_feature(std::string name)
