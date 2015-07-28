@@ -25,7 +25,7 @@ namespace segfeat {
 
         len.resize(max_length);
 
-        if (end_time - start_time < max_length) {
+        if (start_time < end_time && end_time - start_time < max_length) {
             len[end_time - start_time - 1] = 1;
         }
 

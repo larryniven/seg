@@ -4,7 +4,6 @@
 #include "scrf/lattice.h"
 #include "speech/speech.h"
 #include "scrf/nn.h"
-#include "scrf/weiran.h"
 #include "scrf/loss.h"
 #include "scrf/cost.h"
 #include "scrf/make_feature.h"
