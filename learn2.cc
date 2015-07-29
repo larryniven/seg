@@ -129,6 +129,11 @@ void learning_env::run()
 
         std::cout << "loss: " << ell << std::endl;
 
+        if (ell < -1e6) {
+            std::cerr << "weird loss value. exit." << std::endl;
+            exit(1);
+        }
+
         if (ell < 0) {
             std::cout << "loss is less than zero.  skipping." << std::endl;
         }

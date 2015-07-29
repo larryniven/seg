@@ -23,10 +23,10 @@ namespace segfeat {
     {
         std::vector<real> len;
 
-        len.resize(max_length);
+        len.resize(max_length + 1);
 
-        if (start_time < end_time && end_time - start_time < max_length) {
-            len[end_time - start_time - 1] = 1;
+        if (0 <= end_time - start_time && end_time - start_time <= max_length) {
+            len[end_time - start_time] = 1;
         }
 
         feat["length"] = std::move(len);
@@ -54,8 +54,8 @@ namespace segfeat {
 
         check_dim(frames, capped_start_dim, capped_end_dim);
 
-        feat["frame-avg"].resize(capped_end_dim - capped_start_dim + 1);
         std::vector<real>& result = feat["frame-avg"];
+        result.resize(capped_end_dim - capped_start_dim + 1);
 
         if (start_time >= end_time) {
             return;
@@ -91,8 +91,10 @@ namespace segfeat {
         check_dim(frames, capped_start_dim, capped_end_dim);
 
         real span = (end_time - start_time) / samples;
+        int length = capped_end_dim - capped_start_dim + 1;
 
         std::vector<real>& result = feat["frame-samples"];
+        result.resize(samples * length);
 
         if (start_time >= end_time) {
             return;
@@ -101,8 +103,10 @@ namespace segfeat {
         for (int i = 0; i < samples; ++i) {
             auto& u = frames.at(std::min<int>(
                 std::floor(end_time + (i + 0.5) * span), frames.size() - 1));
-            result.insert(result.end(), u.begin() + capped_start_dim,
-                u.begin() + capped_end_dim + 1);
+
+            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+                result[i * length + d - capped_start_dim] = u[d];
+            }
         }
     }
 
@@ -121,16 +125,21 @@ namespace segfeat {
 
         check_dim(frames, capped_start_dim, capped_end_dim);
 
-        feat["left-boundary"].resize(3 * (capped_end_dim - capped_start_dim + 1));
         auto& result = feat["left-boundary"];
+        int length = capped_end_dim - capped_start_dim + 1;
+        result.resize(3 * length);
 
         if (start_time >= end_time) {
             return;
         }
 
         for (int i = 0; i < 3; ++i) {
-            auto& tail_u = frames.at(std::min<int>(frames.size() - 1, std::max<int>(end_time - i, 0)));
-            result.insert(result.end(), tail_u.begin() + capped_start_dim, tail_u.begin() + capped_end_dim + 1);
+            auto& tail_u = frames.at(std::min<int>(frames.size() - 1,
+                std::max<int>(end_time - i, 0)));
+
+            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+                result[i * length + d - capped_start_dim] = tail_u[d];
+            }
         }
     }
 }
