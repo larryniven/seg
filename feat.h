@@ -6,7 +6,7 @@
 
 namespace segfeat {
 
-    using feat_t = std::unordered_map<std::string, std::vector<double>>;
+    using feat_t = std::vector<real>;
 
     struct feature {
 
@@ -15,6 +15,17 @@ namespace segfeat {
         virtual void operator()(feat_t& feat,
             std::vector<std::vector<real>> const& frames,
             int start_time, int end_time) const = 0;
+
+    };
+
+    struct composite_feature
+        : public feature {
+
+        std::vector<std::shared_ptr<feature>> features;
+
+        virtual void operator()(feat_t& feat,
+            std::vector<std::vector<real>> const& frames,
+            int start_time, int end_time) const override;
 
     };
 
@@ -84,6 +95,7 @@ namespace segfeat {
             std::vector<std::vector<real>> const& frames,
             int start_time, int end_time) const override;
     };
+
 }
 
 namespace scrf {

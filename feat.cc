@@ -6,11 +6,20 @@ namespace segfeat {
     feature::~feature()
     {}
 
+    void composite_feature::operator()(feat_t& feat,
+        std::vector<std::vector<real>> const& frames,
+        int start_time, int end_time) const
+    {
+        for (auto& f: features) {
+            (*f)(feat, frames, start_time, end_time);
+        }
+    }
+
     void bias::operator()(feat_t& feat,
         std::vector<std::vector<real>> const& frames,
         int start_time, int end_time) const
     {
-        feat["bias"] = std::vector<real> { 1 };
+        feat.push_back(1);
     }
 
     length_indicator::length_indicator(int max_length)
@@ -21,15 +30,12 @@ namespace segfeat {
         std::vector<std::vector<real>> const& frames,
         int start_time, int end_time) const
     {
-        std::vector<real> len;
-
-        len.resize(max_length + 1);
+        int orig_size = feat.size();
+        feat.resize(orig_size + max_length + 1);
 
         if (0 <= end_time - start_time && end_time - start_time <= max_length) {
-            len[end_time - start_time] = 1;
+            feat[orig_size + end_time - start_time] = 1;
         }
-
-        feat["length"] = std::move(len);
     }
 
     void check_dim(std::vector<std::vector<real>> const& frames,
@@ -54,10 +60,11 @@ namespace segfeat {
 
         check_dim(frames, capped_start_dim, capped_end_dim);
 
-        std::vector<real>& result = feat["frame-avg"];
+        std::vector<real> result;
         result.resize(capped_end_dim - capped_start_dim + 1);
 
         if (start_time >= end_time) {
+            feat.insert(feat.end(), result.begin(), result.end());
             return;
         }
 
@@ -73,6 +80,8 @@ namespace segfeat {
         for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
             result[d - capped_start_dim] /= (end_time - start_time);
         }
+
+        feat.insert(feat.end(), result.begin(), result.end());
     }
 
     frame_samples::frame_samples(int samples, int start_dim, int end_dim)
@@ -93,10 +102,11 @@ namespace segfeat {
         real span = (end_time - start_time) / samples;
         int length = capped_end_dim - capped_start_dim + 1;
 
-        std::vector<real>& result = feat["frame-samples"];
+        std::vector<real> result;
         result.resize(samples * length);
 
         if (start_time >= end_time) {
+            feat.insert(feat.end(), result.begin(), result.end());
             return;
         }
 
@@ -108,6 +118,8 @@ namespace segfeat {
                 result[i * length + d - capped_start_dim] = u[d];
             }
         }
+
+        feat.insert(feat.end(), result.begin(), result.end());
     }
 
     left_boundary::left_boundary(int start_dim, int end_dim)
@@ -125,11 +137,12 @@ namespace segfeat {
 
         check_dim(frames, capped_start_dim, capped_end_dim);
 
-        auto& result = feat["left-boundary"];
+        std::vector<double> result;
         int length = capped_end_dim - capped_start_dim + 1;
         result.resize(3 * length);
 
         if (start_time >= end_time) {
+            feat.insert(feat.begin(), result.begin(), result.end());
             return;
         }
 
@@ -141,6 +154,8 @@ namespace segfeat {
                 result[i * length + d - capped_start_dim] = tail_u[d];
             }
         }
+
+        feat.insert(feat.begin(), result.begin(), result.end());
     }
 }
 

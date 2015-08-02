@@ -8,13 +8,16 @@
 
 namespace scrf {
 
-    struct feat_adapter
+    struct lexicalized_feature
         : public scrf_feature {
 
-        feat_adapter(std::shared_ptr<segfeat::feature> raw_feat_func,
+        lexicalized_feature(
+            int order,
+            std::shared_ptr<segfeat::feature> raw_feat_func,
             std::vector<std::vector<real>> const& frames);
 
-        std::shared_ptr<segfeat::feature> raw_feat_func;
+        int order;
+        std::shared_ptr<segfeat::feature> feat_func;
         std::vector<std::vector<real>> const& frames;
 
         virtual int size() const override;

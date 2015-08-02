@@ -111,53 +111,6 @@ namespace scrf {
     scrf_feature::~scrf_feature()
     {}
 
-    lexicalized_feature::lexicalized_feature(
-        int order,
-        std::shared_ptr<scrf_feature> feat_func)
-        : order(order), feat_func(feat_func)
-    {}
-
-    int lexicalized_feature::size() const
-    {
-        return 0;
-    }
-
-    std::string lexicalized_feature::name() const
-    {
-        return "";
-    }
-
-    void lexicalized_feature::operator()(
-        param_t& feat,
-        fst::composed_fst<lattice::fst, lm::fst> const& fst,
-        std::tuple<int, int> const& e) const
-    {
-        param_t feat_tmp;
-        (*feat_func)(feat_tmp, fst, e);
-
-        std::string label_tuple;
-
-        if (order == 0) {
-            // do nothing
-        } else if (order == 1) {
-            label_tuple = fst.output(e);
-        } else if (order == 2) {
-            auto const& lm = *fst.fst2;
-            label_tuple = lm.data->history.at(std::get<1>(fst.tail(e))) + "_" + fst.output(e);
-        } else {
-            std::cerr << "order " << order << " not implemented" << std::endl;
-            exit(1);
-        }
-
-        if (label_tuple.size() > 0) {
-            label_tuple += " ";
-        }
-
-        for (auto& p: feat_tmp.class_param) {
-            feat.class_param[label_tuple + p.first] = std::move(p.second);
-        }
-    }
-
     collapsed_feature::collapsed_feature(
         std::string name,
         std::shared_ptr<scrf_feature> feat_func)
@@ -368,15 +321,17 @@ namespace scrf {
         real lattice_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
+            /*
             if (ebt::in(std::make_tuple(std::get<0>(e), fst.output(e)), cache)) {
                 return cache[std::make_tuple(std::get<0>(e), fst.output(e))];
             }
+            */
 
             param_t p;
             (*feat)(p, fst, e);
             real s = dot(param, p);
 
-            cache[std::make_tuple(std::get<0>(e), fst.output(e))] = s;
+            // cache[std::make_tuple(std::get<0>(e), fst.output(e))] = s;
 
             return s;
         }

@@ -2,23 +2,24 @@
 
 namespace scrf {
 
-    feat_adapter::feat_adapter(
-        std::shared_ptr<segfeat::feature> raw_feat_func,
+    lexicalized_feature::lexicalized_feature(
+        int order,
+        std::shared_ptr<segfeat::feature> feat_func,
         std::vector<std::vector<real>> const& frames)
-        : raw_feat_func(raw_feat_func), frames(frames)
+        : order(order), feat_func(feat_func), frames(frames)
     {}
 
-    int feat_adapter::size() const
+    int lexicalized_feature::size() const
     {
         return 0;
     }
 
-    std::string feat_adapter::name() const
+    std::string lexicalized_feature::name() const
     {
         return "";
     }
 
-    void feat_adapter::operator()(
+    void lexicalized_feature::operator()(
         param_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const
@@ -26,16 +27,26 @@ namespace scrf {
         segfeat::feat_t raw_feat;
 
         lattice::fst const& lat = *fst.fst1;
-        auto time = [&](int v) { return lat.data->vertices.at(v).time; };
+        int tail_time = lat.data->vertices.at(std::get<0>(fst.tail(e))).time;
+        int head_time = lat.data->vertices.at(std::get<0>(fst.head(e))).time;
 
-        int tail = lat.tail(std::get<0>(e));
-        int head = lat.head(std::get<0>(e));
+        (*feat_func)(raw_feat, frames, tail_time, head_time);
 
-        (*raw_feat_func)(raw_feat, frames, time(tail), time(head));
+        std::string label_tuple;
 
-        for (auto& p: raw_feat) {
-            feat.class_param[p.first] = std::move(p.second);
+        if (order == 0) {
+            // do nothing
+        } else if (order == 1) {
+            label_tuple = fst.output(e);
+        } else if (order == 2) {
+            auto const& lm = *fst.fst2;
+            label_tuple = lm.data->history.at(std::get<1>(fst.tail(e))) + "_" + fst.output(e);
+        } else {
+            std::cerr << "order " << order << " not implemented" << std::endl;
+            exit(1);
         }
+
+        feat.class_param[label_tuple] = std::move(raw_feat);
     }
 
     composite_feature make_feature(
@@ -214,86 +225,72 @@ namespace scrf {
         composite_feature label_feat { "label-feat" };
         composite_feature rest_feat { "rest-feat" };
 
-        std::vector<std::vector<std::string>> feature_order;
-        feature_order.resize(2);
+        std::vector<std::vector<std::string>> seg_feature_order;
+        seg_feature_order.resize(2);
 
         for (auto& v: features) {
             std::vector<std::string> parts = ebt::split(v, "@");
 
             if (parts.size() == 2) {
                 if (parts[1] == "0") {
-                    feature_order[0].push_back(parts[0]);
+                    seg_feature_order[0].push_back(parts[0]);
                 } else if (parts[1] == "1") {
-                    feature_order[1].push_back(parts[0]);
+                    seg_feature_order[1].push_back(parts[0]);
                 } else {
                     std::cerr << "order " << parts[1] << " not implemented" << std::endl;
                     exit(1);
                 }
             } else {
-                feature_order[0].push_back(parts[0]);
+                seg_feature_order[0].push_back(parts[0]);
             }
         }
 
-        for (int i = 0; i < feature_order.size(); ++i) {
-            for (auto& v: feature_order.at(i)) {
-                std::shared_ptr<scrf::feat_adapter> adapter;
+        for (int i = 0; i < seg_feature_order.size(); ++i) {
+            segfeat::composite_feature seg_feat;
+
+            for (auto& v: seg_feature_order.at(i)) {
+                std::shared_ptr<segfeat::feat_t> adapter;
 
                 if (ebt::startswith(v, "frame-avg")) {
                     int start_dim = -1;
                     int end_dim = -1;
                     std::tie(start_dim, end_dim) = get_dim(v);
 
-                    adapter = std::make_shared<scrf::feat_adapter>(
-                            scrf::feat_adapter(
-                                std::make_shared<segfeat::frame_avg>(
-                                    segfeat::frame_avg { start_dim, end_dim }),
-                                frames
-                            )
-                        );
+                    seg_feat.features.push_back(std::make_shared<segfeat::frame_avg>(
+                        segfeat::frame_avg { start_dim, end_dim }));
                 } else if (ebt::startswith(v, "frame-samples")) {
                     int start_dim = -1;
                     int end_dim = -1;
                     std::tie(start_dim, end_dim) = get_dim(v);
 
-                    adapter = std::make_shared<scrf::feat_adapter>(
-                            scrf::feat_adapter(
-                                std::make_shared<segfeat::frame_samples>(
-                                    segfeat::frame_samples { 3, start_dim, end_dim }),
-                                frames
-                            )
-                        );
+                    seg_feat.features.push_back(std::make_shared<segfeat::frame_samples>(
+                        segfeat::frame_samples { 3, start_dim, end_dim }));
+                } else if (ebt::startswith(v, "left-boundary")) {
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(v);
+
+                    seg_feat.features.push_back(std::make_shared<segfeat::left_boundary>(
+                        segfeat::left_boundary { start_dim, end_dim }));
                 } else if (ebt::startswith(v, "length-indicator")) {
-                    adapter = std::make_shared<scrf::feat_adapter>(
-                            scrf::feat_adapter(
-                                std::make_shared<segfeat::length_indicator>(
-                                    segfeat::length_indicator { 30 }),
-                                frames
-                            )
-                        );
+                    seg_feat.features.push_back(std::make_shared<segfeat::length_indicator>(
+                        segfeat::length_indicator { 30 }));
                 } else if (ebt::startswith(v, "bias")) {
-                    adapter = std::make_shared<scrf::feat_adapter>(
-                            scrf::feat_adapter(
-                                std::make_shared<segfeat::bias>(
-                                    segfeat::bias {}),
-                                frames
-                            )
-                        );
+                    seg_feat.features.push_back(std::make_shared<segfeat::bias>(
+                        segfeat::bias {}));
                 } else {
                     std::cerr << "unknown feature " << v << std::endl;
                     exit(1);
                 }
-
-                lex_lattice_feat.features.push_back(adapter);
             }
+
+            scrf::lexicalized_feature lex_feat { i,
+                std::make_shared<segfeat::composite_feature>(seg_feat), frames };
+
+            lex_lattice_feat.features.push_back(std::make_shared<scrf::lexicalized_feature>(lex_feat));
         }
 
-        std::shared_ptr<collapsed_feature> first_order
-            = std::make_shared<collapsed_feature>(collapsed_feature { "first-order",
-            std::make_shared<composite_feature>(lex_lattice_feat) });
-
-        result.features.push_back(std::make_shared<lexicalized_feature>(
-            lexicalized_feature(1, first_order)));
-
+        result.features.push_back(std::make_shared<composite_feature>(lex_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(tied_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(lm_feat));
         result.features.push_back(std::make_shared<composite_feature>(label_feat));
