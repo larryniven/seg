@@ -148,7 +148,7 @@ namespace segfeat {
 
         for (int i = 0; i < 3; ++i) {
             auto& tail_u = frames.at(std::min<int>(frames.size() - 1,
-                std::max<int>(end_time - i, 0)));
+                std::max<int>(start_time - i, 0)));
 
             for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
                 result[i * length + d - capped_start_dim] = tail_u[d];
