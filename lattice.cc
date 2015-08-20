@@ -41,6 +41,8 @@ namespace lattice {
             data.out_edges[tail].push_back(e);
             data.out_edges_map.at(tail)[label].push_back(e);
             data.in_edges_map.at(head)[label].push_back(e);
+            data.attrs.resize(std::max<int>(data.features.size(), e + 1));
+            data.features.resize(std::max<int>(data.features.size(), e + 1));
         }
     }
 
@@ -136,6 +138,8 @@ namespace lattice {
             return f;
         }
 
+        result.name = line;
+
         int min_time = std::numeric_limits<int>::max();
         std::unordered_set<int> initials;
 
@@ -168,29 +172,34 @@ namespace lattice {
             int tail = std::stoi(parts[0]);
             int head = std::stoi(parts[1]);
 
-            std::unordered_map<std::string, std::string> attr;
+            std::unordered_map<std::string, std::string> attr_map;
+            std::vector<std::pair<std::string, std::string>> attr;
             auto pairs = ebt::split(parts[2], ",");
             for (auto& p: pairs) {
                 auto pair = ebt::split(p, "=");
-                attr[pair[0]] = pair[1];
+                attr_map[pair[0]] = pair[1];
+                attr.push_back(std::make_pair(pair[0], pair[1]));
             }
 
             real weight = 0;
-            if (ebt::in(std::string("weight"), attr)) {
-                weight = std::stod(attr.at("weight"));
+            if (ebt::in(std::string("weight"), attr_map)) {
+                weight = std::stod(attr_map.at("weight"));
             }
 
-            std::string label = attr.at("label");
+            std::string label = attr_map.at("label");
 
             int e = int(result.edges.size());
             add_edge(result, e, label, tail, head, weight);
 
-            for (auto& p: attr) {
-                if (p.first == "weight" || p.first == "label") {
+            result.attrs[e] = attr;
+            result.features[e].resize(attr.size());
+
+            for (int i = 0; i < attr.size(); ++i) {
+                if (attr.at(i).first == "weight" || attr.at(i).first == "label") {
                     continue;
                 }
 
-                result.features[e](p.first) = std::stod(p.second);
+                result.features[e][i] = std::stod(attr.at(i).second);
             }
 
             if (max_time < result.vertices.at(head).time) {
@@ -227,9 +236,9 @@ namespace lattice {
         std::unordered_set<int> final_set { data.finals.begin(), data.finals.end() };
 
         for (int i = 0; i < data.vertices.size(); ++i) {
-            if (ebt::in(i, initial_set) || ebt::in(i, final_set)) {
-                continue;
-            }
+            // if (ebt::in(i, initial_set) || ebt::in(i, final_set)) {
+            //     continue;
+            // }
 
             int e = int(data.edges.size());
             add_edge(data, e, label, i, i, 0);
@@ -251,11 +260,13 @@ namespace lattice {
             int u = stack.back();
             stack.pop_back();
 
-            // TODO: alternatively make in_edges return an unordered_set?
             auto u_in_edges = fst.in_edges(u);
-            std::unordered_set<int> u_in_edge_set { u_in_edges.begin(), u_in_edges.end() };
+            std::unordered_set<int> u_in_ver_set;
+            for (auto& e: fst.in_edges(u)) {
+                u_in_ver_set.insert(fst.tail(e));
+            }
 
-            while (path.size() > 0 && !ebt::in(path.back(), u_in_edge_set)) {
+            while (path.size() > 0 && !ebt::in(path.back(), u_in_ver_set)) {
                 int v = path.back();
                 if (!ebt::in(v, order_set)) {
                     order.push_back(v);
@@ -282,7 +293,6 @@ namespace lattice {
                 order.push_back(v);
                 order_set.insert(v);
             }
-            order.push_back(v);
             path.pop_back();
         }
 

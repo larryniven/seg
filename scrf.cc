@@ -185,11 +185,11 @@ namespace scrf {
         return sum;
     }
 
-    linear_score::linear_score(param_t const& param, scrf_feature const& feat_func)
+    linear_weight::linear_weight(param_t const& param, scrf_feature const& feat_func)
         : param(param), feat_func(feat_func)
     {}
 
-    real linear_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+    real linear_weight::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const
     {
         param_t feat;

@@ -2,7 +2,7 @@ CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff -L 
 
 obj = lattice.o lm.o feat.o cost.o loss.o nn.o scrf.o make_feature.o weiran.o
 
-bin = learn learn2 predict predict2 prune oracle-error
+bin = learn learn2 learn-lat predict predict2 prune oracle-error
 
 all: $(obj) $(bin)
 
@@ -14,6 +14,9 @@ learn: learn.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 learn2: learn2.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+
+learn-lat: learn-lat.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 predict: predict.o $(obj)

@@ -25,6 +25,8 @@ namespace lattice {
     bool operator==(edge_data const& e1, edge_data const& e2);
 
     struct fst_data {
+        std::string name;
+
         std::vector<int> initials;
         std::vector<int> finals;
     
@@ -36,7 +38,8 @@ namespace lattice {
         std::vector<std::unordered_map<std::string, std::vector<int>>> in_edges_map;
         std::vector<std::unordered_map<std::string, std::vector<int>>> out_edges_map;
 
-        std::vector<ebt::SparseVector> features;
+        std::vector<std::vector<std::pair<std::string, std::string>>> attrs;
+        std::vector<std::vector<real>> features;
     };
 
     void add_vertex(fst_data& data, int v, long time);

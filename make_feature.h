@@ -46,6 +46,10 @@ namespace scrf {
     composite_feature make_feature2(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& frames);
+
+    composite_feature make_feature3(
+        std::vector<std::string> features);
+
 }
 
 #endif

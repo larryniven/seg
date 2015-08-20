@@ -2,6 +2,29 @@
 #define COST_H
 
 #include "scrf/scrf.h"
+#include "speech/speech.h"
+
+namespace scrf {
+
+    namespace cost {
+
+        double overlap_cost(std::vector<speech::segment> const& gold_segs,
+            speech::segment const& e);
+
+        struct cost : public scrf_weight {
+
+            cost(fst::path<scrf::scrf_t> const& gold_fst);
+
+            std::vector<speech::segment> gold_segs;
+
+            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
+        };
+
+    }
+
+}
 
 namespace scrf {
 

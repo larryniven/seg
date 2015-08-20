@@ -72,9 +72,6 @@ namespace scrf {
         composite_feature label_feat { "label-feat" };
         composite_feature rest_feat { "rest-feat" };
 
-        std::vector<std::string> lex_lat_features;
-        std::vector<std::string> tied_lat_features;
-
         for (auto& v: features) {
             if (ebt::startswith(v, "frame-avg")) {
                 std::vector<std::string> parts = ebt::split(v, ":");
@@ -152,21 +149,12 @@ namespace scrf {
                     lex_lattice_feat.features.push_back(std::make_shared<weiran::weiran_feature>(
                         weiran::weiran_feature { inputs, cm_mean, cm_stddev, nn }));
                 }
-            } else if (ebt::startswith(v, "lex@")) {
-                lex_lat_features.push_back(v);
-            } else if (ebt::startswith(v, "@")) {
-                tied_lat_features.push_back(v);
             } else {
                 std::cout << "unknown featre type " << v << std::endl;
                 exit(1);
             }
         }
     
-        lex_lattice_feat.features.push_back(std::make_shared<feature::lex_lattice_feature>(
-            feature::lex_lattice_feature { lex_lat_features }));
-        tied_lattice_feat.features.push_back(std::make_shared<feature::tied_lattice_feature>(
-            feature::tied_lattice_feature { tied_lat_features }));
-
         result.features.push_back(std::make_shared<composite_feature>(lex_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(tied_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(lm_feat));
@@ -299,4 +287,32 @@ namespace scrf {
         return result;
     }
 
+    composite_feature make_feature3(
+        std::vector<std::string> features)
+    {
+        composite_feature result { "all" };
+
+        for (auto& v: features) {
+            if (ebt::startswith(v, "ext")) {
+                std::vector<std::string> parts = ebt::split(v, "@");
+
+                int order = std::stoi(parts[1]);
+
+                parts = ebt::split(parts[0], ":");
+
+                parts = ebt::split(parts[1], "-");
+
+                int start_index = std::stoi(parts[0]);
+                int end_index = std::stoi(parts[1]);
+
+                result.features.push_back(std::make_shared<scrf::feature::lat_feat>(
+                    scrf::feature::lat_feat { start_index, end_index, order }));
+            } else {
+                std::cerr << "unknown feature type " << v << std::endl;
+                exit(1);
+            }
+        }
+
+        return result;
+    }
 }

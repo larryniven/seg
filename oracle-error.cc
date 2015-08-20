@@ -9,7 +9,9 @@ struct oracle_env {
 
     std::ifstream lattice_list;
     std::ifstream gold_list;
-    std::unordered_set<std::string> phone_set;
+
+    std::vector<std::string> lat_skip;
+    std::vector<std::string> gold_skip;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -24,7 +26,14 @@ oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
 {
     lattice_list.open(args.at("lattice-list"));
     gold_list.open(args.at("gold-list"));
-    phone_set = speech::load_phone_set(args.at("phone-set"));
+
+    if (ebt::in(std::string("lat-skip"), args)) {
+        lat_skip = ebt::split(args.at("lat-skip"), ",");
+    }
+
+    if (ebt::in(std::string("gold-skip"), args)) {
+        gold_skip = ebt::split(args.at("gold-skip"), ",");
+    }
 }
 
 lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
@@ -47,15 +56,6 @@ lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
             data.in_edges_map[0][p1].push_back(data.edges.size() - 1);
             data.out_edges[0].push_back(data.edges.size() - 1);
             data.out_edges_map[0][p1].push_back(data.edges.size() - 1);
-        }
-
-        {
-            lm::edge_data e_data { 0, 0, 0, "<eps>", "<eps2>"};
-            data.edges.push_back(e_data);
-            data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0]["<eps>"].push_back(data.edges.size() - 1);
-            data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0]["<eps>"].push_back(data.edges.size() - 1);
         }
 
         {
@@ -85,8 +85,6 @@ lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
 
 void oracle_env::run()
 {
-    lm::fst cost = make_cost(phone_set);
-
     int i = 0;
 
     double error_sum = 0;
@@ -115,7 +113,53 @@ void oracle_env::run()
             break;
         }
 
-        int gold_edges = gold.edges().size();
+        for (auto& e: gold.data->edges) {
+            e.weight = 0;
+        }
+
+        std::unordered_set<std::string> phone_set;
+
+        for (auto& e: lat.edges()) {
+            phone_set.insert(lat.output(e));
+        }
+
+        for (auto& e: gold.edges()) {
+            phone_set.insert(gold.output(e));
+        }
+
+        lm::fst cost = make_cost(phone_set);
+        for (auto& p: lat_skip) {
+            lm::edge_data e_data { 0, 0, 0, p, "<eps2>"};
+            auto& data = *(cost.data);
+            data.edges.push_back(e_data);
+            data.in_edges[0].push_back(data.edges.size() - 1);
+            data.in_edges_map[0][p].push_back(data.edges.size() - 1);
+            data.out_edges[0].push_back(data.edges.size() - 1);
+            data.out_edges_map[0][p].push_back(data.edges.size() - 1);
+        }
+        for (auto& p: gold_skip) {
+            lm::edge_data e_data { 0, 0, 0, "<eps1>", p};
+            auto& data = *(cost.data);
+            data.edges.push_back(e_data);
+            data.in_edges[0].push_back(data.edges.size() - 1);
+            data.in_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
+            data.out_edges[0].push_back(data.edges.size() - 1);
+            data.out_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
+        }
+
+        int gold_edges = 0;
+        for (auto& e: gold.edges()) {
+            bool skip = false;
+            for (auto& p: gold_skip) {
+                if (gold.output(e) == p) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (!skip) {
+                ++gold_edges;
+            }
+        }
 
         lattice::add_eps_loops(gold, "<eps2>");
 
@@ -148,19 +192,66 @@ void oracle_env::run()
             }
         }
 
-        error_sum += -max;
-        length_sum += gold_edges;
-        rate_sum += -max / gold_edges;
-        density_sum += double(lat_edges) / gold_edges;
+        fst::path<decltype(comp)> path = one_best.best_path(comp);
 
-        std::cout << ebt::format("error: {} length: {} rate: {} density: {}", -max,
-            gold_edges, -max / gold_edges, double(lat_edges) / gold_edges) << std::endl;
+        if (ebt::in(std::string("print-path"), args)) {
+            std::cout << lat.data->name << std::endl;
+
+            std::unordered_set<int> vertices;
+
+            for (auto& v: path.vertices()) {
+                int lat_v = std::get<0>(v);
+                vertices.insert(lat_v);
+            }
+
+            std::vector<int> sorted_ver { vertices.begin(), vertices.end() };
+            std::sort(sorted_ver.begin(), sorted_ver.end());
+
+            for (auto& v: sorted_ver) {
+                std::cout << v << " " << "time=" << lat.data->vertices.at(v).time << std::endl;
+            }
+
+            std::cout << "#" << std::endl;
+
+            for (auto& e: path.edges()) {
+                int lat_e = std::get<0>(e);
+
+                if (lat.tail(lat_e) == lat.head(lat_e)) {
+                    continue;
+                }
+
+                std::cout << lat.tail(lat_e) << " " << lat.head(lat_e);
+
+                auto& attr = lat.data->attrs[lat_e];
+                for (int i = 0; i < attr.size(); ++i) {
+                    auto& p = attr[i];
+                    if (i == 0) {
+                        std::cout << " ";
+                    } else {
+                        std::cout << ",";
+                    }
+                    std::cout << p.first << "=" << p.second;
+                }
+                std::cout << std::endl;
+            }
+            std::cout << "." << std::endl;
+        } else {
+            error_sum += -max;
+            length_sum += gold_edges;
+            rate_sum += -max / gold_edges;
+            density_sum += double(lat_edges) / gold_edges;
+
+            std::cout << ebt::format("error: {} length: {} rate: {} density: {}", -max,
+                gold_edges, -max / gold_edges, double(lat_edges) / gold_edges) << std::endl;
+        }
 
         ++i;
     }
 
-    std::cout << ebt::format("total error: {} total length: {} rate: {} avg rate: {} avg density: {}",
-        error_sum, length_sum, error_sum / length_sum, rate_sum / i, density_sum / i) << std::endl;
+    if (!ebt::in(std::string("print-path"), args)) {
+        std::cout << ebt::format("total error: {} total length: {} rate: {} avg rate: {} avg density: {}",
+            error_sum, length_sum, error_sum / length_sum, rate_sum / i, density_sum / i) << std::endl;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -171,7 +262,9 @@ int main(int argc, char *argv[])
         {
             {"lattice-list", "", true},
             {"gold-list", "", true},
-            {"phone-set", "", true}
+            {"lat-skip", "", false},
+            {"gold-skip", "", false},
+            {"print-path", "", false}
         }
     };
 

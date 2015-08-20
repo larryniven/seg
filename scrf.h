@@ -108,13 +108,13 @@ namespace scrf {
 
     };
 
-    struct linear_score
+    struct linear_weight
         : public scrf_weight {
 
         param_t const& param;
         scrf_feature const& feat_func;
 
-        linear_score(param_t const& param, scrf_feature const& feat_func);
+        linear_weight(param_t const& param, scrf_feature const& feat_func);
 
         virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const override;
