@@ -2,10 +2,11 @@
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
-#include "scrf/cost.h"
+#include "scrf/scrf_cost.h"
 #include "scrf/loss.h"
-#include "scrf/feat.h"
-#include "scrf/make_feature.h"
+#include "scrf/scrf_feat.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/scrf_util.h"
 #include "speech/speech.h"
 #include <fstream>
 
@@ -59,14 +60,13 @@ void prediction_env::run()
             inputs = speech::load_frames(input_file);
         }
 
-        scrf::scrf_t graph;
-
-        graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
-        graph.topo_order = scrf::topo_order(graph);
-
         if (!input_list) {
             break;
         }
+
+        scrf::scrf_t graph;
+
+        graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
 
         scrf::composite_feature graph_feat_func = scrf::make_feature2(features, inputs);
 

@@ -41,8 +41,7 @@ namespace lattice {
             data.out_edges[tail].push_back(e);
             data.out_edges_map.at(tail)[label].push_back(e);
             data.in_edges_map.at(head)[label].push_back(e);
-            data.attrs.resize(std::max<int>(data.features.size(), e + 1));
-            data.features.resize(std::max<int>(data.features.size(), e + 1));
+            data.attrs.resize(std::max<int>(data.attrs.size(), e + 1));
         }
     }
 
@@ -192,15 +191,6 @@ namespace lattice {
             add_edge(result, e, label, tail, head, weight);
 
             result.attrs[e] = attr;
-            result.features[e].resize(attr.size());
-
-            for (int i = 0; i < attr.size(); ++i) {
-                if (attr.at(i).first == "weight" || attr.at(i).first == "label") {
-                    continue;
-                }
-
-                result.features[e][i] = std::stod(attr.at(i).second);
-            }
 
             if (max_time < result.vertices.at(head).time) {
                 max_time = result.vertices.at(head).time;

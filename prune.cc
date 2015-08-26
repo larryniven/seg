@@ -1,9 +1,11 @@
 #include "scrf/util.h"
-#include "scrf/make_feature.h"
+#include "scrf/scrf_feat.h"
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech/speech.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/scrf_util.h"
 #include <fstream>
 
 struct pruning_env {
@@ -59,11 +61,11 @@ void pruning_env::run()
     int i = 0;
     while (std::getline(input_list, input_file)) {
 
-        std::vector<std::vector<real>> inputs = speech::load_frames(input_file);
+        std::vector<std::vector<real>> frames = speech::load_frames(input_file);
 
         std::cout << input_file << std::endl;
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg);
+        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
 
         scrf::scrf_t graph;
 
@@ -87,7 +89,7 @@ void pruning_env::run()
             }
             graph.topo_order = std::move(topo_order);
         } else {
-            graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
+            graph = scrf::make_graph_scrf(frames.size(), lm_output, max_seg);
             graph.topo_order = graph.vertices();
         }
         graph.weight_func = std::make_shared<scrf::composite_weight>(
@@ -171,7 +173,7 @@ void pruning_env::run()
 
         real threshold = alpha * max + (1 - alpha) * sum / edge_count;
 
-        std::cout << "frames: " << inputs.size() << std::endl;
+        std::cout << "frames: " << frames.size() << std::endl;
         std::cout << "max: " << max << " avg: " << sum / edge_count
             << " threshold: " << threshold << std::endl;
         std::cout << "forward: " << f_max << " backward: " << b_max << std::endl;
@@ -255,7 +257,7 @@ void pruning_env::run()
 
         for (int i = 0; i < result_fst.vertices().size(); ++i) {
             ofs << i << " "
-                << "time=" << result_fst.data->vertices.at(i).time * 1e5 << std::endl;
+                << "time=" << result_fst.data->vertices.at(i).time << std::endl;
         }
 
         ofs << "#" << std::endl;

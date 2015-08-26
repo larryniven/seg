@@ -39,7 +39,6 @@ namespace lattice {
         std::vector<std::unordered_map<std::string, std::vector<int>>> out_edges_map;
 
         std::vector<std::vector<std::pair<std::string, std::string>>> attrs;
-        std::vector<std::vector<real>> features;
     };
 
     void add_vertex(fst_data& data, int v, long time);

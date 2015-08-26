@@ -98,16 +98,6 @@ namespace scrf {
 
     };
 
-    struct composite_weight
-        : public scrf_weight {
-
-        std::vector<std::shared_ptr<scrf_weight>> weights;
-
-        virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            std::tuple<int, int> const& e) const override;
-
-    };
-
     struct linear_weight
         : public scrf_weight {
 
@@ -221,11 +211,6 @@ namespace scrf {
         std::shared_ptr<lm::fst> lm);
 
     lattice::fst make_segmentation_lattice(int frames, int max_seg);
-
-    std::shared_ptr<lm::fst> erase_input(std::shared_ptr<lm::fst> lm);
-
-    scrf_t make_graph_scrf(int frames,
-        std::shared_ptr<lm::fst> lm, int max_seg);
 
     struct loss_func {
 

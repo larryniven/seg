@@ -1,70 +1,42 @@
-#include "scrf/cost.h"
+#include "scrf/scrf_cost.h"
 
 namespace scrf {
 
-    namespace cost {
+    seg_cost::seg_cost(std::shared_ptr<segcost::cost> cost,
+        fst::path<scrf_t> const& gold_fst)
+        : cost(cost)
+    {
+        auto& lat = *(gold_fst.data->base_fst->fst->fst1);
 
-        cost::cost(fst::path<scrf::scrf_t> const& gold_fst)
-        {
-            for (auto& e: gold_fst.edges()) {
-                auto& lat = *(gold_fst.data->base_fst->fst->fst1);
-                int tail = lat.tail(std::get<0>(e));
-                int head = lat.head(std::get<0>(e));
+        for (auto& e: gold_fst.edges()) {
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
 
-                gold_segs.push_back(speech::segment {
-                    int(lat.data->vertices.at(tail).time),
-                    int(lat.data->vertices.at(head).time),
-                    gold_fst.output(e) });
-            }
-        }
-
-        real cost::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            std::tuple<int, int> const& e) const
-        {
-            auto& lat = *(fst.fst1);
-            int tail = std::get<0>(fst.tail(e));
-            int head = std::get<1>(fst.head(e));
-
-            return overlap_cost(gold_segs, speech::segment {
+            gold_segs.push_back(speech::segment {
                 int(lat.data->vertices.at(tail).time),
                 int(lat.data->vertices.at(head).time),
-                fst.output(e) });
+                gold_fst.output(e) });
         }
-
-        double overlap_cost(std::vector<speech::segment> const& gold_segs,
-            speech::segment const& e)
-        {
-            if (e.label == "<eps>" && e.start_time == e.end_time) {
-                return 0;
-            }
-
-            speech::segment max_seg;
-            int max_overlap = -1;
-
-            for (auto& s: gold_segs) {
-                int overlap = std::max<int>(0, std::min(s.end_time, e.end_time)
-                    - std::max(s.start_time, e.start_time));
-
-                if (overlap > max_overlap) {
-                    max_seg = s;
-                }
-            }
-
-            int union_ = std::max(max_seg.end_time, e.end_time)
-                - std::min(max_seg.start_time, e.start_time);
-
-            if (e.label == max_seg.label) {
-                return 1 - max_overlap / union_;
-            } else {
-                return 1;
-            }
-        }
-
     }
 
-}
+    real seg_cost::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+        std::tuple<int, int> const& e) const
+    {
+        auto& lat = *(fst.fst1);
+        int tail = std::get<0>(fst.tail(e));
+        int head = std::get<0>(fst.head(e));
 
-namespace scrf {
+        return (*cost)(gold_segs, speech::segment {
+            int(lat.data->vertices.at(tail).time),
+            int(lat.data->vertices.at(head).time),
+            fst.output(e) });
+    }
+
+    seg_cost make_overlap_cost(fst::path<scrf_t> const& gold_fst)
+    {
+        return seg_cost { std::make_shared<segcost::overlap_cost>(
+            segcost::overlap_cost{}), gold_fst };
+    }
 
     real backoff_cost::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const

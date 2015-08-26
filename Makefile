@@ -1,8 +1,20 @@
 CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff -L ../la
 
-obj = lattice.o lm.o feat.o cost.o loss.o nn.o scrf.o make_feature.o weiran.o
+obj = lattice.o \
+    lm.o \
+    scrf_weight.o \
+    segfeat.o \
+    scrf_feat.o \
+    segcost.o \
+    scrf_cost.o \
+    loss.o \
+    nn.o \
+    scrf.o \
+    scrf_feat.o \
+    scrf_util.o \
+    weiran.o
 
-bin = learn learn2 learn-lat predict predict2 prune oracle-error
+bin = learn learn2 learn-lat predict predict2 prune oracle-error annotate-weight predict-lat
 
 all: $(obj) $(bin)
 
@@ -25,10 +37,16 @@ predict: predict.o $(obj)
 predict2: predict2.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
+predict-lat: predict-lat.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+
 prune: prune.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 oracle-error: oracle-error.o lm.o lattice.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+
+annotate-weight: annotate-weight.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 scrf.o: scrf.h fst.h lattice.h lm.h
@@ -44,5 +62,6 @@ weiran.o: weiran.h
 feat.o: feat.h scrf.h
 cost.o: cost.h scrf.h
 loss.o: loss.h scrf.h
-make_feature.o: make_feature.h weiran.h nn.h feat.h scrf.h
 nn.o: nn.h
+annotate-weight.o: fst.h scrf.h util.h
+predict-lat.o: fst.h scrf.h util.h

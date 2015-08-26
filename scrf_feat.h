@@ -3,100 +3,8 @@
 
 #include "scrf/util.h"
 #include "scrf/scrf.h"
-
-namespace segfeat {
-
-    using feat_t = std::vector<real>;
-
-    struct feature {
-
-        ~feature();
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const = 0;
-
-    };
-
-    struct composite_feature
-        : public feature {
-
-        std::vector<std::shared_ptr<feature>> features;
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const override;
-
-    };
-
-    struct bias
-        : public feature {
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const override;
-
-    };
-
-    struct length_indicator
-        : public feature {
-
-        length_indicator(int max_length);
-
-        int max_length;
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const override;
-
-    };
-
-    void check_dim(std::vector<std::vector<real>> const& frames,
-        int start_dim, int end_dim);
-
-    struct frame_avg
-        : public feature {
-
-        frame_avg(int start_dim = -1, int end_dim = -1);
-
-        int start_dim;
-        int end_dim;
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const override;
-
-    };
-
-    struct frame_samples
-        : public feature {
-
-        frame_samples(int samples, int start_dim = -1, int end_dim = -1);
-
-        int samples;
-        int start_dim;
-        int end_dim;
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const override;
-
-    };
-
-    struct left_boundary
-        : public feature {
-
-        left_boundary(int start_dim, int end_dim);
-
-        int start_dim;
-        int end_dim;
-
-        virtual void operator()(feat_t& feat,
-            std::vector<std::vector<real>> const& frames,
-            int start_time, int end_time) const override;
-    };
-
-}
+#include "scrf/segfeat.h"
+#include "scrf/nn.h"
 
 namespace scrf {
 
@@ -266,30 +174,42 @@ namespace scrf {
 
         };
 
-        struct lat_feat
-            : public scrf_feature {
-
-            lat_feat(int start_index, int end_index, int order);
-
-            int start_index;
-            int end_index;
-            int order;
-
-            virtual int size() const override;
-
-            virtual std::string name() const override;
-
-            virtual void operator()(
-                param_t& feat,
-                fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const override;
-
-        private:
-            std::vector<std::string> features_;
-
-        };
-
     }
+
+    struct lexicalized_feature
+        : public scrf_feature {
+
+        lexicalized_feature(
+            int order,
+            std::shared_ptr<segfeat::feature> raw_feat_func,
+            std::vector<std::vector<real>> const& frames);
+
+        int order;
+        std::shared_ptr<segfeat::feature> feat_func;
+        std::vector<std::vector<real>> const& frames;
+
+        virtual int size() const override;
+        virtual std::string name() const override;
+
+        virtual void operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const override;
+    };
+
+    composite_feature make_feature(
+        std::vector<std::string> features,
+        std::vector<std::vector<real>> const& inputs, int max_seg);
+
+    composite_feature make_feature(
+        std::vector<std::string> features,
+        std::vector<std::vector<real>> const& inputs, int max_seg,
+        std::vector<real> const& cm_mean, std::vector<real> const& cm_stddev,
+        nn::nn_t const& nn);
+
+    composite_feature make_feature2(
+        std::vector<std::string> features,
+        std::vector<std::vector<real>> const& frames);
 
 }
 

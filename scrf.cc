@@ -173,18 +173,6 @@ namespace scrf {
     scrf_weight::~scrf_weight()
     {}
 
-    real composite_weight::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-        std::tuple<int, int> const& e) const
-    {
-        real sum = 0;
-
-        for (auto& w: weights) {
-            sum += (*w)(fst, e);
-        }
-
-        return sum;
-    }
-
     linear_weight::linear_weight(param_t const& param, scrf_feature const& feat_func)
         : param(param), feat_func(feat_func)
     {}
@@ -473,26 +461,6 @@ namespace scrf {
         return f;
     }
 
-    std::shared_ptr<lm::fst> erase_input(std::shared_ptr<lm::fst> lm)
-    {
-        lm::fst result = *lm;
-        result.data = std::make_shared<lm::fst_data>(*(lm->data));
-        result.data->in_edges_map.clear();
-        result.data->in_edges_map.resize(result.data->edges.size());
-        result.data->out_edges_map.clear();
-        result.data->out_edges_map.resize(result.data->edges.size());
-        for (int e = 0; e < result.data->edges.size(); ++e) {
-            auto& e_data = result.data->edges.at(e);
-            e_data.input = "<label>";
-            int tail = result.tail(e);
-            int head = result.head(e);
-            result.data->out_edges_map[tail]["<label>"].push_back(e);
-            result.data->in_edges_map[head]["<label>"].push_back(e);
-        }
-
-        return std::make_shared<lm::fst>(result);
-    }
-
     scrf_t make_gold_scrf(lattice::fst gold_lat,
         std::shared_ptr<lm::fst> lm)
     {
@@ -506,22 +474,6 @@ namespace scrf {
         gold.fst = std::make_shared<decltype(gold_lm_lat)>(gold_lm_lat);
 
         return gold;
-    }
-
-    scrf_t make_graph_scrf(int frames, std::shared_ptr<lm::fst> lm, int max_seg)
-    {
-        scrf_t result;
-
-        lattice::fst segmentation = make_segmentation_lattice(frames, max_seg);
-        lattice::add_eps_loops(segmentation);
-
-        fst::composed_fst<lattice::fst, lm::fst> comp;
-        comp.fst1 = std::make_shared<lattice::fst>(segmentation);
-        comp.fst2 = lm;
-
-        result.fst = std::make_shared<decltype(comp)>(comp);
-
-        return result;
     }
 
     loss_func::~loss_func()

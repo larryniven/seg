@@ -22,6 +22,11 @@ while True:
 
         parts = line.split()
 
+        if v == 0 and int(parts[0]) != 0:
+            edges.append((v, v + 1, '<s>'))
+            v += 1
+            time[0] = 0
+
         if v not in time:
             time[v] = parts[0]
 

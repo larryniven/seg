@@ -1,6 +1,362 @@
-#include "scrf/make_feature.h"
+#include "scrf/scrf_feat.h"
+#include "scrf/nn.h"
+#include "scrf/weiran.h"
+#include <cassert>
 
 namespace scrf {
+
+    namespace feature {
+
+        bias::bias()
+        {}
+
+        int bias::size() const
+        {
+            return 2;
+        }
+
+        std::string bias::name() const
+        {
+            return "bias";
+        }
+
+        void bias::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            feat.class_param["[label] " + fst.output(e)].push_back(1);
+            feat.class_param["[label] shared"].push_back(1);
+        }
+
+        length_value::length_value(int max_seg)
+            : max_seg(max_seg)
+        {}
+
+        int length_value::size() const
+        {
+            return 1;
+        }
+
+        std::string length_value::name() const
+        {
+            return "length-value";
+        }
+
+        void length_value::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int tail_time = lat.data->vertices.at(tail).time;
+            int head_time = lat.data->vertices.at(head).time;
+
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
+
+            v.push_back(head_time - tail_time);
+            v.push_back(std::pow(head_time - tail_time, 2));
+        }
+
+        length_indicator::length_indicator(int max_seg)
+            : max_seg(max_seg)
+        {}
+
+        int length_indicator::size() const
+        {
+            return max_seg + 1;
+        }
+
+        std::string length_indicator::name() const
+        {
+            return "length-indicator";
+        }
+
+        void length_indicator::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int tail_time = lat.data->vertices.at(tail).time;
+            int head_time = lat.data->vertices.at(head).time;
+
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
+            int size = v.size();
+            v.resize(size + max_seg + 1);
+
+            if (fst.output(e) != "<s>" && fst.output(e) != "</s>" && fst.output(e) != "sil") {
+                v.at(size + std::min(head_time - tail_time, max_seg)) = 1;
+            }
+        }
+
+        frame_avg::frame_avg(std::vector<std::vector<real>> const& inputs,
+            int start_dim, int end_dim)
+            : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
+            }
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
+            }
+        }
+
+        int frame_avg::size() const
+        {
+            return end_dim - start_dim + 1;
+        }
+
+        std::string frame_avg::name() const
+        {
+            return "frame-avg";
+        }
+
+        void frame_avg::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(std::get<0>(e), feat_cache)) {
+                auto& u = feat_cache.at(std::get<0>(e));
+                auto& v = feat.class_param["[lattice] " + fst.output(e)];
+                v.insert(v.end(), u.begin(), u.end());
+                return;
+            }
+
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int tail_time = std::min<int>(inputs.size() - 1, lat.data->vertices.at(tail).time);
+            int head_time = std::min<int>(inputs.size(), lat.data->vertices.at(head).time);
+
+            std::vector<real> avg;
+            avg.resize(end_dim - start_dim + 1);
+
+            if (tail_time < head_time) {
+                for (int i = tail_time; i < head_time; ++i) {
+                    auto const& v = inputs.at(i);
+
+                    for (int j = start_dim; j < end_dim + 1; ++j) {
+                        avg[j - start_dim] += v.at(j);
+                    }
+                }
+
+                for (int j = 0; j < avg.size(); ++j) {
+                    avg[j] /= real(head_time - tail_time);
+                }
+            }
+
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
+
+            v.insert(v.end(), avg.begin(), avg.end());
+
+            feat_cache[std::get<0>(e)] = std::move(avg);
+        }
+
+        frame_samples::frame_samples(std::vector<std::vector<real>> const& inputs,
+            int samples, int start_dim, int end_dim)
+            : inputs(inputs), samples(samples), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
+            }
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
+            }
+        }
+
+        int frame_samples::size() const
+        {
+            return samples * (end_dim - start_dim + 1);
+        }
+
+        std::string frame_samples::name() const
+        {
+            return "frame-samples";
+        }
+
+        void frame_samples::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int tail_time = lat.data->vertices.at(tail).time;
+            int head_time = lat.data->vertices.at(head).time;
+
+            real span = (head_time - tail_time) / samples;
+
+            auto& v = feat.class_param["[lattice] " + fst.output(e)];
+            for (int i = 0; i < samples; ++i) {
+                auto& u = inputs.at(std::min<int>(std::floor(tail_time + (i + 0.5) * span), inputs.size() - 1));
+                v.insert(v.end(), u.begin() + start_dim, u.begin() + end_dim + 1);
+            }
+        }
+
+        left_boundary::left_boundary(std::vector<std::vector<real>> const& inputs,
+            int start_dim, int end_dim)
+            : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
+            }
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
+            }
+        }
+
+        int left_boundary::size() const
+        {
+            return 3 * (end_dim - start_dim + 1);
+        }
+
+        std::string left_boundary::name() const
+        {
+            return "left-boundary";
+        }
+
+        void left_boundary::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            auto const& lm = *(fst.fst2);
+
+            int lm_tail = lm.tail(std::get<1>(fst.tail(e)));
+
+            std::string lex = lm.data->history.at(lm_tail) + "_" + fst.output(e);
+
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int tail_time = lat.data->vertices.at(tail).time;
+
+            if (ebt::in(tail_time, feat_cache)) {
+                auto& u = feat_cache.at(tail_time);
+                auto& v = feat.class_param["[lattice] " + lex];
+                v.insert(v.end(), u.begin(), u.end());
+                return;
+            }
+
+            auto& v = feat.class_param["[lattice] " + lex];
+
+            std::vector<real> f;
+            for (int i = 0; i < 3; ++i) {
+                auto& tail_u = inputs.at(std::min<int>(inputs.size() - 1, std::max<int>(tail_time - i, 0)));
+                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.begin() + end_dim + 1);
+            }
+            v.insert(v.end(), f.begin(), f.end());
+
+            feat_cache[tail_time] = std::move(f);
+        }
+
+        right_boundary::right_boundary(std::vector<std::vector<real>> const& inputs,
+            int start_dim, int end_dim)
+            : inputs(inputs), start_dim(start_dim), end_dim(end_dim)
+        {
+            if (this->start_dim == -1) {
+                this->start_dim = 0;
+            }
+            if (this->end_dim == -1) {
+                this->end_dim = inputs.front().size() - 1;
+            }
+        }
+
+        int right_boundary::size() const
+        {
+            return 3 * (end_dim - start_dim + 1);
+        }
+
+        std::string right_boundary::name() const
+        {
+            return "right-boundary";
+        }
+
+        void right_boundary::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            auto const& lm = *(fst.fst2);
+
+            int lm_tail = lm.tail(std::get<1>(fst.tail(e)));
+
+            std::string lex = lm.data->history.at(lm_tail) + "_" + fst.output(e);
+
+            auto const& lat = *(fst.fst1);
+            int tail = lat.tail(std::get<0>(e));
+            int head = lat.head(std::get<0>(e));
+
+            int head_time = lat.data->vertices.at(head).time;
+
+            if (ebt::in(head_time, feat_cache)) {
+                auto& u = feat_cache.at(head_time);
+                auto& v = feat.class_param["[lattice] " + lex];
+                v.insert(v.end(), u.begin(), u.end());
+                return;
+            }
+
+            auto& v = feat.class_param["[lattice] " + lex];
+
+            std::vector<real> f;
+            for (int i = 0; i < 3; ++i) {
+                auto& tail_u = inputs.at(std::min<int>(head_time + i, inputs.size() - 1));
+                f.insert(f.end(), tail_u.begin() + start_dim, tail_u.begin() + end_dim + 1);
+            }
+            v.insert(v.end(), f.begin(), f.end());
+
+            feat_cache[head_time] = std::move(f);
+        }
+
+        int lm_score::size() const
+        {
+            return 1;
+        }
+
+        std::string lm_score::name() const
+        {
+            return "lm-score";
+        }
+
+        void lm_score::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            feat.class_param["[lm] shared"].push_back(fst.fst2->weight(std::get<1>(e)));
+        }
+
+        int lattice_score::size() const
+        {
+            return 1;
+        }
+
+        std::string lattice_score::name() const
+        {
+            return "lattice-score";
+        }
+
+        void lattice_score::operator()(
+            param_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            feat.class_param["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
+        }
+
+    }
 
     lexicalized_feature::lexicalized_feature(
         int order,
@@ -164,29 +520,6 @@ namespace scrf {
         return result;
     }
 
-    composite_weight make_weight(
-        param_t const& param,
-        composite_feature const& feat)
-    {
-        composite_weight result;
-
-        composite_feature lattice_feat { "lattice-feat" };
-        lattice_feat.features.push_back(feat.features[0]);
-        lattice_feat.features.push_back(feat.features[1]);
-
-        score::lattice_score lattice_score { param, std::make_shared<composite_feature>(lattice_feat) };
-        score::lm_score lm_score { param, feat.features[2] };
-        score::label_score label_score { param, feat.features[3] };
-        score::linear_score rest_score { param, feat.features[4] };
-
-        result.weights.push_back(std::make_shared<score::lattice_score>(lattice_score));
-        result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
-        result.weights.push_back(std::make_shared<score::label_score>(label_score));
-        result.weights.push_back(std::make_shared<score::linear_score>(rest_score));
-
-        return result;
-    }
-
     std::pair<int, int> get_dim(std::string feat)
     {
         std::vector<std::string> parts = ebt::split(feat, ":");
@@ -213,6 +546,7 @@ namespace scrf {
         composite_feature label_feat { "label-feat" };
         composite_feature rest_feat { "rest-feat" };
 
+        std::vector<std::string> other_feat;
         std::vector<std::vector<std::string>> seg_feature_order;
         seg_feature_order.resize(2);
 
@@ -229,7 +563,7 @@ namespace scrf {
                     exit(1);
                 }
             } else {
-                seg_feature_order[0].push_back(parts[0]);
+                other_feat.push_back(v);
             }
         }
 
@@ -260,6 +594,13 @@ namespace scrf {
 
                     seg_feat.features.push_back(std::make_shared<segfeat::left_boundary>(
                         segfeat::left_boundary { start_dim, end_dim }));
+                } else if (ebt::startswith(v, "right-boundary")) {
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(v);
+
+                    seg_feat.features.push_back(std::make_shared<segfeat::right_boundary>(
+                        segfeat::right_boundary { start_dim, end_dim }));
                 } else if (ebt::startswith(v, "length-indicator")) {
                     seg_feat.features.push_back(std::make_shared<segfeat::length_indicator>(
                         segfeat::length_indicator { 30 }));
@@ -278,6 +619,18 @@ namespace scrf {
             lex_lattice_feat.features.push_back(std::make_shared<scrf::lexicalized_feature>(lex_feat));
         }
 
+        for (auto& v: other_feat) {
+            if (v == "lm-score") {
+                lm_feat.features.push_back(std::make_shared<feature::lm_score>(feature::lm_score{}));
+            } else if (v == "lattice-score") {
+                tied_lattice_feat.features.push_back(std::make_shared<feature::lattice_score>(
+                    feature::lattice_score{}));
+            } else {
+                std::cerr << "unknown feature " << v << std::endl;
+                exit(1);
+            }
+        }
+
         result.features.push_back(std::make_shared<composite_feature>(lex_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(tied_lattice_feat));
         result.features.push_back(std::make_shared<composite_feature>(lm_feat));
@@ -287,32 +640,4 @@ namespace scrf {
         return result;
     }
 
-    composite_feature make_feature3(
-        std::vector<std::string> features)
-    {
-        composite_feature result { "all" };
-
-        for (auto& v: features) {
-            if (ebt::startswith(v, "ext")) {
-                std::vector<std::string> parts = ebt::split(v, "@");
-
-                int order = std::stoi(parts[1]);
-
-                parts = ebt::split(parts[0], ":");
-
-                parts = ebt::split(parts[1], "-");
-
-                int start_index = std::stoi(parts[0]);
-                int end_index = std::stoi(parts[1]);
-
-                result.features.push_back(std::make_shared<scrf::feature::lat_feat>(
-                    scrf::feature::lat_feat { start_index, end_index, order }));
-            } else {
-                std::cerr << "unknown feature type " << v << std::endl;
-                exit(1);
-            }
-        }
-
-        return result;
-    }
 }
