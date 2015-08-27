@@ -14,7 +14,7 @@ obj = lattice.o \
     scrf_util.o \
     weiran.o
 
-bin = learn learn2 learn-lat predict predict2 prune oracle-error annotate-weight predict-lat
+bin = learn2 learn-lat predict2 prune oracle-error predict-lat
 
 all: $(obj) $(bin)
 

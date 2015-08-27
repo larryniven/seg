@@ -12,7 +12,7 @@
 
 struct prediction_env {
 
-    std::ifstream input_list;
+    std::ifstream frame_list;
     std::shared_ptr<lm::fst> lm;
     int max_seg;
     scrf::param_t param;
@@ -30,8 +30,8 @@ struct prediction_env {
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    if (ebt::in(std::string("input-list"), args)) {
-        input_list.open(args.at("input-list"));
+    if (ebt::in(std::string("frame-list"), args)) {
+        frame_list.open(args.at("frame-list"));
     }
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
@@ -47,28 +47,28 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
 
 void prediction_env::run()
 {
-    std::string input_file;
+    std::string frame_file;
 
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
     int i = 0;
     while (1) {
 
-        std::vector<std::vector<real>> inputs;
+        std::vector<std::vector<real>> frames;
 
-        if (std::getline(input_list, input_file)) {
-            inputs = speech::load_frames(input_file);
+        if (std::getline(frame_list, frame_file)) {
+            frames = speech::load_frames(frame_file);
         }
 
-        if (!input_list) {
+        if (!frame_list) {
             break;
         }
 
         scrf::scrf_t graph;
 
-        graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
+        graph = scrf::make_graph_scrf(frames.size(), lm_output, max_seg);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, inputs);
+        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
 
         graph.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(param, graph_feat_func));
@@ -82,7 +82,7 @@ void prediction_env::run()
             std::cout << one_best.output(e) << " ";
             weight += one_best.weight(e);
         }
-        std::cout << "(" << input_file << ")" << std::endl;
+        std::cout << "(" << frame_file << ")" << std::endl;
         std::cout << "weight: " << weight << std::endl;
 
         ++i;
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
         "learn",
         "Learn segmental CRF",
         {
-            {"input-list", "", false},
+            {"frame-list", "", false},
             {"lm", "", true},
             {"max-seg", "", false},
             {"param", "", true},
