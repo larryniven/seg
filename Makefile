@@ -1,4 +1,5 @@
-CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff -L ../la
+CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff -L ../la -L ./
+AR = gcc-ar
 
 obj = lattice.o \
     lm.o \
@@ -11,31 +12,27 @@ obj = lattice.o \
     nn.o \
     scrf.o \
     scrf_feat.o \
-    scrf_util.o \
-    weiran.o
+    scrf_util.o
 
-bin = learn2 learn-lat predict2 prune oracle-error predict-lat
+bin = libscrf.a learn2 learn-lat predict2 prune oracle-error predict-lat
 
-all: $(obj) $(bin)
+all: libscrf.a $(obj) $(bin)
 
 clean:
 	-rm *.o
 	-rm $(bin)
 
-learn: learn.o $(obj)
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+libscrf.a: $(obj)
+	$(AR) rcs libscrf.a $(obj)
 
-learn2: learn2.o $(obj)
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+learn2: learn2.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lscrf -lautodiff -lopt -lspeech -lla -lebt
 
 learn-lat: learn-lat.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-predict: predict.o $(obj)
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
-
-predict2: predict2.o $(obj)
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+predict2: predict2.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lscrf -lautodiff -lopt -lspeech -lla -lebt
 
 predict-lat: predict-lat.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
