@@ -16,7 +16,7 @@ obj = lattice.o \
 
 bin = libscrf.a learn2 learn-lat predict2 prune oracle-error predict-lat
 
-all: libscrf.a $(obj) $(bin)
+all: $(bin)
 
 clean:
 	-rm *.o
@@ -25,25 +25,25 @@ clean:
 libscrf.a: $(obj)
 	$(AR) rcs libscrf.a $(obj)
 
-learn2: learn2.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lscrf -lautodiff -lopt -lspeech -lla -lebt
-
-learn-lat: learn-lat.o $(obj)
+learn2: learn2.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-predict2: predict2.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lscrf -lautodiff -lopt -lspeech -lla -lebt
-
-predict-lat: predict-lat.o $(obj)
+learn-lat: learn-lat.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-prune: prune.o $(obj)
+predict2: predict2.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+
+predict-lat: predict-lat.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+
+prune: prune.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 oracle-error: oracle-error.o lm.o lattice.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-annotate-weight: annotate-weight.o $(obj)
+annotate-weight: annotate-weight.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 scrf.o: scrf.h fst.h lattice.h lm.h

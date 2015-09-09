@@ -17,6 +17,8 @@ struct prediction_env {
     int max_seg;
     scrf::param_t param;
 
+    int beam_width;
+
     std::vector<std::string> features;
 
     std::unordered_map<std::string, std::string> args;
@@ -43,6 +45,10 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
 
     param = scrf::load_param(args.at("param"));
     features = ebt::split(args.at("features"), ",");    
+
+    if (ebt::in(std::string("beam-width"), args)) {
+        beam_width = std::stoi(args.at("beam-width"));
+    }
 }
 
 void prediction_env::run()
@@ -75,7 +81,13 @@ void prediction_env::run()
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best;
-        one_best = scrf::shortest_path(graph, graph.topo_order);
+        if (ebt::in(std::string("beam-width"), args)) {
+            fst::beam_search<scrf::scrf_t> beam_search;
+            beam_search.search(graph, beam_width);
+            one_best = beam_search.best_path(graph);
+        } else {
+            one_best = scrf::shortest_path(graph, graph.topo_order);
+        }
 
         double weight = 0;
         for (auto& e: one_best.edges()) {
