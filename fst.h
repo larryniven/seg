@@ -101,6 +101,7 @@ namespace fst {
     struct composed_fst<fst_type1, fst_type2> {
         using edge_type = std::tuple<typename fst_type1::edge_type,
             typename fst_type2::edge_type>;
+
         using vertex_type = std::tuple<typename fst_type1::vertex_type,
             typename fst_type2::vertex_type>;
 

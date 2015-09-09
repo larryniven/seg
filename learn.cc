@@ -208,15 +208,15 @@ void learning_env::run()
 
         std::shared_ptr<scrf::loss_func> loss_func;
         if (args.at("loss") == "hinge") {
-             loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
+            loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
         } else if (args.at("loss") == "hinge-beam") {
-             loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
+            loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
         } else if (args.at("loss") == "filtering") {
-             real alpha = std::stod(args.at("alpha"));
-             loss_func = std::make_shared<scrf::filtering_loss>(scrf::filtering_loss { gold_path, graph, alpha });
+            real alpha = std::stod(args.at("alpha"));
+            loss_func = std::make_shared<scrf::filtering_loss>(scrf::filtering_loss { gold_path, graph, alpha });
         } else {
-             std::cout << "unknown loss function " << args.at("loss") << std::endl;
-             exit(1);
+            std::cout << "unknown loss function " << args.at("loss") << std::endl;
+            exit(1);
         }
 
         real ell = loss_func->loss();

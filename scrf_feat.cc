@@ -405,6 +405,7 @@ namespace scrf {
         feat.class_param[label_tuple] = std::move(raw_feat);
     }
 
+#if 0
     composite_feature make_feature(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& inputs, int max_seg)
@@ -519,6 +520,7 @@ namespace scrf {
 
         return result;
     }
+#endif
 
     std::pair<int, int> get_dim(std::string feat)
     {

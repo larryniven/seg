@@ -13,6 +13,7 @@
 #include "scrf/fst.h"
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
+#include "scrf/seg.h"
 
 namespace scrf {
 
@@ -45,6 +46,22 @@ namespace scrf {
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const = 0;
+
+    };
+
+    struct scrf_weight {
+
+        virtual ~scrf_weight();
+
+        virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const = 0;
+
+    };
+
+    struct scrf_t
+        : public seg::fst<fst::composed_fst<lattice::fst, lm::fst>, scrf_weight, scrf_feature> {
+
+        std::vector<vertex_type> topo_order;
 
     };
 
@@ -89,15 +106,6 @@ namespace scrf {
         
     };
 
-    struct scrf_weight {
-
-        virtual ~scrf_weight();
-
-        virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            std::tuple<int, int> const& e) const = 0;
-
-    };
-
     struct linear_weight
         : public scrf_weight {
 
@@ -109,30 +117,6 @@ namespace scrf {
         virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const override;
 
-    };
-
-    struct scrf_t {
-        using fst_type = fst::composed_fst<lattice::fst, lm::fst>;
-        using vertex_type = fst_type::vertex_type;
-        using edge_type = fst_type::edge_type;
-
-        std::shared_ptr<fst_type> fst;
-        std::shared_ptr<scrf_weight> weight_func;
-        std::shared_ptr<scrf_feature> feature_func;
-
-        std::vector<vertex_type> topo_order;
-
-        std::vector<vertex_type> vertices() const;
-        std::vector<edge_type> edges() const;
-        vertex_type head(edge_type const& e) const;
-        vertex_type tail(edge_type const& e) const;
-        std::vector<edge_type> in_edges(vertex_type const& v) const;
-        std::vector<edge_type> out_edges(vertex_type const& v) const;
-        real weight(edge_type const& e) const;
-        std::string input(edge_type const& e) const;
-        std::string output(edge_type const& e) const;
-        std::vector<vertex_type> initials() const;
-        std::vector<vertex_type> finals() const;
     };
 
     namespace score {

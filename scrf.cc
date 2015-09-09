@@ -187,61 +187,6 @@ namespace scrf {
         return dot(param, feat);
     }
 
-    std::vector<scrf_t::vertex_type> scrf_t::vertices() const
-    {
-        return fst->vertices();
-    }
-
-    std::vector<scrf_t::edge_type> scrf_t::edges() const
-    {
-        return fst->edges();
-    }
-
-    scrf_t::vertex_type scrf_t::head(scrf_t::edge_type const& e) const
-    {
-        return fst->head(e);
-    }
-
-    scrf_t::vertex_type scrf_t::tail(scrf_t::edge_type const& e) const
-    {
-        return fst->tail(e);
-    }
-
-    std::vector<scrf_t::edge_type> scrf_t::in_edges(scrf_t::vertex_type const& v) const
-    {
-        return fst->in_edges(v);
-    }
-
-    std::vector<scrf_t::edge_type> scrf_t::out_edges(scrf_t::vertex_type const& v) const
-    {
-        return fst->out_edges(v);
-    }
-
-    real scrf_t::weight(scrf_t::edge_type const& e) const
-    {
-        return (*weight_func)(*fst, e);
-    }
-
-    std::string scrf_t::input(scrf_t::edge_type const& e) const
-    {
-        return fst->input(e);
-    }
-
-    std::string scrf_t::output(scrf_t::edge_type const& e) const
-    {
-        return fst->output(e);
-    }
-
-    std::vector<scrf_t::vertex_type> scrf_t::initials() const
-    {
-        return fst->initials();
-    }
-
-    std::vector<scrf_t::vertex_type> scrf_t::finals() const
-    {
-        return fst->finals();
-    }
-
     namespace score {
 
         linear_score::linear_score(param_t const& param,

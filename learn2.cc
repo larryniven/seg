@@ -28,6 +28,8 @@ struct learning_env {
 
     std::vector<std::string> features;
 
+    int beam_width;
+
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
@@ -53,7 +55,9 @@ int main(int argc, char *argv[])
             {"features", "", true},
             {"save-every", "", false},
             {"output-param", "", false},
-            {"output-opt-data", "", false}
+            {"output-opt-data", "", false},
+            {"loss", "", true},
+            {"beam-width", "", false}
         }
     };
 
@@ -109,6 +113,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     output_opt_data = "opt-data-last";
     if (ebt::in(std::string("output-opt-data"), args)) {
         output_opt_data = args.at("output-opt-data");
+    }
+
+    if (ebt::in(std::string("beam-width"), args)) {
+        beam_width = std::stoi(args.at("beam-width"));
     }
 }
 
@@ -177,7 +185,14 @@ void learning_env::run()
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         std::shared_ptr<scrf::loss_func> loss_func;
-        loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
+        if (args.at("loss") == "hinge") {
+            loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
+        } else if (args.at("loss") == "hinge-beam") {
+            loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
+        } else {
+            std::cout << "unknown loss function " << args.at("loss") << std::endl;
+            exit(1);
+        }
         real ell = loss_func->loss();
 
         std::cout << "gold segs: " << gold_path.edges().size()
