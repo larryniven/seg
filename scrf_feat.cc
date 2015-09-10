@@ -572,6 +572,10 @@ namespace scrf {
         for (int i = 0; i < seg_feature_order.size(); ++i) {
             segfeat::composite_feature seg_feat;
 
+            if (seg_feature_order.at(i).size() == 0) {
+                continue;
+            }
+
             for (auto& v: seg_feature_order.at(i)) {
                 std::shared_ptr<segfeat::feat_t> adapter;
 
