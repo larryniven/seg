@@ -61,11 +61,11 @@ namespace scrf {
         return scrf::shortest_path(ground_truth, ground_truth.topo_order);
     }
 
-    scrf_t make_graph_scrf(int frames, std::shared_ptr<lm::fst> lm, int max_seg)
+    scrf_t make_graph_scrf(int frames, std::shared_ptr<lm::fst> lm, int min_seg_len, int max_seg_len)
     {
         scrf_t result;
 
-        lattice::fst segmentation = make_segmentation_lattice(frames, max_seg);
+        lattice::fst segmentation = make_segmentation_lattice(frames, min_seg_len, max_seg_len);
         lattice::add_eps_loops(segmentation);
 
         fst::composed_fst<lattice::fst, lm::fst> comp;

@@ -13,6 +13,7 @@ struct pruning_env {
     std::ifstream input_list;
     std::ifstream lattice_list;
     std::shared_ptr<lm::fst> lm;
+    int min_seg;
     int max_seg;
     scrf::param_t param;
 
@@ -36,7 +37,14 @@ pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
     if (ebt::in(std::string("lattice-list"), args)) {
         lattice_list.open(args.at("lattice-list"));
     }
+
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+
+    min_seg = 1;
+    if (ebt::in(std::string("min-seg"), args)) {
+        min_seg = std::stoi(args.at("min-seg"));
+    }
+
     max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
         max_seg = std::stoi(args.at("max-seg"));
@@ -89,7 +97,7 @@ void pruning_env::run()
             }
             graph.topo_order = std::move(topo_order);
         } else {
-            graph = scrf::make_graph_scrf(frames.size(), lm_output, max_seg);
+            graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
             graph.topo_order = graph.vertices();
         }
         graph.weight_func = std::make_shared<scrf::composite_weight>(
@@ -298,6 +306,7 @@ int main(int argc, char *argv[])
             {"lattice-list", "", false},
             {"lm", "", true},
             {"max-seg", "", false},
+            {"min-seg", "", false},
             {"param", "", true},
             {"features", "", true},
             {"alpha", "", true},

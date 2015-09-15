@@ -1,6 +1,7 @@
 #include "scrf/scrf.h"
 #include <istream>
 #include <fstream>
+#include <cassert>
 #include "ebt/ebt.h"
 #include "opt/opt.h"
 #include "scrf/weiran.h"
@@ -364,7 +365,7 @@ namespace scrf {
         return f;
     }
     
-    lattice::fst make_segmentation_lattice(int frames, int max_seg)
+    lattice::fst make_segmentation_lattice(int frames, int min_seg_len, int max_seg_len)
     {
         lattice::fst_data data;
 
@@ -378,8 +379,10 @@ namespace scrf {
         data.in_edges_map.resize(frames + 1);
         data.out_edges_map.resize(frames + 1);
 
+        assert(min_seg_len >= 1);
+
         for (int i = 0; i < frames + 1; ++i) {
-            for (int j = 1; j <= max_seg; ++j) {
+            for (int j = min_seg_len; j <= max_seg_len; ++j) {
                 int tail = i;
                 int head = i + j;
 
