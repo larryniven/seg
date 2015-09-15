@@ -14,6 +14,7 @@ struct prediction_env {
 
     std::ifstream frame_list;
     std::shared_ptr<lm::fst> lm;
+    int min_seg;
     int max_seg;
     scrf::param_t param;
 
@@ -37,6 +38,11 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
     }
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+
+    min_seg = 1;
+    if (ebt::in(std::string("min-seg"), args)) {
+        min_seg = std::stoi(args.at("min-seg"));
+    }
 
     max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
@@ -72,7 +78,7 @@ void prediction_env::run()
 
         scrf::scrf_t graph;
 
-        graph = scrf::make_graph_scrf(frames.size(), lm_output, max_seg);
+        graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
         scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
 

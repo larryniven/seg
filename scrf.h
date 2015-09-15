@@ -194,7 +194,7 @@ namespace scrf {
     scrf_t make_gold_scrf(lattice::fst gold,
         std::shared_ptr<lm::fst> lm);
 
-    lattice::fst make_segmentation_lattice(int frames, int max_seg);
+    lattice::fst make_segmentation_lattice(int frames, int min_seg_len, int max_seg_len);
 
     struct loss_func {
 

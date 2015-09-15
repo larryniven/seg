@@ -16,6 +16,7 @@ struct learning_env {
     std::ifstream frame_list;
     std::ifstream ground_truth_list;
     std::shared_ptr<lm::fst> lm;
+    int min_seg;
     int max_seg;
     scrf::param_t param;
     scrf::param_t opt_data;
@@ -47,6 +48,7 @@ int main(int argc, char *argv[])
             {"frame-list", "", false},
             {"ground-truth-list", "", true},
             {"lm", "", true},
+            {"min-seg", "", false},
             {"max-seg", "", false},
             {"min-cost-path", "Use min cost path for training", false},
             {"param", "", true},
@@ -87,6 +89,11 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     ground_truth_list.open(args.at("ground-truth-list"));
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+
+    min_seg = 1;
+    if (ebt::in(std::string("min-seg"), args)) {
+        min_seg = std::stoi(args.at("min-seg"));
+    }
 
     max_seg = 20;
     if (ebt::in(std::string("max-seg"), args)) {
@@ -153,7 +160,7 @@ void learning_env::run()
         scrf::scrf_t ground_truth = scrf::make_gold_scrf(ground_truth_lat, lm);
         fst::path<scrf::scrf_t> ground_truth_path = scrf::make_ground_truth_path(ground_truth);
 
-        scrf::scrf_t min_cost = scrf::make_graph_scrf(frames.size(), lm_output, max_seg);
+        scrf::scrf_t min_cost = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
         scrf::scrf_t gold;
         fst::path<scrf::scrf_t> gold_path;
@@ -175,7 +182,7 @@ void learning_env::run()
 
         scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
 
-        scrf::scrf_t graph = scrf::make_graph_scrf(frames.size(), lm_output, max_seg);
+        scrf::scrf_t graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
         graph.weight_func =
             std::make_shared<scrf::composite_weight>(

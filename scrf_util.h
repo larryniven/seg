@@ -18,7 +18,7 @@ namespace scrf {
         scrf::scrf_t& ground_truth);
 
     scrf_t make_graph_scrf(int frames,
-        std::shared_ptr<lm::fst> lm, int max_seg);
+        std::shared_ptr<lm::fst> lm, int min_seg, int max_seg);
 
     scrf::scrf_t make_lat_scrf(lattice::fst lat, std::shared_ptr<lm::fst> lm);
 }
