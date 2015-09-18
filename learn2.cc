@@ -27,6 +27,8 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
+    double norm;
+
     std::vector<std::string> features;
 
     int beam_width;
@@ -59,7 +61,8 @@ int main(int argc, char *argv[])
             {"output-param", "", false},
             {"output-opt-data", "", false},
             {"loss", "", true},
-            {"beam-width", "", false}
+            {"beam-width", "", false},
+            {"norm", "", false}
         }
     };
 
@@ -124,6 +127,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
 
     if (ebt::in(std::string("beam-width"), args)) {
         beam_width = std::stoi(args.at("beam-width"));
+    }
+
+    if (ebt::in(std::string("norm"), args)) {
+        norm = std::stod(args.at("norm"));
     }
 }
 
@@ -220,6 +227,14 @@ void learning_env::run()
         if (ell > 0) {
             auto param_grad = loss_func->param_grad();
             scrf::adagrad_update(param, param_grad, opt_data, step_size);
+
+            if (ebt::in(std::string("norm"), args)) {
+                double n = scrf::norm(param);
+
+                if (n > norm) {
+                    param *= norm / n;
+                }
+            }
 
             if (i % save_every == 0) {
                 scrf::save_param("param-last", param);

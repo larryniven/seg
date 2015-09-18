@@ -94,6 +94,36 @@ namespace fst {
     template <class fst> using path_data = sub_fst_data<fst>;
     template <class fst> using path = sub_fst<fst>;
 
+    template <class fst>
+    sub_fst<fst> make_path(fst const& f, std::vector<typename fst::edge_type> const& edges)
+    {
+        sub_fst_data<fst> result_data;
+
+        result_data.fst = &f;
+        result_data.edges = edges;
+
+        std::unordered_set<typename fst::vertex_type> vertices;
+
+        for (auto& e: edges) {
+            vertices.insert(f.tail(e));
+            vertices.insert(f.head(e));
+
+            result_data.in_edges[f.head(e)].push_back(e);
+            result_data.out_edges[f.tail(e)].push_back(e);
+        }
+
+        result_data.vertices = std::vector<typename fst::vertex_type> { vertices.begin(), vertices.end() };
+
+        result_data.initials = f.initials();
+        result_data.finals = f.finals();
+
+        sub_fst<fst> result;
+
+        result.data = std::make_shared<sub_fst_data<fst>>(std::move(result_data));
+
+        return result;
+    }
+
     template <class... Args>
     struct composed_fst;
 
@@ -1012,6 +1042,64 @@ namespace fst {
         }
 
     };
+
+    template <class fst>
+    std::vector<typename fst::vertex_type> topo_order(fst const& f)
+    {
+        std::vector<typename fst::vertex_type> stack;
+        std::unordered_set<typename fst::vertex_type> traversed;
+        std::vector<typename fst::vertex_type> path;
+
+        std::vector<typename fst::vertex_type> order;
+        std::unordered_set<typename fst::vertex_type> order_set;
+
+        for (auto& v: f.initials()) {
+            stack.push_back(v);
+        }
+
+        while (stack.size() > 0) {
+            auto v = stack.back();
+            stack.pop_back();
+
+            std::unordered_set<typename fst::vertex_type> in_ver;
+
+            for (auto& e: f.in_edges(v)) {
+                in_ver.insert(f.tail(e));
+            }
+
+            while (path.size() > 0 && !ebt::in(path.back(), in_ver)) {
+                if (!ebt::in(path.back(), order_set)) {
+                    order_set.insert(path.back());
+                    order.push_back(path.back());
+                }
+                path.pop_back();
+            }
+
+            path.push_back(v);
+
+            for (auto& e: f.out_edges(v)) {
+                auto u = f.head(e);
+
+                if (!ebt::in(u, traversed)) {
+                    stack.push_back(u);
+                }
+            }
+
+            traversed.insert(v);
+        }
+
+        while (path.size() > 0) {
+            if (!ebt::in(path.back(), order_set)) {
+                order_set.insert(path.back());
+                order.push_back(path.back());
+            }
+            path.pop_back();
+        }
+
+        std::reverse(order.begin(), order.end());
+
+        return order;
+    }
 
 }
 

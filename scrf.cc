@@ -77,6 +77,18 @@ namespace scrf {
         return p;
     }
 
+    double norm(param_t const& p)
+    {
+        double sum = 0;
+
+        for (auto& t: p.class_param) {
+            double n = la::norm(t.second);
+            sum += n * n;
+        }
+
+        return std::sqrt(sum);
+    }
+
     real dot(param_t const& p1, param_t const& p2)
     {
         real sum = 0;
@@ -277,12 +289,14 @@ namespace scrf {
         auto const& lat = *(scrf.fst->fst1);
         auto const& lm = *(scrf.fst->fst2);
 
+        auto lat_order = fst::topo_order(lat);
+        auto lm_vertices = lm.vertices();
+
         std::vector<std::tuple<int, int>> result;
 
-        auto lm_vertices = lm.vertices();
         std::reverse(lm_vertices.begin(), lm_vertices.end());
 
-        for (auto u: lat.vertices()) {
+        for (auto u: lat_order) {
             for (auto v: lm_vertices) {
                 result.push_back(std::make_tuple(u, v));
             }

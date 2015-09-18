@@ -25,6 +25,8 @@ namespace scrf {
     param_t& operator+=(param_t& p1, param_t const& p2);
     param_t& operator*=(param_t& p1, real c);
 
+    double norm(param_t const& p);
+
     param_t load_param(std::istream& is);
     param_t load_param(std::string filename);
 
