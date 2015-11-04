@@ -242,8 +242,8 @@ void pruning_env::run()
                     int head_new = vertex_map.at(head);
                     int e_new = result.edges.size();
 
-                    result.edges.push_back(lattice::edge_data { graph.output(e), tail_new,
-                        head_new, weight });
+                    result.edges.push_back(lattice::edge_data { tail_new,
+                        head_new, weight, graph.output(e) });
 
                     result.in_edges[head_new].push_back(e_new);
                     result.out_edges[tail_new].push_back(e_new);
@@ -299,8 +299,8 @@ void pruning_env::run()
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
-        "learn",
-        "Learn segmental CRF",
+        "prune",
+        "Prune lattice with segmental CRF",
         {
             {"input-list", "", true},
             {"lattice-list", "", false},

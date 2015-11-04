@@ -577,6 +577,7 @@ namespace scrf {
             }
 
             for (auto& v: seg_feature_order.at(i)) {
+
                 std::shared_ptr<segfeat::feat_t> adapter;
 
                 if (ebt::startswith(v, "frame-avg")) {

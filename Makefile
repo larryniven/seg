@@ -14,7 +14,7 @@ obj = lattice.o \
     scrf_feat.o \
     scrf_util.o
 
-bin = libscrf.a learn2 learn-lat predict2 prune oracle-error predict-lat
+bin = libscrf.a learn2 learn-lat predict2 prune oracle-error predict-lat forced-align
 
 all: $(bin)
 
@@ -35,6 +35,9 @@ predict2: predict2.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 predict-lat: predict-lat.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
+
+forced-align: forced-align.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 prune: prune.o libscrf.a
@@ -62,3 +65,4 @@ loss.o: loss.h scrf.h
 nn.o: nn.h
 annotate-weight.o: fst.h scrf.h util.h
 predict-lat.o: fst.h scrf.h util.h
+forced-align.o: fst.h scrf.h util.h

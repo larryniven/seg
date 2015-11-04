@@ -99,10 +99,13 @@ namespace fst {
     {
         sub_fst_data<fst> result_data;
 
-        result_data.fst = &f;
+        result_data.base_fst = &f;
         result_data.edges = edges;
 
         std::unordered_set<typename fst::vertex_type> vertices;
+
+        typename fst::vertex_type initial = f.tail(edges.front());
+        typename fst::vertex_type final = f.head(edges.back());
 
         for (auto& e: edges) {
             vertices.insert(f.tail(e));
@@ -112,10 +115,11 @@ namespace fst {
             result_data.out_edges[f.tail(e)].push_back(e);
         }
 
-        result_data.vertices = std::vector<typename fst::vertex_type> { vertices.begin(), vertices.end() };
+        result_data.vertices = std::vector<typename fst::vertex_type> {
+            vertices.begin(), vertices.end() };
 
-        result_data.initials = f.initials();
-        result_data.finals = f.finals();
+        result_data.initials.push_back(initial);
+        result_data.finals.push_back(final);
 
         sub_fst<fst> result;
 
@@ -507,6 +511,7 @@ namespace fst {
 
             result.initials.push_back(u);
 
+            std::reverse(result.vertices.begin(), result.vertices.end());
             std::reverse(result.edges.begin(), result.edges.end());
 
             path<fst_type> p;
@@ -610,6 +615,7 @@ namespace fst {
             result.initials.push_back(u);
             result.finals.push_back(argmax);
 
+            std::reverse(result.vertices.begin(), result.vertices.end());
             std::reverse(result.edges.begin(), result.edges.end());
 
             path<fst_type> p;
@@ -962,6 +968,7 @@ namespace fst {
             result.initial = fst.initial();
             result.final = fst.final();
 
+            std::reverse(result.vertices.begin(), result.vertices.end());
             std::reverse(result.edges.begin(), result.edges.end());
 
             path<fst_type> p;
@@ -1020,6 +1027,7 @@ namespace fst {
             result.initial = fst.data.initial;
             result.final = fst.data.final;
 
+            std::reverse(result.vertices.begin(), result.vertices.end());
             std::reverse(result.edges.begin(), result.edges.end());
 
             sub_fst<fst_type> f;

@@ -18,19 +18,28 @@ namespace lm {
         std::string output;
     };
 
+    bool operator==(edge_data const& e1, edge_data const& e2);
+
     struct fst_data {
         int vertices;
+
+        std::vector<int> initials;
+        std::vector<int> finals;
+
         std::vector<edge_data> edges;
         std::vector<std::vector<int>> in_edges;
-        std::vector<std::unordered_map<std::string, std::vector<int>>> in_edges_map;
         std::vector<std::vector<int>> out_edges;
+
+        std::vector<std::unordered_map<std::string, std::vector<int>>> in_edges_map;
         std::vector<std::unordered_map<std::string, std::vector<int>>> out_edges_map;
 
         std::vector<std::string> history;
 
-        std::vector<int> initials;
-        std::vector<int> finals;
     };
+
+    void add_vertex(fst_data& data, int v, long time);
+    void add_edge(fst_data& data, int e, int tail, int head, real weight,
+        std::string input, std::string output);
 
     struct fst {
         using vertex_type = int;

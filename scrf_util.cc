@@ -1,6 +1,7 @@
 #include "scrf/scrf_util.h"
 #include "scrf/scrf_cost.h"
 #include "scrf/scrf_weight.h"
+#include <cassert>
 
 namespace scrf {
 
@@ -53,12 +54,71 @@ namespace scrf {
         return min_cost_path;
     }
     
+    scrf_t make_gold_scrf(lattice::fst gold_lat,
+        std::shared_ptr<lm::fst> lm)
+    {
+        gold_lat.data = std::make_shared<lattice::fst_data>(*(gold_lat.data));
+        lattice::add_eps_loops(gold_lat);
+        fst::composed_fst<lattice::fst, lm::fst> gold_lm_lat;
+        gold_lm_lat.fst1 = std::make_shared<lattice::fst>(std::move(gold_lat));
+        gold_lm_lat.fst2 = lm;
+
+        scrf_t gold;
+        gold.fst = std::make_shared<decltype(gold_lm_lat)>(gold_lm_lat);
+
+        return gold;
+    }
+
     fst::path<scrf::scrf_t> make_ground_truth_path(
         scrf::scrf_t& ground_truth)
     {
         ground_truth.weight_func = std::make_shared<scrf::backoff_cost>(scrf::backoff_cost{});
         ground_truth.topo_order = scrf::topo_order(ground_truth);
         return scrf::shortest_path(ground_truth, ground_truth.topo_order);
+    }
+
+    lattice::fst make_segmentation_lattice(int frames, int min_seg_len, int max_seg_len)
+    {
+        lattice::fst_data data;
+
+        data.vertices.resize(frames + 1);
+        for (int i = 0; i < frames + 1; ++i) {
+            data.vertices.at(i).time = i;
+        }
+
+        data.in_edges.resize(frames + 1);
+        data.out_edges.resize(frames + 1);
+        data.in_edges_map.resize(frames + 1);
+        data.out_edges_map.resize(frames + 1);
+
+        assert(min_seg_len >= 1);
+
+        for (int i = 0; i < frames + 1; ++i) {
+            for (int j = min_seg_len; j <= max_seg_len; ++j) {
+                int tail = i;
+                int head = i + j;
+
+                if (head > frames) {
+                    continue;
+                }
+
+                data.edges.push_back(lattice::edge_data {tail, head, 0, "<label>"});
+                int e = data.edges.size() - 1;
+
+                data.in_edges.at(head).push_back(e);
+                data.in_edges_map.at(head)["<label>"].push_back(e);
+                data.out_edges.at(tail).push_back(e);
+                data.in_edges_map.at(tail)["<label>"].push_back(e);
+            }
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(frames);
+
+        lattice::fst f;
+        f.data = std::make_shared<lattice::fst_data>(std::move(data));
+
+        return f;
     }
 
     scrf_t make_graph_scrf(int frames, std::shared_ptr<lm::fst> lm, int min_seg_len, int max_seg_len)
@@ -106,6 +166,55 @@ namespace scrf {
         graph.topo_order = std::move(topo_order);
 
         return graph;
+    }
+
+    lm::fst make_ground_truth_lm(std::vector<std::string> const& labels)
+    {
+        lm::fst_data data;
+
+        data.vertices = labels.size() + 1;
+        data.in_edges.resize(data.vertices);
+        data.out_edges.resize(data.vertices);
+        data.in_edges_map.resize(data.vertices);
+        data.out_edges_map.resize(data.vertices);
+
+        int v = 0;
+        for (int i = 0; i < labels.size(); ++i) {
+            add_edge(data, i, v, v + 1, 0.0, "<label>", labels[i]);
+            ++v;
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(v);
+
+        return lm::fst { std::make_shared<lm::fst_data>(data) };
+    }
+
+    scrf_t make_forced_alignment_scrf(int frames,
+        std::vector<std::string> const& labels, int min_seg_len, int max_seg_len)
+    {
+        scrf_t result;
+
+        lattice::fst seg = make_segmentation_lattice(frames, min_seg_len, max_seg_len);
+
+        lm::fst lm = make_ground_truth_lm(labels);
+
+        fst::composed_fst<lattice::fst, lm::fst> comp;
+        comp.fst1 = std::make_shared<lattice::fst>(seg);
+        comp.fst2 = std::make_shared<lm::fst>(lm);
+        result.fst = std::make_shared<decltype(comp)>(comp);
+
+        auto lm_v = lm.vertices();
+
+        std::vector<std::tuple<int, int>> topo_order;
+        for (auto v: lattice::topo_order(*(comp.fst1))) {
+            for (auto u: lm_v) {
+                topo_order.push_back(std::make_tuple(v, u));
+            }
+        }
+        result.topo_order = std::move(topo_order);
+
+        return result;
     }
 
 }

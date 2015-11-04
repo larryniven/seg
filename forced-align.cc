@@ -13,12 +13,11 @@
 struct prediction_env {
 
     std::ifstream frame_list;
-    std::shared_ptr<lm::fst> lm;
     int min_seg;
     int max_seg;
     scrf::param_t param;
 
-    int beam_width;
+    std::ifstream label_list;
 
     std::vector<std::string> features;
 
@@ -33,11 +32,9 @@ struct prediction_env {
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    if (ebt::in(std::string("frame-list"), args)) {
-        frame_list.open(args.at("frame-list"));
-    }
+    frame_list.open(args.at("frame-list"));
 
-    lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+    label_list.open(args.at("label-list"));
 
     min_seg = 1;
     if (ebt::in(std::string("min-seg"), args)) {
@@ -51,17 +48,12 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
 
     param = scrf::load_param(args.at("param"));
     features = ebt::split(args.at("features"), ",");    
-
-    if (ebt::in(std::string("beam-width"), args)) {
-        beam_width = std::stoi(args.at("beam-width"));
-    }
 }
 
 void prediction_env::run()
 {
     std::string frame_file;
-
-    std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
+    std::string line;
 
     int i = 0;
     while (1) {
@@ -76,9 +68,18 @@ void prediction_env::run()
             break;
         }
 
+        std::getline(label_list, line);
+
+        if (!label_list) {
+            break;
+        }
+
+        std::vector<std::string> labels = ebt::split(line);
+        labels.pop_back();
+
         scrf::scrf_t graph;
 
-        graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
+        graph = scrf::make_forced_alignment_scrf(frames.size(), labels, min_seg, max_seg);
 
         scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
 
@@ -87,21 +88,21 @@ void prediction_env::run()
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best;
-        if (ebt::in(std::string("beam-width"), args)) {
-            fst::beam_search<scrf::scrf_t> beam_search;
-            beam_search.search(graph, beam_width);
-            one_best = beam_search.best_path(graph);
-        } else {
-            one_best = scrf::shortest_path(graph, graph.topo_order);
-        }
+        one_best = scrf::shortest_path(graph, graph.topo_order);
 
-        double weight = 0;
-        for (auto& e: one_best.edges()) {
-            std::cout << one_best.output(e) << " ";
-            weight += one_best.weight(e);
+        auto& lat = *graph.fst->fst1;
+
+        std::cout << frame_file << std::endl;
+        for (auto& v: one_best.vertices()) {
+            std::cout << std::get<0>(v)
+                << " time=" << lat.data->vertices.at(std::get<0>(v)).time << std::endl;
         }
-        std::cout << "(" << frame_file << ")" << std::endl;
-        std::cout << "weight: " << weight << std::endl;
+        std::cout << "#" << std::endl;
+        for (auto& e: one_best.edges()) {
+            std::cout << std::get<0>(one_best.tail(e)) << " " << std::get<0>(one_best.head(e))
+                << " label=" << one_best.output(e) << std::endl;
+        }
+        std::cout << "." << std::endl;
 
         ++i;
     }
@@ -110,11 +111,11 @@ void prediction_env::run()
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
-        "predict",
-        "Predict segment labels with segmental CRF",
+        "forced-align",
+        "Align frames to labels with segmental CRF",
         {
-            {"frame-list", "", false},
-            {"lm", "", true},
+            {"frame-list", "", true},
+            {"label-list", "", true},
             {"max-seg", "", false},
             {"min-seg", "", false},
             {"param", "", true},

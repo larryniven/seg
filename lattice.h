@@ -16,10 +16,10 @@ namespace lattice {
     };
 
     struct edge_data {
-        std::string label;
         int tail;
         int head;
         real weight;
+        std::string label;
     };
 
     bool operator==(edge_data const& e1, edge_data const& e2);

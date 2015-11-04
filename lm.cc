@@ -1,8 +1,49 @@
 #include "scrf/lm.h"
 #include "ebt/ebt.h"
 #include <fstream>
+#include <cassert>
 
 namespace lm {
+
+    bool operator==(edge_data const& e1, edge_data const& e2)
+    {
+        return e1.tail == e2.tail && e1.head == e2.head
+            && e1.weight == e2.weight && e1.input == e2.input
+            && e1.output == e2.output;
+    }
+
+    void add_vertex(fst_data& data, int v)
+    {
+        assert(v <= data.vertices);
+
+        if (v == data.vertices) {
+            data.vertices += 1;
+            data.in_edges.resize(data.vertices);
+            data.out_edges.resize(data.vertices);
+            data.in_edges_map.resize(data.vertices);
+            data.out_edges_map.resize(data.vertices);
+        }
+    }
+
+    void add_edge(fst_data& data, int e,
+        int tail, int head, real weight,
+        std::string input, std::string output)
+    {
+        assert(head < data.vertices);
+        assert(tail < data.vertices);
+
+        assert(e <= data.edges.size());
+
+        if (e < data.edges.size()) {
+            assert((edge_data {tail, head, weight, input, output} == data.edges.at(e)));
+        } else if (e == data.edges.size()) {
+            data.edges.push_back(edge_data {tail, head, weight, input, output});
+            data.in_edges[head].push_back(e);
+            data.out_edges[tail].push_back(e);
+            data.in_edges_map.at(head)[input].push_back(e);
+            data.out_edges_map.at(tail)[input].push_back(e);
+        }
+    }
 
     std::vector<int> fst::vertices() const
     {

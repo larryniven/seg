@@ -379,65 +379,6 @@ namespace scrf {
         return f;
     }
     
-    lattice::fst make_segmentation_lattice(int frames, int min_seg_len, int max_seg_len)
-    {
-        lattice::fst_data data;
-
-        data.vertices.resize(frames + 1);
-        for (int i = 0; i < frames + 1; ++i) {
-            data.vertices.at(i).time = i;
-        }
-
-        data.in_edges.resize(frames + 1);
-        data.out_edges.resize(frames + 1);
-        data.in_edges_map.resize(frames + 1);
-        data.out_edges_map.resize(frames + 1);
-
-        assert(min_seg_len >= 1);
-
-        for (int i = 0; i < frames + 1; ++i) {
-            for (int j = min_seg_len; j <= max_seg_len; ++j) {
-                int tail = i;
-                int head = i + j;
-
-                if (head > frames) {
-                    continue;
-                }
-
-                data.edges.push_back(lattice::edge_data {"<label>", tail, head});
-                int e = data.edges.size() - 1;
-
-                data.in_edges.at(head).push_back(e);
-                data.in_edges_map.at(head)["<label>"].push_back(e);
-                data.out_edges.at(tail).push_back(e);
-                data.in_edges_map.at(tail)["<label>"].push_back(e);
-            }
-        }
-
-        data.initials.push_back(0);
-        data.finals.push_back(frames);
-
-        lattice::fst f;
-        f.data = std::make_shared<lattice::fst_data>(std::move(data));
-
-        return f;
-    }
-
-    scrf_t make_gold_scrf(lattice::fst gold_lat,
-        std::shared_ptr<lm::fst> lm)
-    {
-        gold_lat.data = std::make_shared<lattice::fst_data>(*(gold_lat.data));
-        lattice::add_eps_loops(gold_lat);
-        fst::composed_fst<lattice::fst, lm::fst> gold_lm_lat;
-        gold_lm_lat.fst1 = std::make_shared<lattice::fst>(std::move(gold_lat));
-        gold_lm_lat.fst2 = lm;
-
-        scrf_t gold;
-        gold.fst = std::make_shared<decltype(gold_lm_lat)>(gold_lm_lat);
-
-        return gold;
-    }
-
     loss_func::~loss_func()
     {}
 

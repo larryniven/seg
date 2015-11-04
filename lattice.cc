@@ -34,9 +34,9 @@ namespace lattice {
         assert(e <= data.edges.size());
 
         if (e < data.edges.size()) {
-            assert((edge_data {label, tail, head, weight} == data.edges.at(e)));
+            assert((edge_data {tail, head, weight, label} == data.edges.at(e)));
         } else if (e == data.edges.size()) {
-            data.edges.push_back(edge_data {label, tail, head, weight});
+            data.edges.push_back(edge_data {tail, head, weight, label});
             data.in_edges[head].push_back(e);
             data.out_edges[tail].push_back(e);
             data.out_edges_map.at(tail)[label].push_back(e);
