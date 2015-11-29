@@ -218,6 +218,34 @@ namespace lattice {
         return f;
     }
 
+    fst load_path(std::istream& is)
+    {
+        std::vector<std::vector<std::string>> edges;
+
+        ebt::json::json_parser<decltype(edges)> parser;
+        edges = parser.parse(is);
+
+        fst_data data;
+
+        int i = 0;
+
+        add_vertex(data, 0, std::stoi(edges[0][0]));
+
+        for (auto& e: edges) {
+            i += 1;
+            add_vertex(data, i, std::stoi(e[1]));
+            add_edge(data, i - 1, e[2], i-1, i, 0);
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(i);
+
+        fst f;
+        f.data = std::make_shared<fst_data>(std::move(data));
+
+        return f;
+    }
+
     fst add_eps_loops(fst f, std::string label)
     {
         auto& data = *(f.data);

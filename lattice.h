@@ -68,6 +68,8 @@ namespace lattice {
 
     fst load_lattice(std::istream& is);
 
+    fst load_path(std::istream& is);
+
     fst add_eps_loops(fst fst, std::string label="<eps>");
 
     std::vector<int> topo_order(lattice::fst const& fst);

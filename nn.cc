@@ -51,13 +51,13 @@ namespace nn {
         nn_t nn;
         std::vector<real> v;
 
-        auto h = autodiff::var();
+        auto h = nn.graph.var();
         v.resize(param.weight[0].front().size(), 0);
         h->output = std::make_shared<std::vector<real>>(std::move(v));
         nn.layers.push_back(h);
 
         for (int i = 0; i < param.weight.size() - 1; ++i) {
-            auto w = autodiff::var(param.weight[i]);
+            auto w = nn.graph.var(param.weight[i]);
             nn.weights.push_back(w);
             h = autodiff::relu(autodiff::mult(w, h));
             v = std::vector<real>();
@@ -67,7 +67,7 @@ namespace nn {
             nn.layers.push_back(h);
         }
 
-        auto w = autodiff::var(param.weight.back());
+        auto w = nn.graph.var(param.weight.back());
         nn.weights.push_back(w);
         h = autodiff::logsoftmax(autodiff::mult(w, h));
         v = std::vector<real>();

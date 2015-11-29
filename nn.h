@@ -13,6 +13,7 @@ namespace nn {
     };
 
     struct nn_t {
+        autodiff::computation_graph graph;
         std::vector<std::shared_ptr<autodiff::op>> layers;
         std::vector<std::shared_ptr<autodiff::op>> weights;
     };

@@ -28,7 +28,7 @@ namespace segcost {
             - std::min(max_seg.start_time, e.start_time);
 
         if ((e.label == "<s>" || e.label == "</s>") && e.label == max_seg.label) {
-            assert(e.end_time - e.start_time > 0);
+            assert(e.end_time - e.start_time - max_overlap >= 0);
             return (e.end_time - e.start_time) - max_overlap;
         } else if (e.label == max_seg.label) {
             return union_ - max_overlap;

@@ -1,12 +1,17 @@
 CXXFLAGS += -std=c++11 -I ../../ -L ../../ebt -L ../../opt -L ../../autodiff -L ../../la -L ../../speech
 
+tests = test_lattice test_scrf test_fst
+
 .PHONY: all clean
 
-all: test_lattice test_scrf
+all: $(tests)
 
 clean:
 	-rm *.o
-	-rm test_lattice test_scrf
+	-rm $(tests)
+
+test_fst: test_fst.o ../lattice.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lebt
 
 test_lattice: test_lattice.o ../lattice.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lebt

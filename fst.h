@@ -731,377 +731,161 @@ namespace fst {
 
     template <class fst_type>
     struct lazy_k_best {
-
-        using vertex_type = typename fst_type::vertex_type;
-        using edge_type = typename fst_type::edge_type;
-
-        struct deck_entry {
-            edge_type edge;
+        struct card_t {
+            double value;
+            typename fst_type::edge_type edge;
             int index;
-            real value;
         };
 
-        struct extra_data {
-            std::unordered_map<edge_type, int> pi_deck_indices;
-            std::vector<deck_entry> deck;
-            bool no_more;
-        };
+        std::unordered_map<typename fst_type::vertex_type, std::vector<card_t>> deck;
 
-        std::unordered_map<vertex_type, extra_data> extra;
+        std::unordered_map<typename fst_type::edge_type, int> tail_index;
 
-        std::vector<vertex_type> ask(fst_type& fst, std::vector<vertex_type> stack)
+        void one_best(fst_type const& fst,
+            std::vector<typename fst_type::vertex_type> const& topo_order)
         {
-            std::unordered_set<vertex_type> result_set {stack.begin(), stack.end()};
-            std::vector<vertex_type> result = stack;
+            double inf = std::numeric_limits<double>::infinity();
 
-            while (stack.size() != 0) {
+            for (auto& v: topo_order) {
+                auto edges = fst.in_edges(v);
 
-                vertex_type u = stack.back();
-                stack.pop_back();
-
-                auto get_extra = [&](vertex_type const& v) -> extra_data& {
-                    if (!ebt::in(v, extra)) {
-                        extra[v].no_more = false;
+                if (edges.size() == 0) {
+                    deck[v].push_back(card_t {0, typename fst_type::edge_type {}, -1});
+                } else {
+                    for (auto& e: edges) {
+                        tail_index[e] = 0;
                     }
-                    return extra.at(v);
-                };
 
-                extra_data& u_data = get_extra(u);
+                    double max = -inf;
+                    typename fst_type::edge_type argmax;
 
-                auto get_pi_ind = [&](edge_type const& e) {
-                    return ebt::get(u_data.pi_deck_indices, e, -1);
-                };
+                    for (auto& e: edges) {
+                        double score = deck.at(fst.tail(e)).at(0).value + fst.weight(e);
 
-                for (auto&& e: fst.in_edges(u)) {
-                    edge_type v = fst.tail(e);
-                    extra_data& v_data = get_extra(v);
-
-                    if (!ebt::in(v, result_set)
-                            && get_pi_ind(e) == int(v_data.deck.size()) - 1
-                            && !v_data.no_more) {
-                        stack.push_back(v);
-                        result_set.insert(v);
-                        result.push_back(v);
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        void merge(fst_type& fst, std::vector<vertex_type> stack)
-        {
-            while (stack.size() != 0) {
-                vertex_type u = stack.back();
-                stack.pop_back();
-
-                auto get_extra = [&](vertex_type const& v) -> extra_data& {
-                    if (!ebt::in(v, extra)) {
-                        extra[v].no_more = false;
-                    }
-                    return extra.at(v);
-                };
-
-                extra_data& u_data = get_extra(u);
-
-                auto get_pi_ind = [&](edge_type const& e) {
-                    return ebt::get(u_data.pi_deck_indices, e, -1);
-                };
-
-                if (u_data.no_more) {
-                    continue;
-                }
-
-                std::vector<edge_type> pi = fst.in_edges(u);
-
-                if (pi.size() > 0) {
-                    real max = -std::numeric_limits<real>::infinity();
-                    edge_type argmax;
-
-                    for (auto&& e: pi) {
-                        edge_type v = fst.tail(e);
-                        extra_data& v_data = get_extra(v);
-
-                        if (get_pi_ind(e) + 1 < int(v_data.deck.size())
-                                && v_data.deck.at(get_pi_ind(e) + 1).value
-                                    + fst.weight(e) > max) {
-                            max = v_data.deck.at(get_pi_ind(e) + 1).value + fst.weight(e);
+                        if (score > max) {
+                            max = score;
                             argmax = e;
                         }
                     }
 
-                    if (max == -std::numeric_limits<real>::infinity()) {
-                        bool dead_end = false;
-                        for (auto&& e: pi) {
-                            edge_type v = fst.tail(e);
-                            extra_data& v_data = get_extra(v);
-
-                            if (v_data.deck.at(get_pi_ind(e) + 1).value
-                                    == -std::numeric_limits<real>::infinity()) {
-                                dead_end = true;
-                            }
-                        }
-
-                        if (dead_end) {
-                            continue;
-                        }
-
-                        for (auto&& e: pi) {
-                            edge_type v = fst.tail(e);
-                            extra_data& v_data = get_extra(v);
-
-                            std::cout << fst.tail(e) << " " << fst.head(e)
-                                << " " << fst.in_edges(fst.tail(e)).size()
-                                << " " << fst.input(e) << " " << get_pi_ind(e) + 1
-                                << " " << int(v_data.deck.size())
-                                << " " << v_data.no_more;
-                            if (get_pi_ind(e) + 1 < int(v_data.deck.size())) {
-                                std::cout << " " << v_data.deck.at(get_pi_ind(e) + 1).value
-                                    << " " << fst.weight(e);
-                            }
-                            std::cout << std::endl;
-                        }
-                        exit(1);
-                    }
-
-                    u_data.pi_deck_indices[argmax] += 1;
-                    u_data.deck.push_back({argmax, u_data.pi_deck_indices.at(argmax), max});
-
-                    vertex_type argmax_v = fst.tail(argmax);
-                    extra_data& argmax_v_data = get_extra(argmax_v);
-                    if (get_pi_ind(argmax) < int(argmax_v_data.deck.size()) - 1
-                            || !argmax_v_data.no_more) {
-                        bool has_more = false;
-
-                        for (auto&& e: pi) {
-                            vertex_type v = fst.tail(e);
-                            extra_data& v_data = get_extra(v);
-
-                            if (get_pi_ind(e) < int(v_data.deck.size()) - 1
-                                    || !v_data.no_more) {
-                                has_more = true;
-                                break;
-                            }
-                        }
-
-                        u_data.no_more = !has_more;
-                    }
-                } else if (u_data.deck.size() == 0) {
-                    deck_entry d_entry;
-                    d_entry.index = -1;
-                    d_entry.value = -std::numeric_limits<real>::infinity();
-                    u_data.deck.push_back(d_entry);
-                }
-
-                if (pi.size() == 0) {
-                    u_data.no_more = true;
+                    deck[v].push_back(card_t {max, argmax, 0});
                 }
             }
         }
 
-        void first_best(fst_type& fst, std::vector<vertex_type> finals,
-            std::vector<vertex_type> initials)
+        path<fst_type> backtrack(fst_type const& fst,
+            typename fst_type::vertex_type const& v, int index)
         {
-            std::vector<vertex_type>& stack = finals;
-            stack = ask(fst, stack);
+            std::vector<typename fst_type::edge_type> edges;
 
-            for (auto& v: initials) {
-                extra[v].deck.push_back({edge_type{}, -1, 0});
-            }
+            auto u = v;
+            int i = index;
 
-            merge(fst, stack);
-        }
+            while (1) {
+                card_t c = deck.at(u).at(i);
 
-        void next_best(fst_type& fst, std::vector<vertex_type> finals)
-        {
-            std::vector<vertex_type>& stack = finals;
-            stack = ask(fst, stack);
-
-            merge(fst, stack);
-        }
-
-        path<fst_type> best_path(fst_type& fst,
-            std::vector<std::tuple<typename fst_type::vertex_type, int>> stack,
-            std::vector<typename fst_type::vertex_type> initials)
-        {
-            using vertex_type = typename fst_type::vertex_type;
-            using edge_type = typename fst_type::edge_type;
-
-            path_data<fst_type> result;
-            result.base_fst = &fst;
-
-            while (stack.size() > 0) {
-                vertex_type u = std::get<0>(stack.back());
-                int deck_index = std::get<1>(stack.back());
-                stack.pop_back();
-
-                result.vertices.push_back(u);
-
-                for (auto& s: initials) {
-                    if (s == u) {
-                        goto done;
-                    }
+                if (c.index == -1) {
+                    break;
                 }
 
-                edge_type e = extra.at(u).deck.at(deck_index).edge;
+                edges.push_back(c.edge);
 
-                vertex_type v = fst.tail(e);
-                real value = extra.at(u).deck.at(deck_index).value;
-
-                result.edges.push_back(e);
-                result.in_edges[u].push_back(e);
-                result.out_edges[v].push_back(e);
-
-                for (int i = 0; i < extra.at(v).deck.size(); ++i) {
-                    if (std::abs(extra.at(v).deck.at(i).value - (value - fst.weight(e)))
-                            <= std::min(std::abs(extra.at(v).deck.at(i).value),
-                                std::abs(value - fst.weight(e))) * 1e-3) {
-                        stack.push_back(std::make_tuple(v, i));
-                        break;
-                    }
-                }
+                typename fst_type::edge_type e = c.edge;
+                u = fst.tail(e);
+                i = c.index;
             }
 
-            done:
+            std::reverse(edges.begin(), edges.end());
 
-            // TODO: dangerous
-            result.initial = fst.initial();
-            result.final = fst.final();
-
-            std::reverse(result.vertices.begin(), result.vertices.end());
-            std::reverse(result.edges.begin(), result.edges.end());
-
-            path<fst_type> p;
-            p.data = std::make_shared<path_data<fst_type>>(std::move(result));
-
-            return p;
+            return make_path(fst, edges);
         }
 
-        path<fst_type> best_path(fst_type& fst)
+        void update(fst_type const& fst, path<fst_type> const& path)
         {
-            return best_path(fst, {std::make_tuple(fst.final(), 0)}, {fst.initial()});
-        }
+            double inf = std::numeric_limits<double>::infinity();
 
-        sub_fst<fst_type> backtrack(fst_type& fst,
-            std::vector<std::tuple<typename fst_type::vertex_type, int>> stack,
-            std::vector<typename fst_type::vertex_type> initials)
-        {
-            using vertex_type = typename fst_type::vertex_type;
-            using edge_type= typename fst_type::edge_type;
+            for (auto& e: path.edges()) {
+                if (tail_index.at(e) == -1) {
+                    continue;
+                }
 
-            sub_fst_data<fst_type> result;
-            result.base_fst = &fst;
+                if (tail_index.at(e) < deck.at(fst.tail(e)).size() - 1) {
+                    tail_index.at(e) += 1;
+                } else {
+                    tail_index.at(e) = -1;
+                }
 
-            while (stack.size() > 0) {
-                vertex_type u = std::get<0>(stack.back());
-                int deck_index = std::get<1>(stack.back());
-                stack.pop_back();
+                auto edges = fst.in_edges(fst.head(e));
 
-                result.vertices.push_back(u);
+                double max = -inf;
+                typename fst_type::edge_type argmax;
 
-                for (auto& s: initials) {
-                    if (s == u) {
+                for (auto& e2: edges) {
+                    if (tail_index.at(e2) == -1) {
                         continue;
                     }
-                }
 
-                edge_type e = extra.at(u).deck.at(deck_index).edge;
+                    double score = deck.at(fst.tail(e2)).at(tail_index.at(e2)).value + fst.weight(e2);
 
-                vertex_type v = fst.tail(e);
-                real value = extra.at(u).deck.at(deck_index).value;
-
-                result.edges.push_back(e);
-                result.in_edges[u].push_back(e);
-                result.out_edges[v].push_back(e);
-
-                for (int i = 0; i < extra.at(v).deck.size(); ++i) {
-                    if (std::abs(extra.at(v).deck.at(i).value - (value - fst.weight(e)))
-                            <= std::min(std::abs(extra.at(v).deck.at(i).value),
-                                std::abs(value - fst.weight(e))) * 1e-3) {
-                        stack.push_back(std::make_tuple(v, i));
+                    if (score > max) {
+                        max = score;
+                        argmax = e2;
                     }
                 }
+
+                if (max != -inf) {
+                    deck[fst.head(e)].push_back(card_t {max, argmax, tail_index.at(argmax)});
+                }
             }
-
-            // TODO: dangerous
-            result.initial = fst.data.initial;
-            result.final = fst.data.final;
-
-            std::reverse(result.vertices.begin(), result.vertices.end());
-            std::reverse(result.edges.begin(), result.edges.end());
-
-            sub_fst<fst_type> f;
-            f.data = std::make_shared<sub_fst_data<fst_type>>(std::move(result));
-
-            return f;
         }
-
-        sub_fst<fst_type> backtrack(fst_type& fst,
-            std::vector<std::tuple<typename fst_type::vertex_type, int>> stack)
-        {
-            return backtrack(fst, stack, {fst.initial()});
-        }
-
-        sub_fst_data<fst_type> backtrack(fst_type& fst)
-        {
-            std::vector<std::tuple<typename fst_type::vertex_type, int>> stack;
-            stack.push_back(std::make_tuple(fst.final(), 0));
-            return backtrack(fst, stack);
-        }
-
     };
 
     template <class fst>
     std::vector<typename fst::vertex_type> topo_order(fst const& f)
     {
-        std::vector<typename fst::vertex_type> stack;
+        enum class action_t {
+            color_grey,
+            color_black
+        };
+
+        std::vector<std::pair<action_t, typename fst::vertex_type>> stack;
         std::unordered_set<typename fst::vertex_type> traversed;
-        std::vector<typename fst::vertex_type> path;
 
         std::vector<typename fst::vertex_type> order;
-        std::unordered_set<typename fst::vertex_type> order_set;
 
         for (auto& v: f.initials()) {
-            stack.push_back(v);
+            stack.push_back(std::make_pair(action_t::color_grey, v));
         }
 
         while (stack.size() > 0) {
-            auto v = stack.back();
+            action_t a;
+            typename fst::vertex_type v;
+            std::tie(a, v) = stack.back();
             stack.pop_back();
 
-            std::unordered_set<typename fst::vertex_type> in_ver;
-
-            for (auto& e: f.in_edges(v)) {
-                in_ver.insert(f.tail(e));
-            }
-
-            while (path.size() > 0 && !ebt::in(path.back(), in_ver)) {
-                if (!ebt::in(path.back(), order_set)) {
-                    order_set.insert(path.back());
-                    order.push_back(path.back());
+            if (a == action_t::color_grey) {
+                if (ebt::in(v, traversed)) {
+                    continue;
                 }
-                path.pop_back();
-            }
 
-            path.push_back(v);
+                traversed.insert(v);
 
-            for (auto& e: f.out_edges(v)) {
-                auto u = f.head(e);
+                stack.push_back(std::make_pair(action_t::color_black, v));
 
-                if (!ebt::in(u, traversed)) {
-                    stack.push_back(u);
+                for (auto& e: f.out_edges(v)) {
+                    auto u = f.head(e);
+
+                    if (!ebt::in(u, traversed)) {
+                        stack.push_back(std::make_pair(action_t::color_grey, u));
+                    }
                 }
-            }
 
-            traversed.insert(v);
-        }
-
-        while (path.size() > 0) {
-            if (!ebt::in(path.back(), order_set)) {
-                order_set.insert(path.back());
-                order.push_back(path.back());
+            } else if (a == action_t::color_black) {
+                order.push_back(v);
+            } else {
+                std::cerr << "unknown action " << int(a) << std::endl;
+                exit(1);
             }
-            path.pop_back();
         }
 
         std::reverse(order.begin(), order.end());
