@@ -13,8 +13,8 @@
 
 struct learning_env {
 
-    std::ifstream frame_list;
-    std::ifstream ground_truth_list;
+    std::ifstream frame_batch;
+    std::ifstream ground_truth_batch;
     std::shared_ptr<lm::fst> lm;
     int min_seg;
     int max_seg;
@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
         "learn",
         "Learn segmental CRF",
         {
-            {"frame-list", "", false},
-            {"ground-truth-list", "", true},
+            {"frame-batch", "", false},
+            {"ground-truth-batch", "", true},
             {"lm", "", true},
             {"min-seg", "", false},
             {"max-seg", "", false},
@@ -85,11 +85,11 @@ int main(int argc, char *argv[])
 learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    if (ebt::in(std::string("frame-list"), args)) {
-        frame_list.open(args.at("frame-list"));
+    if (ebt::in(std::string("frame-batch"), args)) {
+        frame_batch.open(args.at("frame-batch"));
     }
 
-    ground_truth_list.open(args.at("ground-truth-list"));
+    ground_truth_batch.open(args.at("ground-truth-batch"));
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
 
@@ -144,19 +144,17 @@ void learning_env::run()
 
         std::vector<std::vector<real>> frames;
 
-        std::string frame_file;
-
-        if (std::getline(frame_list, frame_file)) {
-            frames = speech::load_frames(frame_file);
+        if (frame_batch) {
+            frames = speech::load_frames_batch(frame_batch);
         }
 
-        lattice::fst ground_truth_lat = lattice::load_lattice(ground_truth_list);
+        lattice::fst ground_truth_lat = lattice::load_lattice(ground_truth_batch);
 
-        if (!ground_truth_list) {
+        if (!ground_truth_batch) {
             break;
         }
 
-        std::cout << frame_file << std::endl;
+        std::cout << ground_truth_lat.data->name << std::endl;
 
         std::cout << "ground truth: ";
         for (auto& e: ground_truth_lat.edges()) {
