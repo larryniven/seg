@@ -12,7 +12,7 @@
 
 struct prediction_env {
 
-    std::ifstream frame_list;
+    std::ifstream frame_batch;
     std::shared_ptr<lm::fst> lm;
     int min_seg;
     int max_seg;
@@ -33,8 +33,8 @@ struct prediction_env {
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    if (ebt::in(std::string("frame-list"), args)) {
-        frame_list.open(args.at("frame-list"));
+    if (ebt::in(std::string("frame-batch"), args)) {
+        frame_batch.open(args.at("frame-batch"));
     }
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
@@ -68,11 +68,9 @@ void prediction_env::run()
 
         std::vector<std::vector<real>> frames;
 
-        if (std::getline(frame_list, frame_file)) {
-            frames = speech::load_frames(frame_file);
-        }
-
-        if (!frame_list) {
+        if (frame_batch) {
+            frames = speech::load_frames_batch(frame_batch);
+        } else {
             break;
         }
 
@@ -113,7 +111,7 @@ int main(int argc, char *argv[])
         "predict",
         "Predict segment labels with segmental CRF",
         {
-            {"frame-list", "", false},
+            {"frame-batch", "", false},
             {"lm", "", true},
             {"max-seg", "", false},
             {"min-seg", "", false},
