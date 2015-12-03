@@ -12,9 +12,10 @@ obj = lattice.o \
     nn.o \
     scrf.o \
     scrf_feat.o \
-    scrf_util.o
+    scrf_util.o \
+    make_feat.o
 
-bin = libscrf.a learn2 learn-lat predict2 prune oracle-error predict-lat forced-align
+bin = libscrf.a learn learn-lat predict prune oracle-error predict-lat forced-align
 
 all: $(bin)
 
@@ -25,13 +26,13 @@ clean:
 libscrf.a: $(obj)
 	$(AR) rcs libscrf.a $(obj)
 
-learn2: learn2.o libscrf.a
+learn: learn.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 learn-lat: learn-lat.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
-predict2: predict2.o libscrf.a
+predict: predict.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt
 
 predict-lat: predict-lat.o libscrf.a
@@ -53,9 +54,7 @@ scrf.o: scrf.h fst.h lattice.h lm.h
 lm.o: lm.h
 lattice.o: lattice.h
 learn.o: fst.h scrf.h util.h
-learn2.o: fst.h scrf.h util.h
 predict.o: fst.h scrf.h util.h
-predict2.o: fst.h scrf.h util.h
 prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
 weiran.o: weiran.h
@@ -66,3 +65,7 @@ nn.o: nn.h
 annotate-weight.o: fst.h scrf.h util.h
 predict-lat.o: fst.h scrf.h util.h
 forced-align.o: fst.h scrf.h util.h
+
+scrf_weight.o: scrf_weight.h scrf_feat.h scrf.h
+scrf_feat.o: scrf_feat.h scrf.h
+make_feat.o: make_feat.h scrf_feat.h

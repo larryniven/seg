@@ -9,6 +9,7 @@
 #include "scrf/scrf_feat.h"
 #include "scrf/scrf_weight.h"
 #include "scrf/scrf_util.h"
+#include "scrf/make_feat.h"
 #include <fstream>
 
 struct learning_env {
@@ -157,19 +158,19 @@ void learning_env::run()
         }
         gold_path.data->base_fst = &gold;
 
-        scrf::composite_feature gold_feat_func = scrf::make_feature2(features, frames);
+        scrf::composite_feature gold_feat_func = scrf::make_feat(features, frames);
 
         gold.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(param, gold_feat_func));
         gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
 
         scrf::scrf_t graph = scrf::make_lat_scrf(lat, lm);
 
         graph.weight_func =
-            std::make_shared<scrf::linear_weight>(
-                scrf::linear_weight { param, graph_feat_func })
+            graph.weight_func = std::make_shared<scrf::composite_weight>(
+                scrf::make_weight(param, graph_feat_func))
             + std::make_shared<scrf::seg_cost>(
                 scrf::make_overlap_cost(gold_path));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);

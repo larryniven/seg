@@ -8,6 +8,7 @@
 #include "scrf/scrf_weight.h"
 #include "scrf/scrf_util.h"
 #include "speech/speech.h"
+#include "scrf/make_feat.h"
 #include <fstream>
 
 struct prediction_env {
@@ -81,7 +82,7 @@ void prediction_env::run()
 
         graph = scrf::make_forced_alignment_scrf(frames.size(), labels, min_seg, max_seg);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
 
         graph.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(param, graph_feat_func));

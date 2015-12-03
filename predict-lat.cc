@@ -9,6 +9,7 @@
 #include "scrf/scrf_feat.h"
 #include "scrf/scrf_weight.h"
 #include "scrf/scrf_util.h"
+#include "scrf/make_feat.h"
 #include <fstream>
 
 struct predict_env {
@@ -94,13 +95,13 @@ void predict_env::run()
             break;
         }
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
 
         scrf::scrf_t graph = scrf::make_lat_scrf(lat, lm);
 
         graph.weight_func =
-            std::make_shared<scrf::linear_weight>(
-                scrf::linear_weight { param, graph_feat_func });
+            graph.weight_func = std::make_shared<scrf::composite_weight>(
+                scrf::make_weight(param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best;

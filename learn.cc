@@ -4,37 +4,35 @@
 #include "scrf/lattice.h"
 #include "speech/speech.h"
 #include "scrf/nn.h"
-#include "scrf/weiran.h"
 #include "scrf/loss.h"
-#include "scrf/cost.h"
-#include "scrf/make_feature.h"
+#include "scrf/scrf_cost.h"
+#include "scrf/scrf_feat.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/scrf_util.h"
+#include "scrf/make_feat.h"
 #include <fstream>
 
 struct learning_env {
 
-    std::ifstream input_list;
-    std::ifstream lattice_list;
-    std::ifstream gold_list;
+    std::ifstream frame_batch;
+    std::ifstream ground_truth_batch;
     std::shared_ptr<lm::fst> lm;
+    int min_seg;
     int max_seg;
     scrf::param_t param;
     scrf::param_t opt_data;
     real step_size;
 
-    std::vector<real> cm_mean;
-    std::vector<real> cm_stddev;
-    nn::param_t nn_param;
-    nn::param_t nn_opt_data;
-    nn::nn_t nn;
-    real nn_step_size;
-
     int save_every;
-    int beam_width;
 
     std::string output_param;
     std::string output_opt_data;
 
+    double norm;
+
     std::vector<std::string> features;
+
+    int beam_width;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -44,261 +42,28 @@ struct learning_env {
 
 };
 
-learning_env::learning_env(std::unordered_map<std::string, std::string> args)
-    : args(args)
-{
-    if (ebt::in(std::string("input-list"), args)) {
-        input_list.open(args.at("input-list"));
-    }
-
-    if (ebt::in(std::string("lattice-list"), args)) {
-        lattice_list.open(args.at("lattice-list"));
-    }
-
-    gold_list.open(args.at("gold-list"));
-
-    lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
-
-    max_seg = 20;
-    if (ebt::in(std::string("max-seg"), args)) {
-        max_seg = std::stoi(args.at("max-seg"));
-    }
-
-    if (ebt::in(std::string("cm-mean"), args)) {
-        std::ifstream ifs { args.at("cm-mean") };
-        std::string line;
-        std::getline(ifs, line);
-        std::vector<std::string> parts = ebt::split(line);
-        for (auto& v: parts) {
-            cm_mean.push_back(std::stod(v));
-        }
-    }
-
-    if (ebt::in(std::string("cm-stddev"), args)) {
-        std::ifstream ifs { args.at("cm-stddev") };
-        std::string line;
-        std::getline(ifs, line);
-        std::vector<std::string> parts = ebt::split(line);
-        for (auto& v: parts) {
-            cm_stddev.push_back(std::stod(v));
-        }
-    }
-
-    if (ebt::in(std::string("nn-param"), args)) {
-        nn_param = nn::load_param(args.at("nn-param"));
-        nn = nn::make_nn(nn_param);
-    }
-
-    if (ebt::in(std::string("weiran-nn-param"), args)) {
-        nn_param = nn::load_param(args.at("weiran-nn-param"));
-        nn = weiran::make_nn(nn_param);
-    }
-
-    if (ebt::in(std::string("nn-opt-data"), args)) {
-        nn_opt_data = nn::load_param(args.at("nn-opt-data"));
-    }
-
-    if (ebt::in(std::string("nn-step-size"), args)) {
-        nn_step_size = std::stod(args.at("nn-step-size"));
-    }
-
-    param = scrf::load_param(args.at("param"));
-    opt_data = scrf::load_param(args.at("opt-data"));
-    step_size = std::stod(args.at("step-size"));
-
-    if (ebt::in(std::string("beam-width"), args)) {
-        beam_width = std::stoi(args.at("beam-width"));
-    }
-
-    if (ebt::in(std::string("save-every"), args)) {
-        save_every = std::stoi(args.at("save-every"));
-    } else {
-        save_every = std::numeric_limits<int>::max();
-    }
-
-    features = ebt::split(args.at("features"), ",");
-
-    output_param = "param-last";
-    if (ebt::in(std::string("output-param"), args)) {
-        output_param = args.at("output-param");
-    }
-
-    output_opt_data = "opt-data-last";
-    if (ebt::in(std::string("output-opt-data"), args)) {
-        output_opt_data = args.at("output-opt-data");
-    }
-}
-
-void learning_env::run()
-{
-    std::string input_file;
-
-    std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
-
-    int i = 1;
-    while (1) {
-
-        std::vector<std::vector<real>> inputs;
-
-        if (std::getline(input_list, input_file)) {
-            inputs = speech::load_frames(input_file);
-        }
-
-        lattice::fst gold_lat = lattice::load_lattice(gold_list);
-
-        if (!gold_list) {
-            break;
-        }
-
-        std::cout << input_file << std::endl;
-
-        scrf::composite_feature gold_feat_func = scrf::make_feature(features, inputs, max_seg,
-            cm_mean, cm_stddev, nn);
-
-        scrf::scrf_t gold = scrf::make_gold_scrf(gold_lat, lm);
-
-        scrf::backoff_cost bc; 
-        gold.weight_func = std::make_shared<scrf::backoff_cost>(bc);
-        gold.topo_order = topo_order(gold);
-        fst::path<scrf::scrf_t> gold_path = scrf::shortest_path(gold, gold.topo_order);
-
-        gold.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, gold_feat_func));
-        gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
-
-        scrf::composite_feature graph_feat_func = scrf::make_feature(features, inputs, max_seg,
-            cm_mean, cm_stddev, nn);
-
-        scrf::scrf_t graph;
-        if (ebt::in(std::string("lattice-list"), args)) {
-            lattice::fst lat = lattice::load_lattice(lattice_list);
-
-            if (!lattice_list) {
-                break;
-            }
-
-            lattice::add_eps_loops(lat);
-
-            fst::composed_fst<lattice::fst, lm::fst> comp;
-            comp.fst1 = std::make_shared<lattice::fst>(std::move(lat));
-            comp.fst2 = lm;
-            graph.fst = std::make_shared<decltype(comp)>(comp);
-
-            auto lm_v = lm->vertices();
-            std::reverse(lm_v.begin(), lm_v.end());
-
-            std::vector<std::tuple<int, int>> topo_order;
-            for (auto v: lattice::topo_order(*(comp.fst1))) {
-                for (auto u: lm_v) {
-                    topo_order.push_back(std::make_tuple(v, u));
-                }
-            }
-            graph.topo_order = std::move(topo_order);
-        } else {
-            graph = scrf::make_graph_scrf(inputs.size(), lm_output, max_seg);
-            graph.topo_order = scrf::topo_order(graph);
-        }
-        scrf::composite_weight cost_aug_weight;
-        cost_aug_weight.weights.push_back(std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, graph_feat_func)));
-        cost_aug_weight.weights.push_back(std::make_shared<scrf::overlap_cost>(
-            scrf::overlap_cost { gold_path }));
-        graph.weight_func = std::make_shared<scrf::composite_weight>(cost_aug_weight);
-        graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
-
-        std::shared_ptr<scrf::loss_func> loss_func;
-        if (args.at("loss") == "hinge") {
-            loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
-        } else if (args.at("loss") == "hinge-beam") {
-            loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
-        } else if (args.at("loss") == "filtering") {
-            real alpha = std::stod(args.at("alpha"));
-            loss_func = std::make_shared<scrf::filtering_loss>(scrf::filtering_loss { gold_path, graph, alpha });
-        } else {
-            std::cout << "unknown loss function " << args.at("loss") << std::endl;
-            exit(1);
-        }
-
-        real ell = loss_func->loss();
-
-        std::cout << "loss: " << ell << std::endl;
-
-        if (ell < 0) {
-            std::cout << "loss is less than zero.  skipping." << std::endl;
-        }
-
-        std::cout << std::endl;
-
-        if (ell > 0) {
-            auto param_grad = loss_func->param_grad();
-            if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
-                scrf::hinge_loss& hinge_loss = static_cast<scrf::hinge_loss&>(*loss_func);
-                nn::param_t nn_grad = nn::hinge_nn_grad(
-                    nn, param, hinge_loss.gold, hinge_loss.graph_path,
-                    graph_feat_func);
-                nn::move_out_param(nn, nn_param);
-                nn::adagrad_update(nn_param, nn_grad, nn_opt_data, nn_step_size);
-                if (i % save_every == 0) {
-                    nn::save_param(nn_param, "nn-param-last");
-                    nn::save_param(nn_opt_data, "nn-opt-data-last");
-                }
-                nn::move_in_param(nn, nn_param);
-            }
-            scrf::adagrad_update(param, param_grad, opt_data, step_size);
-
-            if (i % save_every == 0) {
-                scrf::save_param("param-last", param);
-                scrf::save_param("opt-data-last", opt_data);
-            }
-        }
-
-#if DEBUG_TOP_10
-        if (i == 10) {
-            exit(1);
-        }
-#endif
-
-        ++i;
-    }
-
-    scrf::save_param(output_param, param);
-    scrf::save_param(output_opt_data, opt_data);
-
-    if (args.at("loss") == "hinge" && ebt::in(std::string("backprop"), args)) {
-        nn::move_out_param(nn, nn_param);
-        nn::save_param(nn_param, "nn-param-last");
-        nn::save_param(nn_opt_data, "nn-opt-data-last");
-    }
-}
-
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
         "learn",
         "Learn segmental CRF",
         {
-            {"input-list", "", false},
-            {"lattice-list", "", false},
-            {"gold-list", "", true},
+            {"frame-batch", "", false},
+            {"ground-truth-batch", "", true},
             {"lm", "", true},
+            {"min-seg", "", false},
             {"max-seg", "", false},
+            {"min-cost-path", "Use min cost path for training", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
             {"features", "", true},
-            {"alpha", "filtering parameter", false},
-            {"loss", "hinge,filtering", true},
-            {"cm-mean", "", false},
-            {"cm-stddev", "", false},
-            {"weiran-nn-param", "", false},
-            {"nn-param", "", false},
-            {"nn-opt-data", "", false},
-            {"nn-step-size", "", false},
-            {"backprop", "", false},
-            {"beam-width", "", false},
             {"save-every", "", false},
             {"output-param", "", false},
-            {"output-opt-data", "", false}
+            {"output-opt-data", "", false},
+            {"loss", "", true},
+            {"beam-width", "", false},
+            {"norm", "", false}
         }
     };
 
@@ -317,3 +82,176 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+learning_env::learning_env(std::unordered_map<std::string, std::string> args)
+    : args(args)
+{
+    if (ebt::in(std::string("frame-batch"), args)) {
+        frame_batch.open(args.at("frame-batch"));
+    }
+
+    ground_truth_batch.open(args.at("ground-truth-batch"));
+
+    lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
+
+    min_seg = 1;
+    if (ebt::in(std::string("min-seg"), args)) {
+        min_seg = std::stoi(args.at("min-seg"));
+    }
+
+    max_seg = 20;
+    if (ebt::in(std::string("max-seg"), args)) {
+        max_seg = std::stoi(args.at("max-seg"));
+    }
+
+    param = scrf::load_param(args.at("param"));
+    opt_data = scrf::load_param(args.at("opt-data"));
+    step_size = std::stod(args.at("step-size"));
+
+    if (ebt::in(std::string("save-every"), args)) {
+        save_every = std::stoi(args.at("save-every"));
+    } else {
+        save_every = std::numeric_limits<int>::max();
+    }
+
+    features = ebt::split(args.at("features"), ",");
+
+    output_param = "param-last";
+    if (ebt::in(std::string("output-param"), args)) {
+        output_param = args.at("output-param");
+    }
+
+    output_opt_data = "opt-data-last";
+    if (ebt::in(std::string("output-opt-data"), args)) {
+        output_opt_data = args.at("output-opt-data");
+    }
+
+    if (ebt::in(std::string("beam-width"), args)) {
+        beam_width = std::stoi(args.at("beam-width"));
+    }
+
+    if (ebt::in(std::string("norm"), args)) {
+        norm = std::stod(args.at("norm"));
+    }
+}
+
+void learning_env::run()
+{
+    std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
+
+    int i = 1;
+
+    while (1) {
+
+        std::vector<std::vector<real>> frames;
+
+        if (frame_batch) {
+            frames = speech::load_frames_batch(frame_batch);
+        }
+
+        lattice::fst ground_truth_lat = lattice::load_lattice(ground_truth_batch);
+
+        if (!ground_truth_batch) {
+            break;
+        }
+
+        std::cout << ground_truth_lat.data->name << std::endl;
+
+        std::cout << "ground truth: ";
+        for (auto& e: ground_truth_lat.edges()) {
+            std::cout << ground_truth_lat.output(e) << " ";
+        }
+        std::cout << std::endl;
+
+        scrf::scrf_t ground_truth = scrf::make_gold_scrf(ground_truth_lat, lm);
+        fst::path<scrf::scrf_t> ground_truth_path = scrf::make_ground_truth_path(ground_truth);
+
+        scrf::scrf_t min_cost = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
+
+        scrf::scrf_t gold;
+        fst::path<scrf::scrf_t> gold_path;
+
+        if (ebt::in(std::string("min-cost-path"), args)) {
+            gold = min_cost;
+            gold_path = scrf::make_min_cost_path(min_cost, ground_truth_path);
+        } else {
+            gold = ground_truth;
+            gold_path = ground_truth_path;
+        }
+        gold_path.data->base_fst = &gold;
+
+        scrf::composite_feature gold_feat_func = scrf::make_feat(features, frames);
+
+        gold.weight_func = std::make_shared<scrf::composite_weight>(
+            scrf::make_weight(param, gold_feat_func));
+        gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
+
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
+
+        scrf::scrf_t graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
+
+        graph.weight_func =
+            std::make_shared<scrf::composite_weight>(
+                scrf::make_weight(param, graph_feat_func))
+            + std::make_shared<scrf::seg_cost>(
+                scrf::make_overlap_cost(gold_path));
+        graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
+
+        std::shared_ptr<scrf::loss_func> loss_func;
+        if (args.at("loss") == "hinge") {
+            loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
+        } else if (args.at("loss") == "hinge-beam") {
+            loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
+        } else {
+            std::cout << "unknown loss function " << args.at("loss") << std::endl;
+            exit(1);
+        }
+        real ell = loss_func->loss();
+
+        std::cout << "gold segs: " << gold_path.edges().size()
+            << " frames: " << frames.size() << std::endl;
+        std::cout << "loss: " << ell << std::endl;
+
+        if (ell < -1e6) {
+            std::cerr << "weird loss value. exit." << std::endl;
+            exit(1);
+        }
+
+        if (ell < 0) {
+            std::cout << "loss is less than zero.  skipping." << std::endl;
+        }
+
+        std::cout << std::endl;
+
+        if (ell > 0) {
+            auto param_grad = loss_func->param_grad();
+            scrf::adagrad_update(param, param_grad, opt_data, step_size);
+
+            if (ebt::in(std::string("norm"), args)) {
+                double n = scrf::norm(param);
+
+                if (n > norm) {
+                    param *= norm / n;
+                }
+            }
+
+            if (i % save_every == 0) {
+                scrf::save_param("param-last", param);
+                scrf::save_param("opt-data-last", opt_data);
+            }
+        }
+
+#if DEBUG_TOP_10
+        if (i == 10) {
+            break;
+        }
+#endif
+
+        ++i;
+    }
+
+    scrf::save_param(output_param, param);
+    scrf::save_param(output_opt_data, opt_data);
+
+}
+

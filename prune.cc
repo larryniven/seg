@@ -6,6 +6,7 @@
 #include "speech/speech.h"
 #include "scrf/scrf_weight.h"
 #include "scrf/scrf_util.h"
+#include "scrf/make_feat.h"
 #include <fstream>
 
 struct pruning_env {
@@ -73,7 +74,7 @@ void pruning_env::run()
 
         std::cout << input_file << std::endl;
 
-        scrf::composite_feature graph_feat_func = scrf::make_feature2(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
 
         scrf::scrf_t graph;
 

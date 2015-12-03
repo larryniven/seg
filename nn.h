@@ -2,7 +2,7 @@
 #define NN_H
 
 #include "scrf/util.h"
-#include "scrf/scrf.h"
+#include "scrf/scrf_feat.h"
 #include "autodiff/autodiff.h"
 #include <vector>
 
