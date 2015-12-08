@@ -69,9 +69,9 @@ void prediction_env::run()
 
         std::vector<std::vector<real>> frames;
 
-        if (frame_batch) {
-            frames = speech::load_frames_batch(frame_batch);
-        } else {
+        frames = speech::load_frames_batch(frame_batch);
+
+        if (!frame_batch) {
             break;
         }
 

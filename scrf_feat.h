@@ -14,10 +14,6 @@ namespace scrf {
 
         composite_feature(std::string name);
 
-        virtual int size() const override;
-
-        virtual std::string name() const override;
-
         virtual void operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -40,9 +36,6 @@ namespace scrf {
         std::shared_ptr<segfeat::feature> feat_func;
         std::vector<std::vector<real>> const& frames;
 
-        virtual int size() const override;
-        virtual std::string name() const override;
-
         virtual void operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -54,10 +47,6 @@ namespace scrf {
         struct lm_score
             : public scrf_feature {
 
-            virtual int size() const override;
-
-            virtual std::string name() const override;
-
             virtual void operator()(
                 param_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -67,9 +56,18 @@ namespace scrf {
         struct lattice_score
             : public scrf_feature {
 
-            virtual int size() const override;
+            virtual void operator()(
+                param_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
 
-            virtual std::string name() const override;
+        };
+
+        struct external_feature
+            : public scrf_feature {
+
+            int order;
+            std::unordered_set<std::string> feature_keys;
 
             virtual void operator()(
                 param_t& feat,

@@ -41,10 +41,6 @@ namespace scrf {
 
         virtual ~scrf_feature();
 
-        virtual int size() const = 0;
-
-        virtual std::string name() const = 0;
-
         virtual void operator()(
             param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,

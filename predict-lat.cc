@@ -14,8 +14,8 @@
 
 struct predict_env {
 
-    std::ifstream frame_list;
-    std::ifstream lat_list;
+    std::ifstream frame_batch;
+    std::ifstream lattice_batch;
     std::shared_ptr<lm::fst> lm;
     scrf::param_t param;
 
@@ -35,8 +35,8 @@ int main(int argc, char *argv[])
         "learn-lat",
         "Learn segmental CRF",
         {
-            {"frame-list", "", false},
-            {"lat-list", "", true},
+            {"frame-batch", "", false},
+            {"lattice-batch", "", true},
             {"lm", "", true},
             {"param", "", true},
             {"features", "", true},
@@ -62,11 +62,11 @@ int main(int argc, char *argv[])
 predict_env::predict_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    if (ebt::in(std::string("frame-list"), args)) {
-        frame_list.open(args.at("frame-list"));
+    if (ebt::in(std::string("frame-batch"), args)) {
+        frame_batch.open(args.at("frame-batch"));
     }
 
-    lat_list.open(args.at("lat-list"));
+    lattice_batch.open(args.at("lattice-batch"));
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
 
@@ -83,15 +83,13 @@ void predict_env::run()
 
         std::vector<std::vector<real>> frames;
 
-        std::string frame_file;
-
-        if (std::getline(frame_list, frame_file)) {
-            frames = speech::load_frames(frame_file);
+        if (frame_batch) {
+            frames = speech::load_frames_batch(frame_batch);
         }
 
-        lattice::fst lat = lattice::load_lattice(lat_list);
+        lattice::fst lat = lattice::load_lattice(lattice_batch);
 
-        if (!lat_list) {
+        if (!lattice_batch) {
             break;
         }
 

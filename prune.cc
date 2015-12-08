@@ -11,8 +11,8 @@
 
 struct pruning_env {
 
-    std::ifstream input_list;
-    std::ifstream lattice_list;
+    std::ifstream frame_batch;
+    std::ifstream lattice_batch;
     std::shared_ptr<lm::fst> lm;
     int min_seg;
     int max_seg;
@@ -34,9 +34,9 @@ struct pruning_env {
 pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    input_list.open(args.at("input-list"));
-    if (ebt::in(std::string("lattice-list"), args)) {
-        lattice_list.open(args.at("lattice-list"));
+    frame_batch.open(args.at("frame-batch"));
+    if (ebt::in(std::string("lattice-batch"), args)) {
+        lattice_batch.open(args.at("lattice-batch"));
     }
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
@@ -63,23 +63,35 @@ void pruning_env::run()
 {
     std::ofstream ofs { output };
 
-    std::string input_file;
-
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
     int i = 0;
-    while (std::getline(input_list, input_file)) {
 
-        std::vector<std::vector<real>> frames = speech::load_frames(input_file);
+    while (1) {
 
-        std::cout << input_file << std::endl;
+        std::vector<std::vector<real>> frames;
+
+        if (frame_batch) {
+            frames = speech::load_frames_batch(frame_batch);
+
+            if (!frame_batch) {
+                break;
+            }
+        }
+
+        std::cout << i << ".lat" << std::endl;
 
         scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
 
         scrf::scrf_t graph;
 
-        if (ebt::in(std::string("lattice-list"), args)) {
-            lattice::fst lat = lattice::load_lattice(lattice_list);
+        if (ebt::in(std::string("lattice-batch"), args)) {
+            lattice::fst lat = lattice::load_lattice(lattice_batch);
+
+            if (!lattice_batch) {
+                break;
+            }
+
             lattice::add_eps_loops(lat);
 
             fst::composed_fst<lattice::fst, lm::fst> comp;
@@ -262,7 +274,7 @@ void pruning_env::run()
         lattice::fst result_fst;
         result_fst.data = std::make_shared<lattice::fst_data>(result);
 
-        ofs << input_file << std::endl;
+        ofs << i << ".lat" << std::endl;
 
         for (int i = 0; i < result_fst.vertices().size(); ++i) {
             ofs << i << " "
@@ -303,8 +315,8 @@ int main(int argc, char *argv[])
         "prune",
         "Prune lattice with segmental CRF",
         {
-            {"input-list", "", true},
-            {"lattice-list", "", false},
+            {"frame-batch", "", true},
+            {"lattice-batch", "", false},
             {"lm", "", true},
             {"max-seg", "", false},
             {"min-seg", "", false},

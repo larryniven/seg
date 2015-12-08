@@ -53,10 +53,6 @@ namespace nn {
             int start_dim = -1,
             int end_dim = -1);
 
-        virtual int size() const override;
-
-        virtual std::string name() const override;
-
         virtual void operator()(
             scrf::param_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,

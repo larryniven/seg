@@ -4,7 +4,6 @@
 #include <cassert>
 #include "ebt/ebt.h"
 #include "opt/opt.h"
-#include "scrf/weiran.h"
 #include "la/la.h"
 
 namespace scrf {
@@ -120,6 +119,9 @@ namespace scrf {
                 accu_grad_sq.class_param.at(p.first), step_size);
         }
     }
+
+    scrf_weight::~scrf_weight()
+    {}
 
     scrf_feature::~scrf_feature()
     {}

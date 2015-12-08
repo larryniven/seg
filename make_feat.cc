@@ -30,7 +30,7 @@ namespace scrf {
 
         std::vector<std::string> other_feat;
         std::vector<std::vector<std::string>> seg_feature_order;
-        seg_feature_order.resize(2);
+        seg_feature_order.resize(3);
 
         for (auto& v: features) {
             std::vector<std::string> parts = ebt::split(v, "@");
@@ -40,6 +40,8 @@ namespace scrf {
                     seg_feature_order[0].push_back(parts[0]);
                 } else if (parts[1] == "1") {
                     seg_feature_order[1].push_back(parts[0]);
+                } else if (parts[1] == "2") {
+                    seg_feature_order[2].push_back(parts[0]);
                 } else {
                     std::cerr << "order " << parts[1] << " not implemented" << std::endl;
                     exit(1);
@@ -52,13 +54,14 @@ namespace scrf {
         for (int i = 0; i < seg_feature_order.size(); ++i) {
             segfeat::composite_feature seg_feat;
 
+            scrf::feature::external_feature ext_feat;
+            ext_feat.order = i;
+
             if (seg_feature_order.at(i).size() == 0) {
                 continue;
             }
 
             for (auto& v: seg_feature_order.at(i)) {
-
-                std::shared_ptr<segfeat::feat_t> adapter;
 
                 if (ebt::startswith(v, "frame-avg")) {
                     int start_dim = -1;
@@ -94,16 +97,32 @@ namespace scrf {
                 } else if (ebt::startswith(v, "bias")) {
                     seg_feat.features.push_back(std::make_shared<segfeat::bias>(
                         segfeat::bias {}));
+                } else if (ebt::startswith(v, "ext")) {
+                    std::vector<std::string> parts = ebt::split(v, ":");
+                    ext_feat.feature_keys.insert(parts[1]);
                 } else {
                     std::cerr << "unknown feature " << v << std::endl;
                     exit(1);
                 }
             }
 
-            scrf::lexicalized_feature lex_feat { i,
-                std::make_shared<segfeat::composite_feature>(seg_feat), frames };
+            if (seg_feat.features.size() > 0) {
+                scrf::lexicalized_feature lex_feat { i,
+                    std::make_shared<segfeat::composite_feature>(seg_feat), frames };
 
-            lex_lattice_feat.features.push_back(std::make_shared<scrf::lexicalized_feature>(lex_feat));
+                if (i == 1) {
+                    lex_lattice_feat.features.push_back(std::make_shared<scrf::lexicalized_feature>(lex_feat));
+                } else if (i == 0 || i == 2) {
+                    rest_feat.features.push_back(std::make_shared<scrf::lexicalized_feature>(lex_feat));
+                } else {
+                    std::cerr << "unknown feature order " << i << std::endl;
+                    exit(1);
+                }
+            }
+
+            if (ext_feat.feature_keys.size() > 0) {
+                lex_lattice_feat.features.push_back(std::make_shared<scrf::feature::external_feature>(ext_feat));
+            }
         }
 
         for (auto& v: other_feat) {

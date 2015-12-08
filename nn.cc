@@ -115,16 +115,6 @@ namespace nn {
         }
     }
 
-    int nn_feature::size() const
-    {
-        return autodiff::get_output<std::vector<real>>(nn.layers.back()).size();
-    }
-
-    std::string nn_feature::name() const
-    {
-        return "nn";
-    }
-
     void nn_feature::operator()(
         scrf::param_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,

@@ -9,7 +9,6 @@ obj = lattice.o \
     segcost.o \
     scrf_cost.o \
     loss.o \
-    nn.o \
     scrf.o \
     scrf_feat.o \
     scrf_util.o \

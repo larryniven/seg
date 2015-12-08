@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
         "learn",
         "Learn segmental CRF",
         {
-            {"frame-batch", "", false},
+            {"frame-batch", "", true},
             {"ground-truth-batch", "", true},
             {"lm", "", true},
             {"min-seg", "", false},
@@ -145,9 +145,7 @@ void learning_env::run()
 
         std::vector<std::vector<real>> frames;
 
-        if (frame_batch) {
-            frames = speech::load_frames_batch(frame_batch);
-        }
+        frames = speech::load_frames_batch(frame_batch);
 
         lattice::fst ground_truth_lat = lattice::load_lattice(ground_truth_batch);
 
