@@ -15,7 +15,7 @@ namespace seg {
 
         std::vector<vertex_type> vertices() const
         {
-            return fst->edges();
+            return fst->vertices();
         }
 
         std::vector<edge_type> edges() const
