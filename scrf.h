@@ -18,12 +18,12 @@
 
 namespace scrf {
 
-    struct param_t {
-        std::unordered_map<std::string, la::vector<real>> class_param;
+    struct feat_t {
+        std::unordered_map<std::string, std::vector<real>> class_vec;
     };
 
-    struct feat_t {
-        std::unordered_map<std::string, std::vector<real>> class_param;
+    struct param_t {
+        std::unordered_map<std::string, la::vector<real>> class_vec;
     };
 
     feat_t to_param(param_t f);

@@ -52,7 +52,7 @@ namespace scrf {
             exit(1);
         }
 
-        feat.class_param[label_tuple] = std::move(raw_feat);
+        feat.class_vec[label_tuple] = std::move(raw_feat);
     }
 
     namespace feature {
@@ -62,7 +62,7 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            feat.class_param["[lm] shared"].push_back(fst.fst2->weight(std::get<1>(e)));
+            feat.class_vec["[lm] shared"].push_back(fst.fst2->weight(std::get<1>(e)));
         }
 
         void lattice_score::operator()(
@@ -70,7 +70,7 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            feat.class_param["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
+            feat.class_vec["[lattice] shared"].push_back(fst.fst1->weight(std::get<0>(e)));
         }
 
         void external_feature::operator()(
@@ -108,7 +108,7 @@ namespace scrf {
                 exit(1);
             }
 
-            feat.class_param[label_tuple] = std::move(vec);
+            feat.class_vec[label_tuple] = std::move(vec);
         }
 
     }

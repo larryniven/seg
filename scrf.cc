@@ -12,8 +12,8 @@ namespace scrf {
     {
         feat_t result;
 
-        for (auto& p: param.class_param) {
-            result.class_param[p.first] = std::vector<double>(p.second.data(), p.second.data() + p.second.size());
+        for (auto& p: param.class_vec) {
+            result.class_vec[p.first] = std::vector<double>(p.second.data(), p.second.data() + p.second.size());
         }
 
         return result;
@@ -23,8 +23,8 @@ namespace scrf {
     {
         param_t result;
 
-        for (auto& p: f.class_param) {
-            result.class_param[p.first] = la::to_vector(std::move(p.second));
+        for (auto& p: f.class_vec) {
+            result.class_vec[p.first] = la::to_vector(std::move(p.second));
         }
 
         return result;
@@ -50,7 +50,7 @@ namespace scrf {
 
     void save_param(std::ostream& os, param_t const& param)
     {
-        os << to_feat(param).class_param << std::endl;
+        os << to_feat(param).class_vec << std::endl;
     }
 
     void save_param(std::string filename, param_t const& param)
@@ -61,8 +61,8 @@ namespace scrf {
 
     param_t& operator-=(param_t& p1, param_t const& p2)
     {
-        for (auto& p: p2.class_param) {
-            auto& v = p1.class_param[p.first];
+        for (auto& p: p2.class_vec) {
+            auto& v = p1.class_vec[p.first];
 
             v.resize(std::max(v.size(), p.second.size()));
 
@@ -74,8 +74,8 @@ namespace scrf {
 
     param_t& operator+=(param_t& p1, param_t const& p2)
     {
-        for (auto& p: p2.class_param) {
-            auto& v = p1.class_param[p.first];
+        for (auto& p: p2.class_vec) {
+            auto& v = p1.class_vec[p.first];
 
             v.resize(std::max(v.size(), p.second.size()));
 
@@ -88,10 +88,10 @@ namespace scrf {
     param_t& operator*=(param_t& p, real c)
     {
         if (c == 0) {
-            p.class_param.clear();
+            p.class_vec.clear();
         }
 
-        for (auto& t: p.class_param) {
+        for (auto& t: p.class_vec) {
             la::imul(t.second, c);
         }
 
@@ -102,7 +102,7 @@ namespace scrf {
     {
         real sum = 0;
 
-        for (auto& t: p.class_param) {
+        for (auto& t: p.class_vec) {
             double n = la::norm(t.second);
             sum += n * n;
         }
@@ -114,12 +114,12 @@ namespace scrf {
     {
         real sum = 0;
 
-        for (auto& p: p2.class_param) {
-            if (!ebt::in(p.first, p1.class_param)) {
+        for (auto& p: p2.class_vec) {
+            if (!ebt::in(p.first, p1.class_vec)) {
                 continue;
             }
 
-            auto& v = p1.class_param.at(p.first);
+            auto& v = p1.class_vec.at(p.first);
 
             sum += la::dot(v, p.second);
         }
@@ -130,15 +130,15 @@ namespace scrf {
     void adagrad_update(param_t& param, param_t const& grad,
         param_t& accu_grad_sq, real step_size)
     {
-        for (auto& p: grad.class_param) {
-            if (!ebt::in(p.first, param.class_param)) {
-                param.class_param[p.first].resize(p.second.size());
+        for (auto& p: grad.class_vec) {
+            if (!ebt::in(p.first, param.class_vec)) {
+                param.class_vec[p.first].resize(p.second.size());
             }
-            if (!ebt::in(p.first, accu_grad_sq.class_param)) {
-                accu_grad_sq.class_param[p.first].resize(p.second.size());
+            if (!ebt::in(p.first, accu_grad_sq.class_vec)) {
+                accu_grad_sq.class_vec[p.first].resize(p.second.size());
             }
-            opt::adagrad_update(param.class_param.at(p.first), p.second,
-                accu_grad_sq.class_param.at(p.first), step_size);
+            opt::adagrad_update(param.class_vec.at(p.first), p.second,
+                accu_grad_sq.class_vec.at(p.first), step_size);
         }
     }
 
