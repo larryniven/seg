@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff -L ../la -L ./
+CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../autodiff -L ../la -L ./ -lcblas
 AR = gcc-ar
 
 obj = lattice.o \

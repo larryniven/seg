@@ -36,9 +36,9 @@ namespace scrf {
         real linear_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            param_t p;
-            (*feat)(p, fst, e);
-            real s = dot(param, p);
+            feat_t f;
+            (*feat)(f, fst, e);
+            real s = dot(param, to_param(std::move(f)));
 
             return s;
         }
@@ -55,9 +55,9 @@ namespace scrf {
                 return cache[fst.output(e)];
             }
 
-            param_t p;
-            (*feat)(p, fst, e);
-            real s = dot(param, p);
+            feat_t f;
+            (*feat)(f, fst, e);
+            real s = dot(param, to_param(std::move(f)));
 
             cache[fst.output(e)] = s;
 
@@ -76,9 +76,9 @@ namespace scrf {
                 return cache[std::get<1>(e)];
             }
 
-            param_t p;
-            (*feat)(p, fst, e);
-            real s = dot(param, p);
+            feat_t f;
+            (*feat)(f, fst, e);
+            real s = dot(param, to_param(std::move(f)));
 
             cache[std::get<1>(e)] = s;
 
@@ -99,9 +99,9 @@ namespace scrf {
             }
             */
 
-            param_t p;
-            (*feat)(p, fst, e);
-            real s = dot(param, p);
+            feat_t f;
+            (*feat)(f, fst, e);
+            real s = dot(param, to_param(std::move(f)));
 
             // cache[std::make_tuple(std::get<0>(e), fst.output(e))] = s;
 

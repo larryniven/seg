@@ -47,10 +47,10 @@ namespace scrf {
         auto const& gold_feat = *(gold.data->base_fst->feature_func);
 
         for (auto& e: gold.edges()) {
-            param_t p;
-            gold_feat(p, *(gold.data->base_fst->fst), e);
+            feat_t f;
+            gold_feat(f, *(gold.data->base_fst->fst), e);
 
-            result -= p;
+            result -= to_param(std::move(f));
         }
 
         // std::cout << result.class_param.at("<s>") << std::endl;
@@ -58,10 +58,10 @@ namespace scrf {
         auto const& graph_feat = *(graph.feature_func);
 
         for (auto& e: graph_path.edges()) {
-            param_t p;
-            graph_feat(p, *(graph_path.data->base_fst->fst), e);
+            feat_t f;
+            graph_feat(f, *(graph_path.data->base_fst->fst), e);
 
-            result += p;
+            result += to_param(std::move(f));
         }
 
         // std::cout << "grad of <s>: " << result.class_param.at("<s>") << std::endl;
@@ -70,6 +70,7 @@ namespace scrf {
         return result;
     }
 
+#if 0
     filtering_loss::filtering_loss(fst::path<scrf_t> const& gold,
         scrf_t const& graph, real alpha)
         : gold(gold), graph(graph), alpha(alpha)
@@ -214,6 +215,7 @@ namespace scrf {
 
         return result;
     }
+#endif
 
     hinge_loss_beam::hinge_loss_beam(fst::path<scrf_t> const& gold, scrf_t const& graph,
         int beam_width)
@@ -263,19 +265,19 @@ namespace scrf {
         auto const& gold_feat = *(gold.data->base_fst->feature_func);
 
         for (auto& e: gold.edges()) {
-            param_t p;
-            gold_feat(p, *(gold.data->base_fst->fst), e);
+            feat_t f;
+            gold_feat(f, *(gold.data->base_fst->fst), e);
 
-            result -= p;
+            result -= to_param(std::move(f));
         }
 
         auto const& graph_feat = *(graph.feature_func);
 
         for (auto& e: graph_path.edges()) {
-            param_t p;
-            graph_feat(p, *(graph_path.data->base_fst->fst), e);
+            feat_t f;
+            graph_feat(f, *(graph_path.data->base_fst->fst), e);
 
-            result += p;
+            result += to_param(std::move(f));
         }
 
         return result;

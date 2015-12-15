@@ -14,12 +14,20 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "scrf/seg.h"
+#include "la/la.h"
 
 namespace scrf {
 
     struct param_t {
+        std::unordered_map<std::string, la::vector<real>> class_param;
+    };
+
+    struct feat_t {
         std::unordered_map<std::string, std::vector<real>> class_param;
     };
+
+    feat_t to_param(param_t f);
+    param_t to_param(feat_t f);
 
     param_t& operator-=(param_t& p1, param_t const& p2);
     param_t& operator+=(param_t& p1, param_t const& p2);
@@ -42,7 +50,7 @@ namespace scrf {
         virtual ~scrf_feature();
 
         virtual void operator()(
-            param_t& feat,
+            feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const = 0;
 

@@ -8,13 +8,35 @@
 
 namespace scrf {
 
+    feat_t to_feat(param_t param)
+    {
+        feat_t result;
+
+        for (auto& p: param.class_param) {
+            result.class_param[p.first] = std::vector<double>(p.second.data(), p.second.data() + p.second.size());
+        }
+
+        return result;
+    }
+
+    param_t to_param(feat_t f)
+    {
+        param_t result;
+
+        for (auto& p: f.class_param) {
+            result.class_param[p.first] = la::to_vector(std::move(p.second));
+        }
+
+        return result;
+    }
+
     param_t load_param(std::istream& is)
     {
         param_t result;
         std::string line;
 
-        result.class_param = ebt::json::json_parser<
-            std::unordered_map<std::string, std::vector<real>>>().parse(is);
+        result = to_param(feat_t { ebt::json::json_parser<
+            std::unordered_map<std::string, std::vector<real>>>().parse(is) });
         std::getline(is, line);
 
         return result;
@@ -28,7 +50,7 @@ namespace scrf {
 
     void save_param(std::ostream& os, param_t const& param)
     {
-        os << param.class_param << std::endl;
+        os << to_feat(param).class_param << std::endl;
     }
 
     void save_param(std::string filename, param_t const& param)

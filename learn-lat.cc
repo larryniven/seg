@@ -3,7 +3,6 @@
 #include "scrf/lm.h"
 #include "scrf/lattice.h"
 #include "speech/speech.h"
-#include "scrf/nn.h"
 #include "scrf/loss.h"
 #include "scrf/scrf_cost.h"
 #include "scrf/scrf_feat.h"

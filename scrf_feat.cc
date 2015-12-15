@@ -8,7 +8,7 @@ namespace scrf {
     {}
 
     void composite_feature::operator()(
-        param_t& feat,
+        feat_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const
     {
@@ -25,7 +25,7 @@ namespace scrf {
     {}
 
     void lexicalized_feature::operator()(
-        param_t& feat,
+        feat_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const
     {
@@ -58,7 +58,7 @@ namespace scrf {
     namespace feature {
 
         void lm_score::operator()(
-            param_t& feat,
+            feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
@@ -66,7 +66,7 @@ namespace scrf {
         }
 
         void lattice_score::operator()(
-            param_t& feat,
+            feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
@@ -74,7 +74,7 @@ namespace scrf {
         }
 
         void external_feature::operator()(
-            param_t& feat,
+            feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {

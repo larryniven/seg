@@ -15,7 +15,7 @@ namespace scrf {
         composite_feature(std::string name);
 
         virtual void operator()(
-            param_t& feat,
+            feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const override;
 
@@ -37,7 +37,7 @@ namespace scrf {
         std::vector<std::vector<real>> const& frames;
 
         virtual void operator()(
-            param_t& feat,
+            feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const override;
     };
@@ -48,7 +48,7 @@ namespace scrf {
             : public scrf_feature {
 
             virtual void operator()(
-                param_t& feat,
+                feat_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
                 std::tuple<int, int> const& e) const override;
         };
@@ -57,7 +57,7 @@ namespace scrf {
             : public scrf_feature {
 
             virtual void operator()(
-                param_t& feat,
+                feat_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
                 std::tuple<int, int> const& e) const override;
 
@@ -70,7 +70,7 @@ namespace scrf {
             std::unordered_set<std::string> feature_keys;
 
             virtual void operator()(
-                param_t& feat,
+                feat_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
                 std::tuple<int, int> const& e) const override;
 

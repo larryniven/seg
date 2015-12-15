@@ -19,6 +19,7 @@ namespace scrf {
         virtual param_t param_grad() override;
     };
 
+#if 0
     struct filtering_loss
         : public loss_func {
 
@@ -41,6 +42,7 @@ namespace scrf {
         virtual real loss() override;
         virtual param_t param_grad() override;
     };
+#endif
 
     struct hinge_loss_beam
         : public loss_func {
