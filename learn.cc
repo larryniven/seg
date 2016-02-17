@@ -20,7 +20,8 @@ struct learning_env {
     int max_seg;
     scrf::param_t param;
     scrf::param_t opt_data;
-    real step_size;
+    double step_size;
+    double momentum;
 
     int save_every;
 
@@ -56,6 +57,7 @@ int main(int argc, char *argv[])
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
+            {"momentum", "", false},
             {"features", "", true},
             {"save-every", "", false},
             {"output-param", "", false},
@@ -107,6 +109,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     opt_data = scrf::load_param(args.at("opt-data"));
     step_size = std::stod(args.at("step-size"));
 
+    if (ebt::in(std::string("momentum"), args)) {
+        momentum = std::stod(args.at("momentum"));
+    }
+
     if (ebt::in(std::string("save-every"), args)) {
         save_every = std::stoi(args.at("save-every"));
     } else {
@@ -142,9 +148,9 @@ void learning_env::run()
 
     while (1) {
 
-        std::vector<std::vector<real>> frames;
+        std::vector<std::vector<double>> frames;
 
-        frames = speech::load_frames_batch(frame_batch);
+        frames = speech::load_frame_batch(frame_batch);
 
         lattice::fst ground_truth_lat = lattice::load_lattice(ground_truth_batch);
 
@@ -177,19 +183,19 @@ void learning_env::run()
         }
         gold_path.data->base_fst = &gold;
 
-        scrf::composite_feature gold_feat_func = scrf::make_feat(features, frames);
+        scrf::composite_feature gold_feat_func = scrf::make_feat(features, frames, {});
 
         gold.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, gold_feat_func));
+            scrf::make_weight(features, param, gold_feat_func));
         gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
 
         scrf::scrf_t graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
         graph.weight_func =
             std::make_shared<scrf::composite_weight>(
-                scrf::make_weight(param, graph_feat_func))
+                scrf::make_weight(features, param, graph_feat_func))
             + std::make_shared<scrf::seg_cost>(
                 scrf::make_overlap_cost(gold_path));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
@@ -203,7 +209,7 @@ void learning_env::run()
             std::cout << "unknown loss function " << args.at("loss") << std::endl;
             exit(1);
         }
-        real ell = loss_func->loss();
+        double ell = loss_func->loss();
 
         std::cout << "gold segs: " << gold_path.edges().size()
             << " frames: " << frames.size() << std::endl;
@@ -222,7 +228,13 @@ void learning_env::run()
 
         if (ell > 0) {
             auto param_grad = loss_func->param_grad();
-            scrf::adagrad_update(param, param_grad, opt_data, step_size);
+
+            if (ebt::in(std::string("momentum"), args)) {
+                scrf::const_step_update_momentum(param, std::move(param_grad),
+                   opt_data, momentum, step_size);
+            } else {
+                scrf::adagrad_update(param, param_grad, opt_data, step_size);
+            }
 
             if (ebt::in(std::string("norm"), args)) {
                 double n = scrf::norm(param);
@@ -233,8 +245,8 @@ void learning_env::run()
             }
 
             if (i % save_every == 0) {
-                scrf::save_param("param-last", param);
-                scrf::save_param("opt-data-last", opt_data);
+                scrf::save_param(param, "param-last");
+                scrf::save_param(opt_data, "opt-data-last");
             }
         }
 
@@ -247,8 +259,8 @@ void learning_env::run()
         ++i;
     }
 
-    scrf::save_param(output_param, param);
-    scrf::save_param(output_opt_data, opt_data);
+    scrf::save_param(param, output_param);
+    scrf::save_param(opt_data, output_opt_data);
 
 }
 

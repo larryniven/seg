@@ -5,6 +5,7 @@
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include <memory>
+#include "nn/nn.h"
 
 namespace scrf {
 
@@ -29,6 +30,8 @@ namespace scrf {
 
     scrf_t make_forced_alignment_scrf(int frames,
         std::vector<std::string> const& labels, int min_seg_len, int max_seg_len);
+
+    std::unordered_map<std::string, int> load_phone_id(std::string filename);
 
 }
 

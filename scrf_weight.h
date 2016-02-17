@@ -84,6 +84,7 @@ namespace scrf {
     }
 
     composite_weight make_weight(
+        std::vector<std::string> const& features,
         param_t const& param,
         composite_feature const& feat);
 

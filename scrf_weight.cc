@@ -111,23 +111,41 @@ namespace scrf {
     }
 
     composite_weight make_weight(
+        std::vector<std::string> const& features,
         param_t const& param,
         composite_feature const& feat)
     {
         composite_weight result;
 
-        composite_feature lattice_feat { "lattice-feat" };
-        lattice_feat.features.push_back(feat.features[0]);
-        lattice_feat.features.push_back(feat.features[1]);
+        composite_feature lattice_feat;
+        composite_feature lm_feat;
+        composite_feature rest_feat;
 
-        score::lattice_score lattice_score { param, std::make_shared<composite_feature>(lattice_feat) };
-        score::lm_score lm_score { param, feat.features[2] };
-        score::label_score label_score { param, feat.features[3] };
-        score::linear_score rest_score { param, feat.features[4] };
+        for (int i = 0; i < features.size(); ++i) {
+            std::vector<std::string> parts = ebt::split("@");
+            int order = 0;
+            if (parts.size() > 1) {
+                order = std::stoi(parts[1]);
+            }
+
+            if (order <= 1) {
+                lattice_feat.features.push_back(feat.features[i]);
+            } else if (ebt::startswith(features[i], "lm-score")) {
+                lm_feat.features.push_back(feat.features[i]);
+            } else {
+                rest_feat.features.push_back(feat.features[i]);
+            }
+        }
+
+        score::lattice_score lattice_score { param,
+            std::make_shared<composite_feature>(lattice_feat) };
+        score::lm_score lm_score { param,
+            std::make_shared<composite_feature>(lm_feat) };
+        score::linear_score rest_score { param,
+            std::make_shared<composite_feature>(rest_feat) };
 
         result.weights.push_back(std::make_shared<score::lattice_score>(lattice_score));
         result.weights.push_back(std::make_shared<score::lm_score>(lm_score));
-        result.weights.push_back(std::make_shared<score::label_score>(label_score));
         result.weights.push_back(std::make_shared<score::linear_score>(rest_score));
 
         return result;

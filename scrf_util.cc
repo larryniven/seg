@@ -2,6 +2,7 @@
 #include "scrf/scrf_cost.h"
 #include "scrf/scrf_weight.h"
 #include <cassert>
+#include <fstream>
 
 namespace scrf {
 
@@ -215,6 +216,21 @@ namespace scrf {
         }
         result.topo_order = std::move(topo_order);
 
+        return result;
+    }
+
+    std::unordered_map<std::string, int> load_phone_id(std::string filename)
+    {
+        std::unordered_map<std::string, int> result;
+        std::string line;
+        std::ifstream ifs { filename };
+    
+        int i = 0;
+        while (std::getline(ifs, line)) {
+            result[line] = i;
+            ++i;
+        }
+    
         return result;
     }
 

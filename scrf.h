@@ -26,8 +26,11 @@ namespace scrf {
         std::unordered_map<std::string, la::vector<real>> class_vec;
     };
 
-    feat_t to_param(param_t f);
+    feat_t to_feat(param_t f);
     param_t to_param(feat_t f);
+
+    void iadd(param_t& p1, param_t const& p2);
+    void isub(param_t& p1, param_t const& p2);
 
     param_t& operator-=(param_t& p1, param_t const& p2);
     param_t& operator+=(param_t& p1, param_t const& p2);
@@ -39,8 +42,11 @@ namespace scrf {
     param_t load_param(std::istream& is);
     param_t load_param(std::string filename);
 
-    void save_param(std::ostream& os, param_t const& param);
-    void save_param(std::string filename, param_t const& param);
+    void save_param(param_t const& param, std::ostream& os);
+    void save_param(param_t const& param, std::string filename);
+
+    void const_step_update_momentum(param_t& theta, param_t grad,
+        param_t& update, real momentum, real step_size);
 
     void adagrad_update(param_t& theta, param_t const& grad,
         param_t& accu_grad_sq, real step_size);

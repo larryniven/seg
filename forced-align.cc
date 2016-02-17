@@ -82,10 +82,10 @@ void prediction_env::run()
 
         graph = scrf::make_forced_alignment_scrf(frames.size(), labels, min_seg, max_seg);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
 
         graph.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, graph_feat_func));
+            scrf::make_weight(features, param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best;

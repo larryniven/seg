@@ -10,6 +10,8 @@
 #include "speech/speech.h"
 #include "scrf/make_feat.h"
 #include <fstream>
+#include "nn/nn-gpu.h"
+#include "scrf/e2e-util.h"
 
 struct prediction_env {
 
@@ -18,6 +20,11 @@ struct prediction_env {
     int min_seg;
     int max_seg;
     scrf::param_t param;
+    nn::param_t nn_param;
+
+    nn::nn_t nn;
+
+    std::unordered_map<std::string, int> phone_id;
 
     int beam_width;
 
@@ -42,7 +49,9 @@ int main(int argc, char *argv[])
             {"max-seg", "", false},
             {"min-seg", "", false},
             {"param", "", true},
-            {"features", "", true}
+            {"nn-param", "", true},
+            {"features", "", true},
+            {"phone-id", "", true}
         }
     };
 
@@ -61,6 +70,7 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
@@ -81,6 +91,10 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
     }
 
     param = scrf::load_param(args.at("param"));
+    nn_param = nn::load_param(args.at("nn-param"));
+
+    phone_id = scrf::load_phone_id(args.at("phone-id"));
+
     features = ebt::split(args.at("features"), ",");    
 
     if (ebt::in(std::string("beam-width"), args)) {
@@ -94,12 +108,16 @@ void prediction_env::run()
 
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);
 
+    nn = nn::gpu::make_nn(nn::gpu::param_t(nn_param));
+
     int i = 0;
     while (1) {
 
         std::vector<std::vector<real>> frames;
 
         frames = speech::load_frame_batch(frame_batch);
+
+        std::vector<std::vector<real>> inputs = scrf::nn_feedforward(frames, nn);
 
         if (!frame_batch) {
             break;
@@ -109,10 +127,11 @@ void prediction_env::run()
 
         graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, inputs, phone_id);
 
-        graph.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(features, param, graph_feat_func));
+        graph.weight_func = std::make_shared<scrf::score::linear_score>(
+            scrf::score::linear_score(param,
+            std::make_shared<scrf::composite_feature>(graph_feat_func)));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best;

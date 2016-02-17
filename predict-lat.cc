@@ -83,7 +83,7 @@ void predict_env::run()
         std::vector<std::vector<real>> frames;
 
         if (frame_batch) {
-            frames = speech::load_frames_batch(frame_batch);
+            frames = speech::load_frame_batch(frame_batch);
         }
 
         lattice::fst lat = lattice::load_lattice(lattice_batch);
@@ -92,13 +92,13 @@ void predict_env::run()
             break;
         }
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
 
         scrf::scrf_t graph = scrf::make_lat_scrf(lat, lm);
 
         graph.weight_func =
             graph.weight_func = std::make_shared<scrf::composite_weight>(
-                scrf::make_weight(param, graph_feat_func));
+                scrf::make_weight(features, param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         fst::path<scrf::scrf_t> one_best;

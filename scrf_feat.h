@@ -12,6 +12,7 @@ namespace scrf {
 
         std::vector<std::shared_ptr<scrf_feature>> features;
 
+        composite_feature();
         composite_feature(std::string name);
 
         virtual void operator()(
@@ -24,10 +25,14 @@ namespace scrf {
         
     };
 
-    struct lexicalized_feature
+    void lexicalize(int order, feat_t& feat,
+        fst::composed_fst<lattice::fst, lm::fst> const& fst,
+        std::tuple<int, int> const& e);
+
+    struct segment_feature
         : public scrf_feature {
 
-        lexicalized_feature(
+        segment_feature(
             int order,
             std::shared_ptr<segfeat::feature> raw_feat_func,
             std::vector<std::vector<real>> const& frames);
@@ -67,13 +72,31 @@ namespace scrf {
             : public scrf_feature {
 
             int order;
-            std::unordered_set<std::string> feature_keys;
+            std::vector<int> dims;
+
+            external_feature(int order, std::vector<int> dims);
 
             virtual void operator()(
                 feat_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
                 std::tuple<int, int> const& e) const override;
 
+        };
+
+        struct frame_feature
+            : public scrf::scrf_feature {
+        
+            std::vector<std::vector<double>> const& frames;
+            std::unordered_map<std::string, int> const& phone_id;
+        
+            frame_feature(std::vector<std::vector<double>> const& frames,
+                std::unordered_map<std::string, int> const& phone_set);
+        
+            virtual void operator()(
+                scrf::feat_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const;
+        
         };
 
     }

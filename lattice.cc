@@ -42,6 +42,7 @@ namespace lattice {
             data.out_edges_map.at(tail)[label].push_back(e);
             data.in_edges_map.at(head)[label].push_back(e);
             data.attrs.resize(std::max<int>(data.attrs.size(), e + 1));
+            data.feats.resize(std::max<int>(data.feats.size(), e + 1));
         }
     }
 
@@ -156,7 +157,7 @@ namespace lattice {
             int v = std::stoi(parts[0]);
 
             std::unordered_map<std::string, std::string> attr;
-            auto pairs = ebt::split(parts[1], ",");
+            auto pairs = ebt::split(parts[1], ";");
             for (auto& p: pairs) {
                 auto pair = ebt::split(p, "=");
                 attr[pair[0]] = pair[1];
@@ -173,14 +174,24 @@ namespace lattice {
 
             std::unordered_map<std::string, std::string> attr_map;
             std::vector<std::pair<std::string, std::string>> attr;
-            auto pairs = ebt::split(parts[2], ",");
+            std::vector<double> feats;
+
+            auto pairs = ebt::split(parts[2], ";");
             for (auto& p: pairs) {
                 auto pair = ebt::split(p, "=");
-                attr_map[pair[0]] = pair[1];
-                attr.push_back(std::make_pair(pair[0], pair[1]));
+
+                if (pair[0] == "feat") {
+                    auto parts = ebt::split(pair[1], ",");
+                    feats.resize(parts.size());
+                    std::transform(parts.begin(), parts.end(), feats.begin(),
+                        [](std::string const& s) { return std::stod(s); });
+                } else {
+                    attr_map[pair[0]] = pair[1];
+                    attr.push_back(std::make_pair(pair[0], pair[1]));
+                }
             }
 
-            real weight = 0;
+            double weight = 0;
             if (ebt::in(std::string("weight"), attr_map)) {
                 weight = std::stod(attr_map.at("weight"));
             }
@@ -191,6 +202,7 @@ namespace lattice {
             add_edge(result, e, label, tail, head, weight);
 
             result.attrs[e] = attr;
+            result.feats[e] = feats;
 
             if (max_time < result.vertices.at(head).time) {
                 max_time = result.vertices.at(head).time;

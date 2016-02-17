@@ -72,7 +72,7 @@ void pruning_env::run()
         std::vector<std::vector<real>> frames;
 
         if (frame_batch) {
-            frames = speech::load_frames_batch(frame_batch);
+            frames = speech::load_frame_batch(frame_batch);
 
             if (!frame_batch) {
                 break;
@@ -81,7 +81,7 @@ void pruning_env::run()
 
         std::cout << i << ".lat" << std::endl;
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
 
         scrf::scrf_t graph;
 
@@ -114,7 +114,7 @@ void pruning_env::run()
             graph.topo_order = graph.vertices();
         }
         graph.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(param, graph_feat_func));
+            scrf::make_weight(features, param, graph_feat_func));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         auto edges = graph.edges();
@@ -288,7 +288,7 @@ void pruning_env::run()
             int head = result_fst.head(e);
 
             ofs << tail << " " << head << " "
-                << "label=" << result_fst.output(e) << ","
+                << "label=" << result_fst.output(e) << ";"
                 << "weight=" << result.edges.at(e).weight << std::endl;
         }
         ofs << "." << std::endl;

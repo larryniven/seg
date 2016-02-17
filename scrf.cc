@@ -24,7 +24,7 @@ namespace scrf {
         param_t result;
 
         for (auto& p: f.class_vec) {
-            result.class_vec[p.first] = la::to_vector(std::move(p.second));
+            result.class_vec[p.first] = la::vector<double>(std::move(p.second));
         }
 
         return result;
@@ -48,15 +48,37 @@ namespace scrf {
         return load_param(ifs);
     }
 
-    void save_param(std::ostream& os, param_t const& param)
+    void save_param(param_t const& param, std::ostream& os)
     {
         os << to_feat(param).class_vec << std::endl;
     }
 
-    void save_param(std::string filename, param_t const& param)
+    void save_param(param_t const& param, std::string filename)
     {
         std::ofstream ofs { filename };
-        save_param(ofs, param);
+        save_param(param, ofs);
+    }
+
+    void iadd(param_t& p1, param_t const& p2)
+    {
+        for (auto& p: p2.class_vec) {
+            auto& v = p1.class_vec[p.first];
+
+            v.resize(std::max(v.size(), p.second.size()));
+
+            la::iadd(v, p.second);
+        }
+    }
+
+    void isub(param_t& p1, param_t const& p2)
+    {
+        for (auto& p: p2.class_vec) {
+            auto& v = p1.class_vec[p.first];
+
+            v.resize(std::max(v.size(), p.second.size()));
+
+            la::isub(v, p.second);
+        }
     }
 
     param_t& operator-=(param_t& p1, param_t const& p2)
@@ -125,6 +147,43 @@ namespace scrf {
         }
 
         return sum;
+    }
+
+    void const_step_update_momentum(param_t& theta, param_t grad,
+        param_t& update, real momentum, real step_size)
+    {
+        std::unordered_map<std::string, int> classes;
+
+        unsigned int size = 0;
+
+        for (auto& p: grad.class_vec) {
+            classes[p.first] = p.second.size();
+        }
+
+        for (auto& p: update.class_vec) {
+            classes[p.first] = p.second.size();
+        }
+
+        for (auto& p: theta.class_vec) {
+            classes[p.first] = p.second.size();
+        }
+
+        for (auto& p: classes) {
+            if (!ebt::in(p.first, theta.class_vec)) {
+                theta.class_vec[p.first].resize(p.second);
+            }
+
+            if (!ebt::in(p.first, update.class_vec)) {
+                update.class_vec[p.first].resize(p.second);
+            }
+
+            if (!ebt::in(p.first, grad.class_vec)) {
+                grad.class_vec[p.first].resize(p.second);
+            }
+
+            opt::const_step_update_momentum(theta.class_vec.at(p.first), grad.class_vec.at(p.first),
+                update.class_vec.at(p.first), momentum, step_size);
+        }
     }
 
     void adagrad_update(param_t& param, param_t const& grad,
