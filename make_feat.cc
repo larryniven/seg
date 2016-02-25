@@ -38,7 +38,7 @@ namespace scrf {
                 result.features.push_back(std::make_shared<segment_feature>(
                     segment_feature(order,
                     std::make_shared<segfeat::frame_avg>(
-                        segfeat::frame_avg { start_dim, end_dim }),
+                        segfeat::frame_avg { frames, start_dim, end_dim }),
                     frames)));
             } else if (ebt::startswith(k, "frame-samples")) {
                 std::vector<std::string> parts = ebt::split(k, "@");

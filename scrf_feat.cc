@@ -20,7 +20,7 @@ namespace scrf {
         }
     }
         
-    void lexicalize(int order, std::vector<double> v, feat_t& feat,
+    std::vector<double>& lexicalize(int order, feat_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e)
     {
@@ -39,9 +39,9 @@ namespace scrf {
         }
 
         auto& g = feat.class_vec[label_tuple];
-        int i = g.size();
-        g.resize(g.size() + v.size());
-        std::move(v.begin(), v.end(), g.begin() + i);
+        g.reserve(1000);
+
+        return g;
     }
 
     segment_feature::segment_feature(
@@ -56,15 +56,13 @@ namespace scrf {
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e) const
     {
-        segfeat::feat_t raw_feat;
+        std::vector<double>& g = lexicalize(order, feat, fst, e);
 
         lattice::fst const& lat = *fst.fst1;
         int tail_time = lat.data->vertices.at(std::get<0>(fst.tail(e))).time;
         int head_time = lat.data->vertices.at(std::get<0>(fst.head(e))).time;
 
-        (*feat_func)(raw_feat, frames, tail_time, head_time);
-
-        lexicalize(order, std::move(raw_feat), feat, fst, e);
+        (*feat_func)(g, frames, tail_time, head_time);
     }
 
     namespace feature {
@@ -94,16 +92,15 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
+            auto& g = lexicalize(order, feat, fst, e);
+
             lattice::fst& lat = *fst.fst1;
 
             std::vector<double> const& f = lat.data->feats[std::get<0>(e)];
-            std::vector<double> vec;
 
             for (auto i: dims) {
-                vec.push_back(f[i]);
+                g.push_back(f[i]);
             }
-
-            lexicalize(order, std::move(vec), feat, fst, e);
         }
 
         frame_feature::frame_feature(std::vector<std::vector<double>> const& frames,

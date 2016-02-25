@@ -25,7 +25,7 @@ namespace scrf {
         
     };
 
-    void lexicalize(int order, feat_t& feat,
+    std::vector<double>& lexicalize(int order, feat_t& feat,
         fst::composed_fst<lattice::fst, lm::fst> const& fst,
         std::tuple<int, int> const& e);
 

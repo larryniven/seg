@@ -45,9 +45,24 @@ namespace segfeat {
         assert(0 <= end_dim && end_dim < frames.front().size());
     }
 
-    frame_avg::frame_avg(int start_dim, int end_dim)
+    frame_avg::frame_avg(std::vector<std::vector<real>> const& frames, int start_dim, int end_dim)
         : start_dim(start_dim), end_dim(end_dim)
-    {}
+    {
+        assert(frames.size() >= 1);
+
+        std::vector<double> prev;
+        prev.resize(frames.front().size());
+
+        accu.push_back(prev);
+
+        for (int i = 0; i < frames.size(); ++i) {
+            for (int d = 0; d < frames.front().size(); ++d) {
+                prev[d] += frames[i][d];
+            }
+
+            accu.push_back(prev);
+        }
+    }
 
     void frame_avg::operator()(feat_t& feat,
         std::vector<std::vector<real>> const& frames,
@@ -68,17 +83,15 @@ namespace segfeat {
             return;
         }
 
-        for (int i = start_time; i < end_time; ++i) {
-            int capped_i = std::min<int>(std::max<int>(i, 0), frames.size() - 1);
-            auto& v = frames[capped_i];
+        start_time = std::min<int>(start_time, frames.size());
+        end_time = std::min<int>(end_time, frames.size());
 
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
-                result[d - capped_start_dim] += v[d];
-            }
-        }
+        auto& u = accu[end_time];
+        auto& v = accu[start_time];
+        int duration = end_time -  start_time;
 
         for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
-            result[d - capped_start_dim] /= (end_time - start_time);
+            result[d - capped_start_dim] = (u[d] - v[d]) / duration;
         }
 
         feat.insert(feat.end(), result.begin(), result.end());
@@ -112,7 +125,7 @@ namespace segfeat {
 
         for (int i = 0; i < samples; ++i) {
             auto& u = frames.at(std::min<int>(
-                std::floor(end_time + (i + 0.5) * span), frames.size() - 1));
+                std::floor(start_time + (i + 0.5) * span), frames.size() - 1));
 
             for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
                 result[i * length + d - capped_start_dim] = u[d];

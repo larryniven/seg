@@ -5,7 +5,6 @@
 #include "scrf/scrf.h"
 #include "scrf/lm.h"
 #include <memory>
-#include "nn/nn.h"
 
 namespace scrf {
 

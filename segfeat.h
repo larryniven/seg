@@ -59,10 +59,12 @@ namespace segfeat {
     struct frame_avg
         : public feature {
 
-        frame_avg(int start_dim = -1, int end_dim = -1);
+        frame_avg(std::vector<std::vector<real>> const& frames, int start_dim = -1, int end_dim = -1);
 
         int start_dim;
         int end_dim;
+
+        std::vector<std::vector<real>> accu;
 
         virtual void operator()(feat_t& feat,
             std::vector<std::vector<real>> const& frames,

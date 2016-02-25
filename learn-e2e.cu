@@ -528,8 +528,8 @@ nn::gpu::param_t nn_backprop(std::unordered_map<int, la::vector<double>> const& 
     for (auto& p: grad) {
         int i = p.first;
 
-        nn.hidden[0]->output = std::make_shared<la::gpu::vector_view<double>>(
-            la::gpu::vector_view<double>(input_gpu_block.data() + 11 * dim * i, 11 * dim));
+        nn.hidden[0]->output = std::make_shared<la::gpu::vector_like<double>>(
+            la::gpu::vector_like<double>(input_gpu_block.data() + 11 * dim * i, 11 * dim));
 
         autodiff::eval(nn.output, autodiff::gpu::eval_funcs);
 

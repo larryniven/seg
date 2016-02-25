@@ -19,13 +19,13 @@ bin = libscrf.a \
     predict \
     learn-lat \
     predict-lat \
-    learn-e2e \
-    predict-e2e \
     prune \
     oracle-error \
     forced-align
 
 all: $(bin)
+
+gpu: learn-e2e predict-e2e
 
 clean:
 	-rm *.o
