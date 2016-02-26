@@ -93,17 +93,17 @@ namespace scrf {
         real lattice_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
-            /*
-            if (ebt::in(std::make_tuple(std::get<0>(e), fst.output(e)), cache)) {
-                return cache[std::make_tuple(std::get<0>(e), fst.output(e))];
+            std::tuple<int, std::string> key = std::make_tuple(std::get<0>(e), fst.output(e));
+
+            if (ebt::in(key, cache)) {
+                return cache.at(key);
             }
-            */
 
             feat_t f;
             (*feat)(f, fst, e);
             real s = dot(param, to_param(std::move(f)));
 
-            // cache[std::make_tuple(std::get<0>(e), fst.output(e))] = s;
+            cache[key] = s;
 
             return s;
         }
