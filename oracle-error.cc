@@ -21,11 +21,41 @@ struct oracle_env {
 
 };
 
+int main(int argc, char *argv[])
+{
+    ebt::ArgumentSpec spec {
+        "oracle-error",
+        "Calculate oracle error of lattices",
+        {
+            {"lattice-batch", "", true},
+            {"gold-batch", "", true},
+            {"lat-skip", "", false},
+            {"gold-skip", "", false},
+            {"print-path", "", false}
+        }
+    };
+
+    if (argc == 1) {
+        ebt::usage(spec);
+        exit(1);
+    }
+
+    auto args = ebt::parse_args(argc, argv, spec);
+
+    std::cout << args << std::endl;
+
+    oracle_env env { args };
+
+    env.run();
+
+    return 0;
+}
+
 oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    lattice_list.open(args.at("lattice-list"));
-    gold_list.open(args.at("gold-list"));
+    lattice_list.open(args.at("lattice-batch"));
+    gold_list.open(args.at("gold-batch"));
 
     if (ebt::in(std::string("lat-skip"), args)) {
         lat_skip = ebt::split(args.at("lat-skip"), ",");
@@ -252,34 +282,4 @@ void oracle_env::run()
         std::cout << ebt::format("total error: {} total length: {} rate: {} avg rate: {} avg density: {}",
             error_sum, length_sum, error_sum / length_sum, rate_sum / i, density_sum / i) << std::endl;
     }
-}
-
-int main(int argc, char *argv[])
-{
-    ebt::ArgumentSpec spec {
-        "oracle-error",
-        "Calculate oracle error of lattices",
-        {
-            {"lattice-list", "", true},
-            {"gold-list", "", true},
-            {"lat-skip", "", false},
-            {"gold-skip", "", false},
-            {"print-path", "", false}
-        }
-    };
-
-    if (argc == 1) {
-        ebt::usage(spec);
-        exit(1);
-    }
-
-    auto args = ebt::parse_args(argc, argv, spec);
-
-    std::cout << args << std::endl;
-
-    oracle_env env { args };
-
-    env.run();
-
-    return 0;
 }

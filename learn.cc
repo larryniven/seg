@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"frame-batch", "", true},
-            {"ground-truth-batch", "", true},
+            {"gold-batch", "", true},
             {"lm", "", true},
             {"min-seg", "", false},
             {"max-seg", "", false},
@@ -91,7 +91,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         frame_batch.open(args.at("frame-batch"));
     }
 
-    ground_truth_batch.open(args.at("ground-truth-batch"));
+    ground_truth_batch.open(args.at("gold-batch"));
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
 

@@ -31,6 +31,39 @@ struct pruning_env {
 
 };
 
+int main(int argc, char *argv[])
+{
+    ebt::ArgumentSpec spec {
+        "prune",
+        "Prune lattice with segmental CRF",
+        {
+            {"frame-batch", "", true},
+            {"lattice-batch", "", false},
+            {"lm", "", true},
+            {"max-seg", "", false},
+            {"min-seg", "", false},
+            {"param", "", true},
+            {"features", "", true},
+            {"alpha", "", true},
+            {"output", "", true}
+        }
+    };
+
+    if (argc == 1) {
+        ebt::usage(spec);
+        exit(1);
+    }
+
+    auto args = ebt::parse_args(argc, argv, spec);
+
+    std::cout << args << std::endl;
+
+    pruning_env env { args };
+
+    env.run();
+
+    return 0;
+}
 pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
@@ -300,45 +333,11 @@ void pruning_env::run()
 
         ++i;
 
-#if DEBUG_TOP_10
-        if (i == 10) {
+#if DEBUG_TOP
+        if (i == DEBUG_TOP) {
             exit(1);
         }
 #endif
 
     }
-}
-
-int main(int argc, char *argv[])
-{
-    ebt::ArgumentSpec spec {
-        "prune",
-        "Prune lattice with segmental CRF",
-        {
-            {"frame-batch", "", true},
-            {"lattice-batch", "", false},
-            {"lm", "", true},
-            {"max-seg", "", false},
-            {"min-seg", "", false},
-            {"param", "", true},
-            {"features", "", true},
-            {"alpha", "", true},
-            {"output", "", true}
-        }
-    };
-
-    if (argc == 1) {
-        ebt::usage(spec);
-        exit(1);
-    }
-
-    auto args = ebt::parse_args(argc, argv, spec);
-
-    std::cout << args << std::endl;
-
-    pruning_env env { args };
-
-    env.run();
-
-    return 0;
 }

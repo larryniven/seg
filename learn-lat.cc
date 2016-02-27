@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         {
             {"frame-batch", "", false},
             {"lattice-batch", "", true},
-            {"ground-truth-batch", "", true},
+            {"gold-batch", "", true},
             {"min-cost-path", "", false},
             {"lm", "", true},
             {"param", "", true},
@@ -81,7 +81,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     }
 
     lattice_batch.open(args.at("lattice-batch"));
-    ground_truth_batch.open(args.at("ground-truth-batch"));
+    ground_truth_batch.open(args.at("gold-batch"));
 
     lm = std::make_shared<lm::fst>(lm::load_arpa_lm(args.at("lm")));
 

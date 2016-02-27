@@ -33,9 +33,9 @@ struct prediction_env {
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
-    frame_list.open(args.at("frame-list"));
+    frame_list.open(args.at("frame-batch"));
 
-    label_list.open(args.at("label-list"));
+    label_list.open(args.at("label-batch"));
 
     min_seg = 1;
     if (ebt::in(std::string("min-seg"), args)) {
@@ -115,8 +115,8 @@ int main(int argc, char *argv[])
         "forced-align",
         "Align frames to labels with segmental CRF",
         {
-            {"frame-list", "", true},
-            {"label-list", "", true},
+            {"frame-batch", "", true},
+            {"label-batch", "", true},
             {"max-seg", "", false},
             {"min-seg", "", false},
             {"param", "", true},
