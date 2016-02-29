@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
 pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
@@ -94,6 +95,8 @@ pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
 
 void pruning_env::run()
 {
+    ebt::Timer t;
+
     std::ofstream ofs { output };
 
     std::shared_ptr<lm::fst> lm_output = scrf::erase_input(lm);

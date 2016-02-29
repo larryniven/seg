@@ -20,6 +20,7 @@ bin = libscrf.a \
     learn-lat \
     predict-lat \
     prune \
+    beam-prune \
     oracle-error \
     forced-align
 
@@ -61,14 +62,17 @@ predict-e2e.o: predict-e2e.cu
 predict-e2e: predict-e2e.o e2e-util.o libscrf.a
 	nvcc $(CXXFLAGS) -L /opt/cuda/lib64 -o $@ $^ -lnngpu -lautodiffgpu -loptgpu -lspeech -llagpu -lebt -lcblas -lcublas -lcudart
 
-forced-align: forced-align.o libscrf.a
+prune: prune.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
-prune: prune.o libscrf.a
+beam-prune: beam-prune.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 oracle-error: oracle-error.o lm.o lattice.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lla -lebt -lcblas
+
+forced-align: forced-align.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 scrf.o: scrf.h fst.h lattice.h lm.h
 lm.o: lm.h
@@ -89,5 +93,6 @@ predict-lat.o: fst.h scrf.h util.h
 learn-e2e.o: fst.h scrf.h util.h
 predict-e2e.o: fst.h scrf.h util.h
 prune.o: fst.h scrf.h util.h
+beam-prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
 forced-align.o: fst.h scrf.h util.h
