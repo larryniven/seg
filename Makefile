@@ -21,6 +21,7 @@ bin = libscrf.a \
     predict-lat \
     prune \
     beam-prune \
+    vertex-prune \
     oracle-error \
     forced-align
 
@@ -68,6 +69,9 @@ prune: prune.o libscrf.a
 beam-prune: beam-prune.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
+vertex-prune: vertex-prune.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
 oracle-error: oracle-error.o lm.o lattice.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lla -lebt -lcblas
 
@@ -94,5 +98,6 @@ learn-e2e.o: fst.h scrf.h util.h
 predict-e2e.o: fst.h scrf.h util.h
 prune.o: fst.h scrf.h util.h
 beam-prune.o: fst.h scrf.h util.h
+vertex-prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
 forced-align.o: fst.h scrf.h util.h
