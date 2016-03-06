@@ -98,8 +98,14 @@ namespace scrf {
 
             std::vector<double> const& f = lat.data->feats[std::get<0>(e)];
 
-            for (auto i: dims) {
-                g.push_back(f[i]);
+            if (fst.input(e) == "<eps>") {
+                for (auto i: dims) {
+                    g.push_back(0);
+                }
+            } else {
+                for (auto i: dims) {
+                    g.push_back(f[i]);
+                }
             }
         }
 
