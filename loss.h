@@ -19,6 +19,26 @@ namespace scrf {
         virtual param_t param_grad() override;
     };
 
+    struct log_loss
+        : public loss_func {
+
+        fst::path<scrf_t> const& gold;
+        scrf_t const& graph;
+
+        std::unordered_map<scrf_t::vertex_type, double> forward;
+        std::unordered_map<scrf_t::vertex_type, double> backward;
+        double logZ;
+
+        std::unordered_map<scrf_t::vertex_type, param_t> forward_feat;
+        std::unordered_map<scrf_t::vertex_type, param_t> backward_feat;
+
+        log_loss(fst::path<scrf_t> const& gold,
+            scrf_t const& graph);
+
+        virtual double loss() override;
+        virtual param_t param_grad() override;
+    };
+
 #if 0
     struct filtering_loss
         : public loss_func {

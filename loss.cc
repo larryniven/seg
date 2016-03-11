@@ -70,6 +70,120 @@ namespace scrf {
         return result;
     }
 
+    log_loss::log_loss(fst::path<scrf_t> const& gold,
+        scrf_t const& graph)
+        : gold(gold), graph(graph)
+    {
+        auto order = topo_order(graph);
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        for (auto& i: graph.initials()) {
+            forward[i] = 0;
+        }
+
+        for (auto& v: order) {
+            if (ebt::in(v, forward)) {
+                continue;
+            }
+
+            double s = -inf;
+
+            for (auto& e: graph.in_edges(v)) {
+                s = ebt::log_add(s, forward.at(graph.tail(e)) + graph.weight(e));
+            }
+
+            forward[v] = s;
+        }
+
+        std::reverse(order.begin(), order.end());
+
+        for (auto& f: graph.finals()) {
+            backward[f] = 0;
+        }
+
+        for (auto& v: order) {
+            if (ebt::in(v, backward)) {
+                continue;
+            }
+
+            double s = -inf;
+
+            for (auto& e: graph.out_edges(v)) {
+                s = ebt::log_add(s, backward.at(graph.head(e)) + graph.weight(e));
+            }
+
+            backward[v] = s;
+        }
+
+        double logZ_b = -inf;
+
+        for (auto& i: graph.initials()) {
+            logZ_b = ebt::log_add(logZ_b, backward.at(i));
+        }
+
+        double logZ_f = -inf;
+
+        for (auto& f: graph.finals()) {
+            logZ_f = ebt::log_add(logZ_f, forward.at(f));
+        }
+
+        std::cout << "forward: " << logZ_f << " backward: " << logZ_b << std::endl; 
+
+        logZ = logZ_f;
+    }
+
+    double log_loss::loss()
+    {
+        double g_weight = 0;
+
+        for (auto& e: gold.edges()) {
+            g_weight += gold.weight(e);
+        }
+
+        std::cout << "gold score: " << g_weight << " logZ: " << logZ << std::endl; 
+
+        return -g_weight + logZ;
+    }
+
+    param_t log_loss::param_grad()
+    {
+        param_t feat;
+
+        scrf_feature& gold_feat = *gold.data->base_fst->feature_func;
+        auto const& gold_fst = *gold.data->base_fst->fst;
+
+        for (auto& e: gold.edges()) {
+            feat_t f;
+            gold_feat(f, gold_fst, e);
+
+            feat -= to_param(std::move(f));
+        }
+
+        scrf_feature& graph_feat = *graph.feature_func;
+        auto const& graph_fst = *graph.fst;
+
+        for (auto& e: graph.edges()) {
+            feat_t f;
+            graph_feat(f, graph_fst, e);
+
+            double s = std::exp(forward.at(graph.tail(e))
+                + backward.at(graph.head(e)) + graph.weight(e)
+                - logZ);
+
+            param_t f_e = to_param(std::move(f));
+
+            for (auto& p: f_e.class_vec) {
+                imul(p.second, s);
+                auto& v = feat.class_vec[p.first];
+                v.resize(p.second.size());
+                iadd(v, p.second);
+            }
+        }
+
+        return feat;
+    }
+
 #if 0
     filtering_loss::filtering_loss(fst::path<scrf_t> const& gold,
         scrf_t const& graph, real alpha)

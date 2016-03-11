@@ -205,6 +205,8 @@ void learning_env::run()
             loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
         } else if (args.at("loss") == "hinge-beam") {
             loss_func = std::make_shared<scrf::hinge_loss_beam>(scrf::hinge_loss_beam { gold_path, graph, beam_width });
+        } else if (args.at("loss") == "log-loss") {
+            loss_func = std::make_shared<scrf::log_loss>(scrf::log_loss { gold_path, graph });
         } else {
             std::cout << "unknown loss function " << args.at("loss") << std::endl;
             exit(1);
