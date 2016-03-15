@@ -193,6 +193,32 @@ namespace scrf {
                 return s;
             }
 
+            cached_linear_score::cached_linear_score(param_t const& param,
+                    std::shared_ptr<scrf_feature> feat)
+                : param(param), feat(feat)
+            {}
+
+            real cached_linear_score::operator()(ilat::fst const& fst,
+                int e) const
+            {
+                if (e < in_cache.size() && in_cache[e]) {
+                    return cache[e];
+                }
+
+                param_t f;
+                (*feat)(f, fst, e);
+                real s = dot(param, f);
+
+                if (cache.size() == 0) {
+                    in_cache.resize(fst.edges().size());
+                    cache.resize(fst.edges().size());
+                }
+                cache[e] = s;
+                in_cache[e] = 1;
+
+                return s;
+            }
+
         }
 
     }

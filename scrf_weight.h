@@ -118,6 +118,22 @@ namespace scrf {
 
             };
 
+            struct cached_linear_score
+                : public scrf_weight {
+
+                param_t const& param;
+                std::shared_ptr<scrf_feature> feat;
+
+                mutable std::vector<double> cache;
+                mutable std::vector<int> in_cache;
+
+                cached_linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
+
+                virtual real operator()(ilat::fst const& fst,
+                    int e) const override;
+
+            };
+
         }
 
     }
