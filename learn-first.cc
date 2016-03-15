@@ -28,6 +28,7 @@ struct learning_env {
     std::string output_opt_data;
 
     std::unordered_map<std::string, int> label_id;
+    std::vector<std::string> id_label;
     std::vector<int> labels;
 
     std::vector<std::string> features;
@@ -127,8 +128,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
 
     label_id = scrf::load_phone_id(args.at("label"));
 
+    id_label.resize(label_id.size());
     for (auto& p: label_id) {
         labels.push_back(p.second);
+        id_label[p.second] = p.first;
     }
 }
 
@@ -152,7 +155,7 @@ void learning_env::run()
 
         std::cout << "ground truth: ";
         for (auto& e: ground_truth_lat.edges()) {
-            std::cout << ground_truth_lat.output(e) << " ";
+            std::cout << id_label[ground_truth_lat.output(e)] << " ";
         }
         std::cout << std::endl;
 
@@ -173,6 +176,18 @@ void learning_env::run()
         if (ebt::in(std::string("min-cost-path"), args)) {
             gold = min_cost;
             gold_path = scrf::first_order::make_min_cost_path(min_cost, ground_truth_path);
+
+            double min_cost_path_weight = 0;
+    
+            std::cout << "min cost path: ";
+            for (auto& e: gold_path.edges()) {
+                std::cout << id_label[gold_path.output(e)] << " ";
+                min_cost_path_weight += gold_path.weight(e);
+            }
+            std::cout << std::endl;
+    
+            std::cout << "cost: " << min_cost_path_weight << std::endl;
+    
         } else {
             gold = ground_truth;
             gold_path = ground_truth_path;
@@ -212,6 +227,31 @@ void learning_env::run()
         if (args.at("loss") == "hinge") {
             loss_func = std::make_shared<scrf::first_order::hinge_loss>(
                 scrf::first_order::hinge_loss { gold_path, graph });
+
+            scrf::first_order::hinge_loss const& loss = *dynamic_cast<scrf::first_order::hinge_loss*>(loss_func.get());
+
+            real gold_score = 0;
+
+            std::cout << "gold: ";
+            for (auto& e: gold_path.edges()) {
+                std::cout << id_label[gold_path.output(e)] << " ";
+                gold_score += gold_path.weight(e);
+            }
+            std::cout << std::endl;
+
+            std::cout << "gold score: " << gold_score << std::endl;
+
+            real graph_score = 0;
+
+            std::cout << "cost aug: ";
+            for (auto& e: loss.graph_path.edges()) {
+                std::cout << id_label[graph.output(e)] << " ";
+                graph_score += loss.graph_path.weight(e);
+            }
+            std::cout << std::endl;
+
+            std::cout << "cost aug score: " << graph_score << std::endl; 
+
         } else {
             std::cout << "unknown loss function " << args.at("loss") << std::endl;
             exit(1);

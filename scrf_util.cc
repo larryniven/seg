@@ -40,19 +40,16 @@ namespace scrf {
             min_cost, min_cost.topo_order);
     
         double min_cost_path_weight = 0;
-    
+        
         std::cout << "min cost path: ";
         for (auto& e: min_cost_path.edges()) {
-            int tail = std::get<0>(min_cost_path.tail(e));
-            int head = std::get<0>(min_cost_path.head(e));
-    
             std::cout << min_cost_path.output(e) << " ";
             min_cost_path_weight += min_cost_path.weight(e);
         }
         std::cout << std::endl;
-    
+        
         std::cout << "cost: " << min_cost_path_weight << std::endl;
-    
+        
         return min_cost_path;
     }
     
@@ -286,20 +283,6 @@ namespace scrf {
             min_cost.topo_order = fst::topo_order(*min_cost.fst);
             fst::path<scrf_t> min_cost_path = shortest_path(
                 min_cost, min_cost.topo_order);
-        
-            double min_cost_path_weight = 0;
-        
-            std::cout << "min cost path: ";
-            for (auto& e: min_cost_path.edges()) {
-                int tail = min_cost_path.tail(e);
-                int head = min_cost_path.head(e);
-        
-                std::cout << min_cost_path.output(e) << " ";
-                min_cost_path_weight += min_cost_path.weight(e);
-            }
-            std::cout << std::endl;
-        
-            std::cout << "cost: " << min_cost_path_weight << std::endl;
         
             return min_cost_path;
         }

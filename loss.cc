@@ -414,25 +414,16 @@ namespace scrf {
         {
             real gold_score = 0;
 
-            std::cout << "gold: ";
             for (auto& e: gold.edges()) {
-                std::cout << gold.output(e) << " ";
                 gold_score += gold.weight(e);
             }
-            std::cout << std::endl;
-
-            std::cout << "gold score: " << gold_score << std::endl;
 
             real graph_score = 0;
 
             std::cout << "cost aug: ";
             for (auto& e: graph_path.edges()) {
-                std::cout << graph.output(e) << " ";
                 graph_score += graph_path.weight(e);
             }
-            std::cout << std::endl;
-
-            std::cout << "cost aug score: " << graph_score << std::endl; 
 
             return graph_score - gold_score;
         }
