@@ -19,9 +19,11 @@ bin = libscrf.a \
     learn \
     learn-first \
     predict \
+    predict-first \
     learn-lat \
     predict-lat \
     prune \
+    prune-first \
     beam-prune \
     vertex-prune \
     oracle-error \
@@ -47,6 +49,9 @@ learn-first: learn-first.o libscrf.a
 predict: predict.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
+predict-first: predict-first.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
 learn-lat: learn-lat.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
@@ -69,6 +74,9 @@ predict-e2e: predict-e2e.o e2e-util.o libscrf.a
 	nvcc $(CXXFLAGS) -L /opt/cuda/lib64 -o $@ $^ -lnngpu -lautodiffgpu -loptgpu -lspeech -llagpu -lebt -lcblas -lcublas -lcudart
 
 prune: prune.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
+prune-first: prune-first.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 beam-prune: beam-prune.o libscrf.a
@@ -97,12 +105,14 @@ scrf_feat.o: scrf_feat.h scrf.h
 make_feat.o: make_feat.h scrf_feat.h
 
 learn.o: fst.h scrf.h util.h
+learn-first.o: fst.h scrf.h util.h
 predict.o: fst.h scrf.h util.h
 learn-lat.o: fst.h scrf.h util.h
 predict-lat.o: fst.h scrf.h util.h
 learn-e2e.o: fst.h scrf.h util.h
 predict-e2e.o: fst.h scrf.h util.h
 prune.o: fst.h scrf.h util.h
+prune-first.o: fst.h scrf.h util.h
 beam-prune.o: fst.h scrf.h util.h
 vertex-prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h

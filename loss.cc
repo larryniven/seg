@@ -420,7 +420,6 @@ namespace scrf {
 
             real graph_score = 0;
 
-            std::cout << "cost aug: ";
             for (auto& e: graph_path.edges()) {
                 graph_score += graph_path.weight(e);
             }

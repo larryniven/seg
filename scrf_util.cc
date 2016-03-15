@@ -276,10 +276,11 @@ namespace scrf {
 
         fst::path<scrf_t> make_min_cost_path(
             scrf_t& min_cost,
-            fst::path<scrf_t> const& gold_path)
+            fst::path<scrf_t> const& gold_path,
+            std::vector<int> sils)
         {
             min_cost.weight_func = std::make_shared<neg_cost>(
-                neg_cost { std::make_shared<seg_cost>(make_overlap_cost(gold_path)) });
+                neg_cost { std::make_shared<seg_cost>(make_overlap_cost(gold_path, sils)) });
             min_cost.topo_order = fst::topo_order(*min_cost.fst);
             fst::path<scrf_t> min_cost_path = shortest_path(
                 min_cost, min_cost.topo_order);

@@ -30,6 +30,7 @@ struct learning_env {
     std::unordered_map<std::string, int> label_id;
     std::vector<std::string> id_label;
     std::vector<int> labels;
+    std::vector<int> sils;
 
     std::vector<std::string> features;
 
@@ -133,6 +134,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         labels.push_back(p.second);
         id_label[p.second] = p.first;
     }
+
+    sils.push_back(label_id.at("<s>"));
+    sils.push_back(label_id.at("</s>"));
+    sils.push_back(label_id.at("sil"));
 }
 
 void learning_env::run()
@@ -175,7 +180,7 @@ void learning_env::run()
 
         if (ebt::in(std::string("min-cost-path"), args)) {
             gold = min_cost;
-            gold_path = scrf::first_order::make_min_cost_path(min_cost, ground_truth_path);
+            gold_path = scrf::first_order::make_min_cost_path(min_cost, ground_truth_path, sils);
 
             double min_cost_path_weight = 0;
     
@@ -217,7 +222,7 @@ void learning_env::run()
             scrf::first_order::score::linear_score(param,
                 std::make_shared<scrf::first_order::composite_feature>(graph_feat_func))));
         weight.weights.push_back(std::make_shared<scrf::first_order::seg_cost>(
-            scrf::first_order::make_overlap_cost(gold_path)));
+            scrf::first_order::make_overlap_cost(gold_path, sils)));
 
         graph.weight_func = std::make_shared<scrf::first_order::composite_weight>(weight);
         graph.feature_func = std::make_shared<scrf::first_order::composite_feature>(graph_feat_func);
