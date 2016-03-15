@@ -234,4 +234,82 @@ namespace scrf {
         return result;
     }
 
+    namespace first_order {
+
+        scrf_t make_graph_scrf(int frames,
+            std::vector<int> const& labels,
+            int min_seg_len, int max_seg_len)
+        {
+            ilat::fst_data data;
+
+            for (int i = 0; i < frames + 1; ++i) {
+                ilat::add_vertex(data, i, i);
+            }
+
+            assert(min_seg_len >= 1);
+
+            for (int i = 0; i < frames + 1; ++i) {
+                for (int j = min_seg_len; j <= max_seg_len; ++j) {
+                    int tail = i;
+                    int head = i + j;
+
+                    if (head > frames) {
+                        continue;
+                    }
+
+                    for (auto& ell: labels) {
+                        ilat::add_edge(data, data.edges.size(), ell, tail, head, 0);
+                    }
+                }
+            }
+
+            data.initials.push_back(0);
+            data.finals.push_back(frames);
+
+            ilat::fst fst;
+            fst.data = std::make_shared<ilat::fst_data>(std::move(data));
+
+            scrf_t result;
+
+            result.fst = std::make_shared<ilat::fst>(fst);
+            result.topo_order = fst::topo_order(fst);
+
+            return result;
+        }
+
+        fst::path<scrf_t> make_min_cost_path(
+            scrf_t& min_cost,
+            fst::path<scrf_t> const& gold_path)
+        {
+            min_cost.weight_func = std::make_shared<neg_cost>(
+                neg_cost { std::make_shared<seg_cost>(make_overlap_cost(gold_path)) });
+            min_cost.topo_order = fst::topo_order(*min_cost.fst);
+            fst::path<scrf_t> min_cost_path = shortest_path(
+                min_cost, min_cost.topo_order);
+        
+            double min_cost_path_weight = 0;
+        
+            std::cout << "min cost path: ";
+            for (auto& e: min_cost_path.edges()) {
+                int tail = min_cost_path.tail(e);
+                int head = min_cost_path.head(e);
+        
+                std::cout << min_cost_path.output(e) << " ";
+                min_cost_path_weight += min_cost_path.weight(e);
+            }
+            std::cout << std::endl;
+        
+            std::cout << "cost: " << min_cost_path_weight << std::endl;
+        
+            return min_cost_path;
+        }
+    
+        fst::path<scrf_t> make_ground_truth_path(
+            scrf_t& ground_truth)
+        {
+            return fst::make_path(ground_truth, ground_truth.edges());
+        }
+
+    }
+
 }

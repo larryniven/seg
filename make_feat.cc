@@ -156,4 +156,145 @@ namespace scrf {
         return result;
     }
 
+    namespace first_order {
+
+        composite_feature make_feat(
+            feat_dim_alloc& alloc,
+            std::vector<std::string> features,
+            std::vector<std::vector<real>> const& frames)
+        {
+            composite_feature result;
+
+            for (auto& k: features) {
+                if (ebt::startswith(k, "frame-avg")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(parts[0]);
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::frame_avg>(
+                            segfeat::la::frame_avg { frames, start_dim, end_dim }),
+                        frames)));
+                } else if (ebt::startswith(k, "frame-samples")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(parts[0]);
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::frame_samples>(
+                            segfeat::la::frame_samples { 3, start_dim, end_dim }),
+                        frames)));
+                } else if (ebt::startswith(k, "left-boundary")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(parts[0]);
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::left_boundary>(
+                            segfeat::la::left_boundary { start_dim, end_dim }),
+                        frames)));
+                } else if (ebt::startswith(k, "right-boundary")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(parts[0]);
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::right_boundary>(
+                            segfeat::la::right_boundary { start_dim, end_dim }),
+                        frames)));
+                } else if (ebt::startswith(k, "length-indicator")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::length_indicator>(
+                            segfeat::la::length_indicator { 30 }),
+                        frames)));
+                } else if (ebt::startswith(k, "frame")) {
+                    result.features.push_back(std::make_shared<feature::frame_feature>(
+                        feature::frame_feature { alloc, frames }));
+                } else if (ebt::startswith(k, "lattice-score")) {
+                    result.features.push_back(std::make_shared<feature::lattice_score>(
+                        feature::lattice_score { alloc }));
+                } else if (ebt::startswith(k, "ext")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    parts = ebt::split(parts[0], ":");
+                    parts = ebt::split(parts[1], "+");
+                    std::vector<int> dims;
+
+                    for (auto& p: parts) {
+                        std::vector<std::string> range = ebt::split(p, "-");
+                        if (range.size() == 2) {
+                            for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                                dims.push_back(i);
+                            }
+                        } else if (range.size() == 1) {
+                            dims.push_back(std::stoi(p));
+                        } else {
+                            std::cerr << "unknown external feature format: " << k << std::endl;
+                        }
+                    }
+
+                    result.features.push_back(std::make_shared<feature::external_feature>(
+                        feature::external_feature { alloc, order, dims }));
+                } else if (ebt::startswith(k, "bias")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::bias>(
+                            segfeat::la::bias {}),
+                        frames)));
+                } else {
+                    std::cerr << "unknown feature " << k << std::endl;
+                    exit(1);
+                }
+            }
+
+            return result;
+        }
+
+    }
+
 }

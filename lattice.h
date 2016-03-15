@@ -47,8 +47,8 @@ namespace lattice {
     void add_edge(fst_data& data, int e, std::string label, int tail, int head, real weight);
 
     struct fst {
-        using vertex_type = int;
-        using edge_type = int;
+        using vertex = int;
+        using edge = int;
 
         std::shared_ptr<fst_data> data;
 
@@ -63,6 +63,7 @@ namespace lattice {
         std::vector<int> finals() const;
         std::string const& input(int e) const;
         std::string const& output(int e) const;
+        long time(int v) const;
 
         std::unordered_map<std::string, std::vector<int>> const& in_edges_map(int v) const;
         std::unordered_map<std::string, std::vector<int>> const& out_edges_map(int v) const;

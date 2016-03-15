@@ -25,12 +25,12 @@ namespace scrf {
         fst::path<scrf_t> const& gold;
         scrf_t const& graph;
 
-        std::unordered_map<scrf_t::vertex_type, double> forward;
-        std::unordered_map<scrf_t::vertex_type, double> backward;
+        std::unordered_map<scrf_t::vertex, double> forward;
+        std::unordered_map<scrf_t::vertex, double> backward;
         double logZ;
 
-        std::unordered_map<scrf_t::vertex_type, param_t> forward_feat;
-        std::unordered_map<scrf_t::vertex_type, param_t> backward_feat;
+        std::unordered_map<scrf_t::vertex, param_t> forward_feat;
+        std::unordered_map<scrf_t::vertex, param_t> backward_feat;
 
         log_loss(fst::path<scrf_t> const& gold,
             scrf_t const& graph);
@@ -50,8 +50,8 @@ namespace scrf {
         fst::path<scrf_t> graph_path;
         fst::forward_one_best<scrf_t> forward;
         fst::backward_one_best<scrf_t> backward;
-        std::unordered_map<scrf_t::vertex_type, param_t> f_param;
-        std::unordered_map<scrf_t::vertex_type, param_t> b_param;
+        std::unordered_map<scrf_t::vertex, param_t> f_param;
+        std::unordered_map<scrf_t::vertex, param_t> b_param;
         real threshold;
 
         filtering_loss(
@@ -77,6 +77,23 @@ namespace scrf {
         virtual real loss() override;
         virtual param_t param_grad() override;
     };
+
+    namespace first_order {
+
+        struct hinge_loss
+            : public loss_func {
+
+            fst::path<scrf_t> const& gold;
+            scrf_t const& graph;
+            fst::path<scrf_t> graph_path;
+
+            hinge_loss(fst::path<scrf_t> const& gold, scrf_t const& graph);
+
+            virtual real loss() override;
+            virtual param_t param_grad() override;
+        };
+
+    }
 
 }
 

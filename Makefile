@@ -1,7 +1,8 @@
 CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../la -L ../autodiff -L ../nn -L ./
 AR = gcc-ar
 
-obj = lattice.o \
+obj = ilat.o \
+    lattice.o \
     lm.o \
     scrf_weight.o \
     segfeat.o \
@@ -16,6 +17,7 @@ obj = lattice.o \
 
 bin = libscrf.a \
     learn \
+    learn-first \
     predict \
     learn-lat \
     predict-lat \
@@ -37,6 +39,9 @@ libscrf.a: $(obj)
 	$(AR) rcs libscrf.a $(obj)
 
 learn: learn.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
+learn-first: learn-first.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 predict: predict.o libscrf.a
@@ -78,6 +83,7 @@ oracle-error: oracle-error.o lm.o lattice.o
 forced-align: forced-align.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
+ilat.o: ilat.h
 scrf.o: scrf.h fst.h lattice.h lm.h
 lm.o: lm.h
 lattice.o: lattice.h

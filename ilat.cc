@@ -1,9 +1,9 @@
-#include "scrf/lattice.h"
+#include "scrf/ilat.h"
 #include "ebt/ebt.h"
 #include <algorithm>
 #include <cassert>
 
-namespace lattice {
+namespace ilat {
 
     bool operator==(edge_data const& e1, edge_data const& e2)
     {
@@ -21,12 +21,10 @@ namespace lattice {
             data.vertices.push_back(vertex_data { time });
             data.in_edges.resize(data.vertices.size());
             data.out_edges.resize(data.vertices.size());
-            data.in_edges_map.resize(data.vertices.size());
-            data.out_edges_map.resize(data.vertices.size());
         }
     }
 
-    void add_edge(fst_data& data, int e, std::string label, int tail, int head, real weight)
+    void add_edge(fst_data& data, int e, int label, int tail, int head, real weight)
     {
         assert(head < data.vertices.size());
         assert(tail < data.vertices.size());
@@ -39,8 +37,6 @@ namespace lattice {
             data.edges.push_back(edge_data {tail, head, weight, label});
             data.in_edges[head].push_back(e);
             data.out_edges[tail].push_back(e);
-            data.out_edges_map.at(tail)[label].push_back(e);
-            data.in_edges_map.at(head)[label].push_back(e);
             data.attrs.resize(std::max<int>(data.attrs.size(), e + 1));
             data.feats.resize(std::max<int>(data.feats.size(), e + 1));
         }
@@ -103,12 +99,12 @@ namespace lattice {
         return data->finals;
     }
 
-    std::string const& fst::input(int e) const
+    int fst::input(int e) const
     {
         return data->edges.at(e).label;
     }
 
-    std::string const& fst::output(int e) const
+    int fst::output(int e) const
     {
         return data->edges.at(e).label;
     }
@@ -118,19 +114,7 @@ namespace lattice {
         return data->vertices.at(v).time;
     }
 
-    std::unordered_map<std::string, std::vector<int>> const&
-    fst::in_edges_map(int v) const
-    {
-        return data->in_edges_map.at(v);
-    }
-    
-    std::unordered_map<std::string, std::vector<int>> const&
-    fst::out_edges_map(int v) const
-    {
-        return data->out_edges_map.at(v);
-    }
-    
-    fst load_lattice(std::istream& is)
+    fst load_lattice(std::istream& is, std::unordered_map<std::string, int> const& label_id)
     {
         fst_data result;
 
@@ -204,7 +188,7 @@ namespace lattice {
             std::string label = attr_map.at("label");
 
             int e = int(result.edges.size());
-            add_edge(result, e, label, tail, head, weight);
+            add_edge(result, e, label_id.at(label), tail, head, weight);
 
             result.attrs[e] = attr;
             result.feats[e] = feats;
@@ -233,107 +217,6 @@ namespace lattice {
         f.data = std::make_shared<fst_data>(std::move(result));
 
         return f;
-    }
-
-    fst load_path(std::istream& is)
-    {
-        std::vector<std::vector<std::string>> edges;
-
-        ebt::json::json_parser<decltype(edges)> parser;
-        edges = parser.parse(is);
-
-        fst_data data;
-
-        int i = 0;
-
-        add_vertex(data, 0, std::stoi(edges[0][0]));
-
-        for (auto& e: edges) {
-            i += 1;
-            add_vertex(data, i, std::stoi(e[1]));
-            add_edge(data, i - 1, e[2], i-1, i, 0);
-        }
-
-        data.initials.push_back(0);
-        data.finals.push_back(i);
-
-        fst f;
-        f.data = std::make_shared<fst_data>(std::move(data));
-
-        return f;
-    }
-
-    fst add_eps_loops(fst f, std::string label)
-    {
-        auto& data = *(f.data);
-
-        std::unordered_set<int> initial_set { data.initials.begin(), data.initials.end() };
-        std::unordered_set<int> final_set { data.finals.begin(), data.finals.end() };
-
-        for (int i = 0; i < data.vertices.size(); ++i) {
-            // if (ebt::in(i, initial_set) || ebt::in(i, final_set)) {
-            //     continue;
-            // }
-
-            int e = int(data.edges.size());
-            add_edge(data, e, label, i, i, 0);
-        }
-
-        return f;
-    }
-
-    std::vector<int> topo_order(lattice::fst const& fst)
-    {
-        std::vector<int> order;
-        std::unordered_set<int> order_set;
-        std::vector<int> stack = fst.initials();
-        std::unordered_set<int> traversed { stack.begin(), stack.end() };
-
-        std::vector<int> path;
-
-        while (stack.size() > 0) {
-            int u = stack.back();
-            stack.pop_back();
-
-            auto u_in_edges = fst.in_edges(u);
-            std::unordered_set<int> u_in_ver_set;
-            for (auto& e: fst.in_edges(u)) {
-                u_in_ver_set.insert(fst.tail(e));
-            }
-
-            while (path.size() > 0 && !ebt::in(path.back(), u_in_ver_set)) {
-                int v = path.back();
-                if (!ebt::in(v, order_set)) {
-                    order.push_back(v);
-                    order_set.insert(v);
-                }
-                path.pop_back();
-            }
-
-            path.push_back(u);
-
-            for (int e: fst.out_edges(u)) {
-                int v = fst.head(e);
-
-                if (!ebt::in(v, traversed)) {
-                    stack.push_back(v);
-                    traversed.insert(v);
-                }
-            }
-        }
-
-        while (path.size() > 0) {
-            int v = path.back();
-            if (!ebt::in(v, order_set)) {
-                order.push_back(v);
-                order_set.insert(v);
-            }
-            path.pop_back();
-        }
-
-        std::reverse(order.begin(), order.end());
-
-        return order;
     }
 
 }

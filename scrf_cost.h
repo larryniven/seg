@@ -54,6 +54,37 @@ namespace scrf {
             std::tuple<int, int> const& e) const;
     };
 
+    namespace first_order {
+
+        struct seg_cost
+            : public scrf_weight {
+
+            seg_cost(std::shared_ptr<segcost::cost> cost,
+                fst::path<scrf_t> const& gold_fst);
+
+            std::shared_ptr<segcost::cost> cost;
+            std::vector<speech::segment> gold_segs;
+
+            virtual real operator()(ilat::fst const& fst,
+                int e) const override;
+
+        };
+
+        seg_cost make_overlap_cost(fst::path<scrf_t> const& gold_fst);
+
+        struct neg_cost
+            : public scrf_weight {
+
+            std::shared_ptr<scrf_weight> cost;
+
+            neg_cost(std::shared_ptr<scrf_weight> cost);
+
+            virtual real operator()(ilat::fst const& fst,
+                int e) const;
+        };
+
+    }
+
 }
 
 #endif

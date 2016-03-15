@@ -23,6 +23,8 @@ struct prediction_env {
 
     std::vector<std::string> features;
 
+    std::unordered_map<std::string, int> label_id;
+
     std::unordered_map<std::string, std::string> args;
 
     prediction_env(std::unordered_map<std::string, std::string> args);
@@ -42,7 +44,8 @@ int main(int argc, char *argv[])
             {"max-seg", "", false},
             {"min-seg", "", false},
             {"param", "", true},
-            {"features", "", true}
+            {"features", "", true},
+            {"label", "", false}
         }
     };
 
@@ -86,6 +89,12 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
     if (ebt::in(std::string("beam-width"), args)) {
         beam_width = std::stoi(args.at("beam-width"));
     }
+
+    if (ebt::in(std::string("label"), args)) {
+        label_id = scrf::load_phone_id(args.at("label"));
+        label_id["<s>"] = label_id["sil"];
+        label_id["</s>"] = label_id["sil"];
+    }
 }
 
 void prediction_env::run()
@@ -109,7 +118,7 @@ void prediction_env::run()
 
         graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, label_id);
 
         graph.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(features, param, graph_feat_func));

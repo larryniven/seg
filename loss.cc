@@ -397,4 +397,69 @@ namespace scrf {
         return result;
     }
 
+    namespace first_order {
+
+        hinge_loss::hinge_loss(fst::path<scrf_t> const& gold, scrf_t const& graph)
+            : gold(gold), graph(graph)
+        {
+            graph_path = shortest_path(graph, graph.topo_order);
+
+            if (graph_path.edges().size() == 0) {
+                std::cout << "no cost aug path" << std::endl;
+                exit(1);
+            }
+        }
+
+        real hinge_loss::loss()
+        {
+            real gold_score = 0;
+
+            std::cout << "gold: ";
+            for (auto& e: gold.edges()) {
+                std::cout << gold.output(e) << " ";
+                gold_score += gold.weight(e);
+            }
+            std::cout << std::endl;
+
+            std::cout << "gold score: " << gold_score << std::endl;
+
+            real graph_score = 0;
+
+            std::cout << "cost aug: ";
+            for (auto& e: graph_path.edges()) {
+                std::cout << graph.output(e) << " ";
+                graph_score += graph_path.weight(e);
+            }
+            std::cout << std::endl;
+
+            std::cout << "cost aug score: " << graph_score << std::endl; 
+
+            return graph_score - gold_score;
+        }
+
+        param_t hinge_loss::param_grad()
+        {
+            param_t result;
+
+            scrf_t const& gold_scrf = *gold.data->base_fst;
+
+            for (auto& e: gold.edges()) {
+                param_t f;
+                gold_scrf.feature(f, e);
+
+                result -= f;
+            }
+
+            for (auto& e: graph_path.edges()) {
+                param_t f;
+                graph.feature(f, e);
+
+                result += f;
+            }
+
+            return result;
+        }
+
+    }
+
 }

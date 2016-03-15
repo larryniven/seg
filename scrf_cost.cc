@@ -161,4 +161,49 @@ namespace scrf {
         return -(*cost)(fst, e);
     }
 
+    namespace first_order {
+
+        seg_cost::seg_cost(std::shared_ptr<segcost::cost> cost,
+            fst::path<scrf_t> const& gold_fst)
+            : cost(cost)
+        {
+            auto& lat = *(gold_fst.data->base_fst->fst);
+
+            for (auto& e: gold_fst.edges()) {
+                int tail = lat.tail(e);
+                int head = lat.head(e);
+
+                gold_segs.push_back(speech::segment {
+                    lat.time(tail), lat.time(head), std::to_string(gold_fst.output(e)) });
+            }
+        }
+
+        real seg_cost::operator()(ilat::fst const& fst,
+            int e) const
+        {
+            int tail = fst.tail(e);
+            int head = fst.head(e);
+
+            return (*cost)(gold_segs, speech::segment {
+                fst.time(tail), fst.time(head), std::to_string(fst.output(e)) });
+        }
+
+        seg_cost make_overlap_cost(fst::path<scrf_t> const& gold_fst)
+        {
+            return seg_cost { std::make_shared<segcost::overlap_cost>(
+                segcost::overlap_cost{}), gold_fst };
+        }
+
+        neg_cost::neg_cost(std::shared_ptr<scrf_weight> cost)
+            : cost(cost)
+        {}
+
+        real neg_cost::operator()(ilat::fst const& fst,
+            int e) const
+        {
+            return -(*cost)(fst, e);
+        }
+
+    }
+
 }

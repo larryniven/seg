@@ -88,6 +88,40 @@ namespace scrf {
         param_t const& param,
         composite_feature const& feat);
 
+    namespace first_order {
+
+        struct composite_weight
+            : public scrf_weight {
+
+            std::vector<std::shared_ptr<scrf_weight>> weights;
+
+            virtual real operator()(ilat::fst const& fst,
+                int e) const override;
+
+        };
+
+        std::shared_ptr<scrf_weight> operator+(std::shared_ptr<scrf_weight> w1,
+            std::shared_ptr<scrf_weight> w2);
+
+        namespace score {
+
+            struct linear_score
+                : public scrf_weight {
+
+                param_t const& param;
+                std::shared_ptr<scrf_feature> feat;
+
+                linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
+
+                virtual real operator()(ilat::fst const& fst,
+                    int e) const override;
+
+            };
+
+        }
+
+    }
+
 }
 
 

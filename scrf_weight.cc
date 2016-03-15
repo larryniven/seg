@@ -151,4 +151,50 @@ namespace scrf {
         return result;
     }
 
+    namespace first_order {
+
+        real composite_weight::operator()(ilat::fst const& fst,
+            int e) const
+        {
+            real sum = 0;
+
+            for (auto& w: weights) {
+                sum += (*w)(fst, e);
+            }
+
+            return sum;
+        }
+
+        std::shared_ptr<scrf_weight> operator+(std::shared_ptr<scrf_weight> w1,
+            std::shared_ptr<scrf_weight> w2)
+        {
+            composite_weight result;
+
+            result.weights.push_back(w1);
+            result.weights.push_back(w2);
+
+            return std::make_shared<composite_weight>(result);
+        }
+
+        namespace score {
+
+            linear_score::linear_score(param_t const& param,
+                    std::shared_ptr<scrf_feature> feat)
+                : param(param), feat(feat)
+            {}
+
+            real linear_score::operator()(ilat::fst const& fst,
+                int e) const
+            {
+                param_t f;
+                (*feat)(f, fst, e);
+                real s = dot(param, f);
+
+                return s;
+            }
+
+        }
+
+    }
+
 }

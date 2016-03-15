@@ -10,6 +10,15 @@ namespace scrf {
         std::vector<std::vector<real>> const& frames,
         std::unordered_map<std::string, int> const& phone_id);
 
+    namespace first_order {
+
+        composite_feature make_feat(
+            feat_dim_alloc& alloc,
+            std::vector<std::string> features,
+            std::vector<std::vector<real>> const& frames);
+
+    }
+
 }
 
 

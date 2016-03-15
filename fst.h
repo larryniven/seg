@@ -14,77 +14,77 @@ namespace fst {
 
     template <class fst>
     struct sub_fst_data {
-        using vertex_type = typename fst::vertex_type;
-        using edge_type = typename fst::edge_type;
+        using vertex = typename fst::vertex;
+        using edge = typename fst::edge;
 
         fst const* base_fst;
-        std::vector<vertex_type> vertices;
-        std::vector<edge_type> edges;
-        std::unordered_map<vertex_type, std::vector<edge_type>> in_edges;
-        std::unordered_map<vertex_type, std::vector<edge_type>> out_edges;
+        std::vector<vertex> vertices;
+        std::vector<edge> edges;
+        std::unordered_map<vertex, std::vector<edge>> in_edges;
+        std::unordered_map<vertex, std::vector<edge>> out_edges;
 
-        std::vector<vertex_type> initials;
-        std::vector<vertex_type> finals;
+        std::vector<vertex> initials;
+        std::vector<vertex> finals;
     };
 
     template <class fst>
     struct sub_fst {
-        using vertex_type = typename fst::vertex_type;
-        using edge_type = typename fst::edge_type;
+        using vertex = typename fst::vertex;
+        using edge = typename fst::edge;
 
         std::shared_ptr<sub_fst_data<fst>> data;
 
-        std::vector<vertex_type> vertices() const
+        std::vector<vertex> vertices() const
         {
             return data->vertices;
         }
 
-        std::vector<edge_type> edges() const
+        std::vector<edge> edges() const
         {
             return data->edges;
         }
 
-        real weight(edge_type const& e) const
+        real weight(edge const& e) const
         {
             return data->base_fst->weight(e);
         }
 
-        vertex_type tail(edge_type const& e) const
+        vertex tail(edge const& e) const
         {
             return data->base_fst->tail(e);
         }
 
-        vertex_type head(edge_type const& e) const
+        vertex head(edge const& e) const
         {
             return data->base_fst->head(e);
         }
 
-        std::vector<edge_type> in_edges(vertex_type const& v) const
+        std::vector<edge> in_edges(vertex const& v) const
         {
             return data->in_edges.at(v);
         }
 
-        std::vector<edge_type> out_edges(vertex_type const& v) const
+        std::vector<edge> out_edges(vertex const& v) const
         {
             return data->out_edges.at(v);
         }
 
-        std::vector<vertex_type> initials() const
+        std::vector<vertex> initials() const
         {
             return data->initials;
         }
 
-        std::vector<vertex_type> finals() const
+        std::vector<vertex> finals() const
         {
             return data->finals;
         }
 
-        std::string input(edge_type const& e) const
+        auto input(edge const& e) const -> decltype(data->base_fst->input(e))
         {
             return data->base_fst->input(e);
         }
 
-        std::string output(edge_type const& e) const
+        auto output(edge const& e) const -> decltype(data->base_fst->output(e))
         {
             return data->base_fst->output(e);
         }
@@ -95,17 +95,17 @@ namespace fst {
     template <class fst> using path = sub_fst<fst>;
 
     template <class fst>
-    sub_fst<fst> make_path(fst const& f, std::vector<typename fst::edge_type> const& edges)
+    sub_fst<fst> make_path(fst const& f, std::vector<typename fst::edge> const& edges)
     {
         sub_fst_data<fst> result_data;
 
         result_data.base_fst = &f;
         result_data.edges = edges;
 
-        std::unordered_set<typename fst::vertex_type> vertices;
+        std::unordered_set<typename fst::vertex> vertices;
 
-        typename fst::vertex_type initial = f.tail(edges.front());
-        typename fst::vertex_type final = f.head(edges.back());
+        typename fst::vertex initial = f.tail(edges.front());
+        typename fst::vertex final = f.head(edges.back());
 
         for (auto& e: edges) {
             vertices.insert(f.tail(e));
@@ -115,7 +115,7 @@ namespace fst {
             result_data.out_edges[f.tail(e)].push_back(e);
         }
 
-        result_data.vertices = std::vector<typename fst::vertex_type> {
+        result_data.vertices = std::vector<typename fst::vertex> {
             vertices.begin(), vertices.end() };
 
         result_data.initials.push_back(initial);
@@ -133,18 +133,18 @@ namespace fst {
 
     template <class fst_type1, class fst_type2>
     struct composed_fst<fst_type1, fst_type2> {
-        using edge_type = std::tuple<typename fst_type1::edge_type,
-            typename fst_type2::edge_type>;
+        using edge = std::tuple<typename fst_type1::edge,
+            typename fst_type2::edge>;
 
-        using vertex_type = std::tuple<typename fst_type1::vertex_type,
-            typename fst_type2::vertex_type>;
+        using vertex = std::tuple<typename fst_type1::vertex,
+            typename fst_type2::vertex>;
 
         std::shared_ptr<fst_type1> fst1;
         std::shared_ptr<fst_type2> fst2;
 
-        std::vector<vertex_type> vertices() const
+        std::vector<vertex> vertices() const
         {
-            std::vector<vertex_type> result;
+            std::vector<vertex> result;
 
             for (auto& v1: fst1->vertices()) {
                 for (auto& v2: fst2->vertices()) {
@@ -155,9 +155,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<edge_type> edges() const
+        std::vector<edge> edges() const
         {
-            std::vector<edge_type> result;
+            std::vector<edge> result;
 
             for (auto& e1: fst1->edges()) {
                 for (auto& e2: fst2->edges()) {
@@ -170,9 +170,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<edge_type> in_edges(vertex_type const& v) const
+        std::vector<edge> in_edges(vertex const& v) const
         {
-            std::vector<edge_type> result;
+            std::vector<edge> result;
 
             auto& e2_set = fst2->in_edges_map(std::get<1>(v));
 
@@ -189,9 +189,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<edge_type> out_edges(vertex_type const& v) const
+        std::vector<edge> out_edges(vertex const& v) const
         {
-            std::vector<edge_type> result;
+            std::vector<edge> result;
 
             auto& e2_set = fst2->out_edges_map(std::get<1>(v));
 
@@ -208,26 +208,26 @@ namespace fst {
             return result;
         }
 
-        real weight(edge_type const& e) const
+        real weight(edge const& e) const
         {
             return fst1->weight(std::get<0>(e)) + fst2->weight(std::get<1>(e));
         }
 
-        vertex_type tail(edge_type const& e) const
+        vertex tail(edge const& e) const
         {
             return std::make_tuple(fst1->tail(std::get<0>(e)),
                 fst2->tail(std::get<1>(e)));
         }
 
-        vertex_type head(edge_type const& e) const
+        vertex head(edge const& e) const
         {
             return std::make_tuple(fst1->head(std::get<0>(e)),
                 fst2->head(std::get<1>(e)));
         }
 
-        std::vector<vertex_type> initials() const
+        std::vector<vertex> initials() const
         {
-            std::vector<vertex_type> result;
+            std::vector<vertex> result;
 
             for (auto i1: fst1->initials()) {
                 for (auto i2: fst2->initials()) {
@@ -238,9 +238,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<vertex_type> finals() const
+        std::vector<vertex> finals() const
         {
-            std::vector<vertex_type> result;
+            std::vector<vertex> result;
 
             for (auto i1: fst1->finals()) {
                 for (auto i2: fst2->finals()) {
@@ -251,12 +251,12 @@ namespace fst {
             return result;
         }
 
-        std::string input(edge_type const& e) const
+        std::string input(edge const& e) const
         {
             return fst1->input(std::get<0>(e));
         }
 
-        std::string output(edge_type const& e) const
+        std::string output(edge const& e) const
         {
             return fst2->output(std::get<1>(e));
         }
@@ -265,18 +265,18 @@ namespace fst {
 
     template <class fst_type1, class fst_type2, class fst_type3>
     struct composed_fst<fst_type1, fst_type2, fst_type3> {
-        using edge_type = std::tuple<typename fst_type1::edge_type,
-            typename fst_type2::edge_type, typename fst_type3::edge_type>;
-        using vertex_type = std::tuple<typename fst_type1::vertex_type,
-            typename fst_type2::vertex_type, typename fst_type3::vertex_type>;
+        using edge = std::tuple<typename fst_type1::edge,
+            typename fst_type2::edge, typename fst_type3::edge>;
+        using vertex = std::tuple<typename fst_type1::vertex,
+            typename fst_type2::vertex, typename fst_type3::vertex>;
 
         std::shared_ptr<fst_type1> fst1;
         std::shared_ptr<fst_type2> fst2;
         std::shared_ptr<fst_type3> fst3;
 
-        std::vector<vertex_type> vertices() const
+        std::vector<vertex> vertices() const
         {
-            std::vector<vertex_type> result;
+            std::vector<vertex> result;
 
             for (auto& v1: fst1->vertices()) {
                 for (auto& v2: fst2->vertices()) {
@@ -289,9 +289,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<edge_type> edges() const
+        std::vector<edge> edges() const
         {
-            std::vector<edge_type> result;
+            std::vector<edge> result;
 
             for (auto& e1: fst1->edges()) {
                 for (auto& e2: fst2->edges()) {
@@ -307,9 +307,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<edge_type> in_edges(vertex_type const& v) const
+        std::vector<edge> in_edges(vertex const& v) const
         {
-            std::vector<edge_type> result;
+            std::vector<edge> result;
 
             auto& e2_set = fst2->in_edges_map(std::get<1>(v));
             auto& e3_set = fst3->in_edges_map(std::get<2>(v));
@@ -333,9 +333,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<edge_type> out_edges(vertex_type const& v) const
+        std::vector<edge> out_edges(vertex const& v) const
         {
-            std::vector<edge_type> result;
+            std::vector<edge> result;
 
             auto& e2_set = fst2->out_edges_map(std::get<1>(v));
             auto& e3_set = fst3->out_edges_map(std::get<2>(v));
@@ -359,29 +359,29 @@ namespace fst {
             return result;
         }
 
-        real weight(edge_type const& e) const
+        real weight(edge const& e) const
         {
             return fst1->weight(std::get<0>(e)) + fst2->weight(std::get<1>(e))
                 + fst3->weight(std::get<2>(e));
         }
 
-        vertex_type tail(edge_type const& e) const
+        vertex tail(edge const& e) const
         {
             return std::make_tuple(fst1->tail(std::get<0>(e)),
                 fst2->tail(std::get<1>(e)),
                 fst3->tail(std::get<2>(e)));
         }
 
-        vertex_type head(edge_type const& e) const
+        vertex head(edge const& e) const
         {
             return std::make_tuple(fst1->head(std::get<0>(e)),
                 fst2->head(std::get<1>(e)),
                 fst3->head(std::get<2>(e)));
         }
 
-        std::vector<vertex_type> initials() const
+        std::vector<vertex> initials() const
         {
-            std::vector<vertex_type> result;
+            std::vector<vertex> result;
 
             for (auto i1: fst1->initials()) {
                 for (auto i2: fst2->initials()) {
@@ -394,9 +394,9 @@ namespace fst {
             return result;
         }
 
-        std::vector<vertex_type> finals() const
+        std::vector<vertex> finals() const
         {
-            std::vector<vertex_type> result;
+            std::vector<vertex> result;
 
             for (auto i1: fst1->finals()) {
                 for (auto i2: fst2->finals()) {
@@ -409,12 +409,12 @@ namespace fst {
             return result;
         }
 
-        std::string input(edge_type const& e) const
+        std::string input(edge const& e) const
         {
             return fst1->input(std::get<0>(e));
         }
 
-        std::string output(edge_type const& e) const
+        std::string output(edge const& e) const
         {
             return fst3->output(std::get<2>(e));
         }
@@ -423,16 +423,16 @@ namespace fst {
 
     template <class fst_type>
     struct beam_search {
-        using vertex_type = typename fst_type::vertex_type;
-        using edge_type = typename fst_type::edge_type;
+        using vertex = typename fst_type::vertex;
+        using edge = typename fst_type::edge;
 
-        std::unordered_map<vertex_type, real> score;
-        std::unordered_map<vertex_type, edge_type> pi;
+        std::unordered_map<vertex, real> score;
+        std::unordered_map<vertex, edge> pi;
 
         void search(fst_type const& fst, int top_k)
         {
-            ebt::MaxHeap<vertex_type, real> to_expand;
-            std::unordered_set<vertex_type> to_expand_set;
+            ebt::MaxHeap<vertex, real> to_expand;
+            std::unordered_set<vertex> to_expand_set;
 
             for (auto& i: fst.initials()) {
                 to_expand.insert(i, 0);
@@ -442,15 +442,15 @@ namespace fst {
             real inf = std::numeric_limits<real>::infinity();
 
             while (to_expand.size() > 0) {
-                ebt::MaxHeap<vertex_type, real> expanded;
-                std::unordered_set<vertex_type> expanded_set;
+                ebt::MaxHeap<vertex, real> expanded;
+                std::unordered_set<vertex> expanded_set;
 
                 while (to_expand.size()) {
                     auto v = to_expand.extract_max();
                     to_expand_set.erase(v);
 
                     for (auto& e: fst.out_edges(v)) {
-                        vertex_type const& head = fst.head(e);
+                        vertex const& head = fst.head(e);
                         real s = fst.weight(e) + score.at(v);
                         if (s > ebt::get(score, head, -inf)) {
                             score[head] = s;
@@ -486,7 +486,7 @@ namespace fst {
 
             double inf = std::numeric_limits<double>::infinity();
             double max = -inf;
-            vertex_type argmax;
+            vertex argmax;
             for (auto& f: fst.finals()) {
                 if (ebt::get(score, f, -inf) > max) {
                     max = ebt::get(score, f, -inf);
@@ -496,7 +496,7 @@ namespace fst {
             result.finals.push_back(argmax);
             result.vertices.push_back(argmax);
 
-            auto add_edge = [&](edge_type const& e) {
+            auto add_edge = [&](edge const& e) {
                 result.vertices.push_back(fst.tail(e));
                 result.edges.push_back(e);
                 result.in_edges[fst.head(e)].push_back(e);
@@ -524,19 +524,19 @@ namespace fst {
     template <class fst_type>
     struct forward_one_best {
 
-        using vertex_type = typename fst_type::vertex_type;
-        using edge_type = typename fst_type::edge_type;
+        using vertex = typename fst_type::vertex;
+        using edge = typename fst_type::edge;
 
         struct extra_data {
-            edge_type pi;
+            edge pi;
             real value;
         };
 
-        std::unordered_map<vertex_type, extra_data> extra;
+        std::unordered_map<vertex, extra_data> extra;
 
-        void merge(fst_type const& fst, std::vector<vertex_type> const& order)
+        void merge(fst_type const& fst, std::vector<vertex> const& order)
         {
-            auto get_value = [&](vertex_type v) {
+            auto get_value = [&](vertex v) {
                 real inf = std::numeric_limits<real>::infinity();
 
                 if (!ebt::in(v, extra)) {
@@ -548,17 +548,24 @@ namespace fst {
 
             for (auto& u: order) {
                 real max = get_value(u);
-                edge_type argmax;
+                edge argmax;
                 bool update = false;
 
-                for (auto&& e: fst.in_edges(u)) {
-                    vertex_type v = fst.tail(e);
+                std::vector<edge> edges = fst.in_edges(u);
+                std::vector<double> candidate_value;
+                candidate_value.resize(edges.size());
 
-                    real candidate_value = get_value(v) + fst.weight(e);
+                #pragma omp parallel for
+                for (int i = 0; i < edges.size(); ++i) {
+                    edge& e = edges[i];
+                    vertex v = fst.tail(e);
+                    candidate_value[i] = get_value(v) + fst.weight(e);
+                }
 
-                    if (candidate_value > max) {
-                        max = candidate_value;
-                        argmax = e;
+                for (int i = 0; i < edges.size(); ++i) {
+                    if (candidate_value[i] > max) {
+                        max = candidate_value[i];
+                        argmax = edges[i];
                         update = true;
                     }
                 }
@@ -573,7 +580,7 @@ namespace fst {
         {
             real inf = std::numeric_limits<real>::infinity();
             real max = -inf;
-            vertex_type argmax;
+            vertex argmax;
 
             for (auto v: fst.finals()) {
                 if (ebt::in(v, extra) && extra.at(v).value > max) {
@@ -591,17 +598,17 @@ namespace fst {
                 return p;
             }
 
-            vertex_type u = argmax;
+            vertex u = argmax;
 
             result.vertices.push_back(u);
 
             auto initials = fst.initials();
-            std::unordered_set<vertex_type> initial_set { initials.begin(), initials.end() };
+            std::unordered_set<vertex> initial_set { initials.begin(), initials.end() };
 
             while (!ebt::in(u, initial_set)) {
-                edge_type e = extra.at(u).pi;
+                edge e = extra.at(u).pi;
 
-                vertex_type v = fst.tail(e);
+                vertex v = fst.tail(e);
 
                 result.edges.push_back(e);
                 result.in_edges[u].push_back(e);
@@ -632,19 +639,19 @@ namespace fst {
     template <class fst_type>
     struct backward_one_best {
 
-        using vertex_type = typename fst_type::vertex_type;
-        using edge_type = typename fst_type::edge_type;
+        using vertex = typename fst_type::vertex;
+        using edge = typename fst_type::edge;
 
         struct extra_data {
-            edge_type pi;
+            edge pi;
             real value;
         };
 
-        std::unordered_map<vertex_type, extra_data> extra;
+        std::unordered_map<vertex, extra_data> extra;
 
-        void merge(fst_type const& fst, std::vector<vertex_type> const& order)
+        void merge(fst_type const& fst, std::vector<vertex> const& order)
         {
-            auto get_value = [&](vertex_type v) {
+            auto get_value = [&](vertex v) {
                 real inf = std::numeric_limits<real>::infinity();
 
                 if (!ebt::in(v, extra)) {
@@ -656,11 +663,11 @@ namespace fst {
 
             for (auto& u: order) {
                 real max = get_value(u);
-                edge_type argmax;
+                edge argmax;
                 bool update = false;
 
                 for (auto&& e: fst.out_edges(u)) {
-                    vertex_type v = fst.head(e);
+                    vertex v = fst.head(e);
 
                     real candidate_value = get_value(v) + fst.weight(e);
                     if (candidate_value > max) {
@@ -680,7 +687,7 @@ namespace fst {
         {
             real inf = std::numeric_limits<real>::infinity();
             real max = -inf;
-            vertex_type argmax;
+            vertex argmax;
 
             for (auto v: fst.initials()) {
                 if (ebt::in(v, extra) && extra.at(v).value > max) {
@@ -698,16 +705,16 @@ namespace fst {
                 return p;
             }
 
-            vertex_type u = argmax;
+            vertex u = argmax;
             result.vertices.push_back(u);
 
             auto finals = fst.finals();
-            std::unordered_set<vertex_type> final_set { finals.begin(), finals.end() };
+            std::unordered_set<vertex> final_set { finals.begin(), finals.end() };
 
             while (!ebt::in(u, final_set)) {
-                edge_type e = extra.at(u).pi;
+                edge e = extra.at(u).pi;
 
-                vertex_type v = fst.head(e);
+                vertex v = fst.head(e);
 
                 result.edges.push_back(e);
                 result.in_edges[v].push_back(e);
@@ -733,16 +740,16 @@ namespace fst {
     struct lazy_k_best {
         struct card_t {
             double value;
-            typename fst_type::edge_type edge;
+            typename fst_type::edge edge;
             int index;
         };
 
-        std::unordered_map<typename fst_type::vertex_type, std::vector<card_t>> deck;
+        std::unordered_map<typename fst_type::vertex, std::vector<card_t>> deck;
 
-        std::unordered_map<typename fst_type::edge_type, int> tail_index;
+        std::unordered_map<typename fst_type::edge, int> tail_index;
 
         void one_best(fst_type const& fst,
-            std::vector<typename fst_type::vertex_type> const& topo_order)
+            std::vector<typename fst_type::vertex> const& topo_order)
         {
             double inf = std::numeric_limits<double>::infinity();
 
@@ -750,14 +757,14 @@ namespace fst {
                 auto edges = fst.in_edges(v);
 
                 if (edges.size() == 0) {
-                    deck[v].push_back(card_t {0, typename fst_type::edge_type {}, -1});
+                    deck[v].push_back(card_t {0, typename fst_type::edge {}, -1});
                 } else {
                     for (auto& e: edges) {
                         tail_index[e] = 0;
                     }
 
                     double max = -inf;
-                    typename fst_type::edge_type argmax;
+                    typename fst_type::edge argmax;
 
                     for (auto& e: edges) {
                         double score = deck.at(fst.tail(e)).at(0).value + fst.weight(e);
@@ -774,9 +781,9 @@ namespace fst {
         }
 
         path<fst_type> backtrack(fst_type const& fst,
-            typename fst_type::vertex_type const& v, int index)
+            typename fst_type::vertex const& v, int index)
         {
-            std::vector<typename fst_type::edge_type> edges;
+            std::vector<typename fst_type::edge> edges;
 
             auto u = v;
             int i = index;
@@ -790,7 +797,7 @@ namespace fst {
 
                 edges.push_back(c.edge);
 
-                typename fst_type::edge_type e = c.edge;
+                typename fst_type::edge e = c.edge;
                 u = fst.tail(e);
                 i = c.index;
             }
@@ -818,7 +825,7 @@ namespace fst {
                 auto edges = fst.in_edges(fst.head(e));
 
                 double max = -inf;
-                typename fst_type::edge_type argmax;
+                typename fst_type::edge argmax;
 
                 for (auto& e2: edges) {
                     if (tail_index.at(e2) == -1) {
@@ -841,17 +848,17 @@ namespace fst {
     };
 
     template <class fst>
-    std::vector<typename fst::vertex_type> topo_order(fst const& f)
+    std::vector<typename fst::vertex> topo_order(fst const& f)
     {
         enum class action_t {
             color_grey,
             color_black
         };
 
-        std::vector<std::pair<action_t, typename fst::vertex_type>> stack;
-        std::unordered_set<typename fst::vertex_type> traversed;
+        std::vector<std::pair<action_t, typename fst::vertex>> stack;
+        std::unordered_set<typename fst::vertex> traversed;
 
-        std::vector<typename fst::vertex_type> order;
+        std::vector<typename fst::vertex> order;
 
         for (auto& v: f.initials()) {
             stack.push_back(std::make_pair(action_t::color_grey, v));
@@ -859,7 +866,7 @@ namespace fst {
 
         while (stack.size() > 0) {
             action_t a;
-            typename fst::vertex_type v;
+            typename fst::vertex v;
             std::tie(a, v) = stack.back();
             stack.pop_back();
 
