@@ -354,9 +354,7 @@ namespace segfeat {
 
             check_dim(frames, capped_start_dim, capped_end_dim);
 
-            std::vector<double> result;
             int length = capped_end_dim - capped_start_dim + 1;
-            result.resize(3 * length);
 
             if (start_time >= end_time) {
                 return;
@@ -393,9 +391,7 @@ namespace segfeat {
 
             check_dim(frames, capped_start_dim, capped_end_dim);
 
-            std::vector<double> result;
             int length = capped_end_dim - capped_start_dim + 1;
-            result.resize(3 * length);
 
             if (start_time >= end_time) {
                 return;
