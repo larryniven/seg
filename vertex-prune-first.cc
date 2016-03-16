@@ -12,6 +12,7 @@
 struct pruning_env {
 
     std::ifstream frame_batch;
+    std::ifstream lattice_batch;
     int min_seg;
     int max_seg;
     scrf::first_order::param_t param;
@@ -36,7 +37,7 @@ struct pruning_env {
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
-        "prune-first",
+        "vertex-prune-first",
         "Prune lattice with segmental CRF",
         {
             {"frame-batch", "", true},
@@ -121,7 +122,8 @@ void pruning_env::run()
 
         scrf::first_order::feat_dim_alloc alloc { labels };
 
-        scrf::first_order::composite_feature graph_feat_func = scrf::first_order::make_feat(alloc, features, frames);
+        scrf::first_order::composite_feature graph_feat_func
+            = scrf::first_order::make_feat(alloc, features, frames);
 
         scrf::first_order::scrf_t graph = scrf::first_order::make_graph_scrf(frames.size(),
             labels, min_seg, max_seg);
@@ -166,30 +168,6 @@ void pruning_env::run()
             }
         };
 
-        real sum = 0;
-        real max = -inf;
-
-        int edge_count = 0;
-
-        for (auto& e: edges) {
-            auto tail = graph.tail(e);
-            auto head = graph.head(e);
-
-            int tail_time = graph.fst->time(tail);
-            int head_time = graph.fst->time(head);
-
-            real s = fb_alpha(tail) + graph.weight(e) + fb_beta(head);
-
-            if (s > max) {
-                max = s;
-            }
-
-            if (s != -inf) {
-                sum += s;
-                ++edge_count;
-            }
-        }
-
         real b_max = -inf;
 
         for (auto& i: graph.initials()) {
@@ -206,75 +184,46 @@ void pruning_env::run()
             }
         }
 
-        real threshold = alpha * max + (1 - alpha) * sum / edge_count;
-
         std::cout << "frames: " << frames.size() << std::endl;
-        std::cout << "max: " << max << " avg: " << sum / edge_count
-            << " threshold: " << threshold << std::endl;
         std::cout << "forward: " << f_max << " backward: " << b_max << std::endl;
 
         lattice::fst_data result;
 
         std::unordered_map<int, int> vertex_map;
+        std::unordered_map<int, int> edge_map;
 
-        std::vector<int> stack;
-        std::unordered_set<int> traversed;
+        std::vector<int> vertices = graph.vertices();
 
-        for (auto v: graph.initials()) {
-            stack.push_back(v);
-            traversed.insert(v);
+        double min = inf;
+        double max = -inf;
+
+        for (auto& v: vertices) {
+            double s = fb_alpha(v) + fb_beta(v);
+
+            if (s < min) {
+                min = s;
+            }
+
+            if (s > max) {
+                max = s;
+            }
         }
 
-        while (stack.size() > 0) {
-            auto u = stack.back();
-            stack.pop_back();
+        for (auto& v: vertices) {
+            if (fb_alpha(v) + fb_beta(v) > min + (max - min) * alpha) {
+                int id = vertex_map.size();
+                vertex_map[v] = id;
+                lattice::add_vertex(result, id, graph.fst->time(v));
+            }
+        }
 
-            for (auto&& e: graph.out_edges(u)) {
-                auto tail = graph.tail(e);
-                auto head = graph.head(e);
-
-                real weight = graph.weight(e);
-
-                if (fb_alpha(tail) + weight + fb_beta(head) > threshold) {
-
-                    if (!ebt::in(tail, vertex_map)) {
-                        int v = vertex_map.size();
-                        vertex_map[tail] = v;
-                        result.vertices.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.in_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.out_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.in_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.out_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.vertices.at(v).time = graph.fst->time(tail);
-                    }
-
-                    if (!ebt::in(head, vertex_map)) {
-                        int v = vertex_map.size();
-                        vertex_map[head] = v;
-                        result.vertices.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.in_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.out_edges.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.in_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.out_edges_map.resize(std::max<int>(result.vertices.size(), v + 1));
-                        result.vertices.at(v).time = graph.fst->time(head);
-                    }
-
-                    int tail_new = vertex_map.at(tail);
-                    int head_new = vertex_map.at(head);
-                    int e_new = result.edges.size();
-
-                    result.edges.push_back(lattice::edge_data { tail_new,
-                        head_new, weight, id_label[graph.output(e)] });
-
-                    result.in_edges[head_new].push_back(e_new);
-                    result.out_edges[tail_new].push_back(e_new);
-                    result.in_edges_map[head_new][id_label[graph.output(e)]].push_back(e_new);
-                    result.out_edges_map[tail_new][id_label[graph.output(e)]].push_back(e_new);
-
-                    if (!ebt::in(head, traversed)) {
-                        stack.push_back(head);
-                        traversed.insert(head);
-                    }
+        for (auto& p: vertex_map) {
+            for (auto e: graph.out_edges(p.first)) {
+                if (ebt::in(graph.head(e), vertex_map)) {
+                    int id = edge_map.size();
+                    edge_map[e] = id;
+                    lattice::add_edge(result, id, id_label[graph.output(e)],
+                        vertex_map.at(graph.tail(e)), vertex_map.at(graph.head(e)), graph.weight(e));
                 }
             }
         }

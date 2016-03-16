@@ -26,6 +26,7 @@ bin = libscrf.a \
     prune-first \
     beam-prune \
     vertex-prune \
+    vertex-prune-first \
     oracle-error \
     forced-align
 
@@ -83,6 +84,9 @@ beam-prune: beam-prune.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 vertex-prune: vertex-prune.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
+vertex-prune-first: vertex-prune-first.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 oracle-error: oracle-error.o lm.o lattice.o

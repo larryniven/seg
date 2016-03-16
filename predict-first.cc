@@ -35,7 +35,7 @@ struct prediction_env {
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
-        "predict",
+        "predict-first",
         "Predict segment labels with segmental CRF",
         {
             {"frame-batch", "", false},

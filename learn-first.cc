@@ -45,7 +45,7 @@ struct learning_env {
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
-        "learn",
+        "learn-first",
         "Learn segmental CRF",
         {
             {"frame-batch", "", true},
