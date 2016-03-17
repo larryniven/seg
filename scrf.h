@@ -81,7 +81,7 @@ namespace scrf {
         std::shared_ptr<fst_type> fst;
         std::shared_ptr<weight_func_t> weight_func;
         std::shared_ptr<feature_func_t> feature_func;
-        std::shared_ptr<feature_func_t> cost_func;
+        std::shared_ptr<weight_func_t> cost_func;
 
         std::vector<vertex> vertices() const
         {
@@ -143,9 +143,9 @@ namespace scrf {
             (*feature_func)(f, *fst, e);
         }
 
-        void cost(edge const& e) const
+        double cost(edge const& e) const
         {
-            return (*cost_func)(e);
+            return (*cost_func)(*fst, e);
         }
 
     };

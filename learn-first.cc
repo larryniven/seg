@@ -222,7 +222,7 @@ void learning_env::run()
             scrf::first_order::score::linear_score(param,
                 std::make_shared<scrf::first_order::composite_feature>(graph_feat_func))));
         weight.weights.push_back(std::make_shared<scrf::first_order::seg_cost>(
-            scrf::first_order::make_overlap_cost(gold_path, sils)));
+            scrf::first_order::make_overlap_cost(ground_truth_path, sils)));
 
         graph.weight_func = std::make_shared<scrf::first_order::composite_weight>(weight);
         graph.feature_func = std::make_shared<scrf::first_order::composite_feature>(graph_feat_func);

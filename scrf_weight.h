@@ -34,53 +34,6 @@ namespace scrf {
 
         };
 
-        struct label_score
-            : public scrf_weight {
-
-            param_t const& param;
-            std::shared_ptr<scrf_feature> feat;
-
-            mutable std::unordered_map<std::string, real> cache;
-
-            label_score(param_t const& param,
-                std::shared_ptr<scrf_feature> feat);
-
-            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const override;
-            
-        };
-
-        struct lm_score
-            : public scrf_weight {
-
-            param_t const& param;
-            std::shared_ptr<scrf_feature> feat;
-
-            mutable std::unordered_map<int, real> cache;
-
-            lm_score(param_t const& param,
-                std::shared_ptr<scrf_feature> feat);
-
-            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const override;
-            
-        };
-
-        struct lattice_score
-            : public scrf_weight {
-
-            param_t const& param;
-            std::shared_ptr<scrf_feature> feat;
-
-            mutable std::unordered_map<std::tuple<int, std::string>, real> cache;
-
-            lattice_score(param_t const& param,
-                std::shared_ptr<scrf_feature> feat);
-
-            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const override;
-            
-        };
     }
 
     composite_weight make_weight(

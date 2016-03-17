@@ -160,17 +160,20 @@ void learning_env::run()
         gold.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(features, param, gold_feat_func));
         gold.feature_func = std::make_shared<scrf::composite_feature>(gold_feat_func);
+        gold.cost_func = std::make_shared<scrf::seg_cost>(
+            scrf::make_overlap_cost(ground_truth_path));
 
         scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
 
         scrf::scrf_t graph = scrf::make_lat_scrf(lat, lm);
 
-        graph.weight_func =
-            graph.weight_func = std::make_shared<scrf::composite_weight>(
+        graph.weight_func = std::make_shared<scrf::composite_weight>(
                 scrf::make_weight(features, param, graph_feat_func))
             + std::make_shared<scrf::seg_cost>(
-                scrf::make_overlap_cost(gold_path));
+                scrf::make_overlap_cost(ground_truth_path));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
+        graph.cost_func = std::make_shared<scrf::seg_cost>(
+            scrf::make_overlap_cost(ground_truth_path));
 
         std::shared_ptr<scrf::loss_func> loss_func;
         loss_func = std::make_shared<scrf::hinge_loss>(scrf::hinge_loss { gold_path, graph });
@@ -185,6 +188,9 @@ void learning_env::run()
 
         if (ell < 0) {
             std::cout << "loss is less than zero.  skipping." << std::endl;
+            scrf::save_param(param, "param-debug");
+            scrf::save_param(opt_data, "opt-data-debug");
+            exit(1);
         }
 
         std::cout << std::endl;

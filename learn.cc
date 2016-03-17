@@ -216,7 +216,7 @@ void learning_env::run()
             std::make_shared<scrf::composite_weight>(
                 scrf::make_weight(features, param, graph_feat_func))
             + std::make_shared<scrf::seg_cost>(
-                scrf::make_overlap_cost(gold_path));
+                scrf::make_overlap_cost(ground_truth_path));
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         std::shared_ptr<scrf::loss_func> loss_func;
