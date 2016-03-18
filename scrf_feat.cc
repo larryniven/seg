@@ -106,8 +106,8 @@ namespace scrf {
         }
 
         frame_feature::frame_feature(std::vector<std::vector<double>> const& frames,
-            std::unordered_map<std::string, int> const& phone_id)
-            : frames(frames), phone_id(phone_id)
+            std::unordered_map<std::string, int> const& label_dim)
+            : frames(frames), label_dim(label_dim)
         {}
         
         void frame_feature::operator()(
@@ -120,8 +120,9 @@ namespace scrf {
             int head_time = std::min<int>(frames.size(), lat.data->vertices.at(std::get<0>(fst.head(e))).time);
 
             double sum = 0;
+            int dim = label_dim.at(fst.output(e));
             for (int i = tail_time; i < head_time; ++i) {
-                sum += frames[i][phone_id.at(fst.output(e))];
+                sum += frames[i][dim];
             }
 
             feat.class_vec[""].push_back(sum);
@@ -220,8 +221,9 @@ namespace scrf {
             }
 
             frame_feature::frame_feature(feat_dim_alloc& alloc,
-                    std::vector<std::vector<double>> const& frames)
-                : alloc(alloc), frames(frames)
+                    std::vector<std::vector<double>> const& frames,
+                    std::vector<int> id_dim)
+                : alloc(alloc), frames(frames), id_dim(id_dim)
             {
                 dim = alloc.alloc(0, 1);
             }
@@ -231,8 +233,10 @@ namespace scrf {
             {
                 double sum = 0;
 
+                int f_dim = id_dim[fst.output(e)];
+
                 for (int i = fst.time(fst.tail(e)); i < fst.time(fst.head(e)); ++i) {
-                    sum += frames[i][fst.output(e)];
+                    sum += frames[i][f_dim];
                 }
 
                 if (feat.class_vec.size() == 0) {

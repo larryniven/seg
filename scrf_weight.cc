@@ -43,6 +43,27 @@ namespace scrf {
             return s;
         }
 
+        cached_linear_score::cached_linear_score(param_t const& param,
+                std::shared_ptr<scrf_feature> feat)
+            : param(param), feat(feat)
+        {}
+
+        real cached_linear_score::operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            if (ebt::in(e, cache)) {
+                return cache.at(e);
+            }
+
+            feat_t f;
+            (*feat)(f, fst, e);
+            real s = dot(param, to_param(std::move(f)));
+
+            cache[e] = s;
+
+            return s;
+        }
+
     }
 
     composite_weight make_weight(

@@ -149,8 +149,11 @@ void pruning_env::run()
             graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
             graph.topo_order = graph.vertices();
         }
-        graph.weight_func = std::make_shared<scrf::composite_weight>(
-            scrf::make_weight(features, param, graph_feat_func));
+
+        graph.weight_func = std::make_shared<scrf::score::cached_linear_score>(
+            scrf::score::cached_linear_score { param,
+            std::make_shared<scrf::composite_feature>(graph_feat_func) });
+
         graph.feature_func = std::make_shared<scrf::composite_feature>(graph_feat_func);
 
         auto edges = graph.edges();

@@ -19,7 +19,7 @@ namespace scrf {
     composite_feature make_feat(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& frames,
-        std::unordered_map<std::string, int> const& phone_id)
+        std::unordered_map<std::string, int> const& label_dim)
     {
         composite_feature result;
 
@@ -102,7 +102,7 @@ namespace scrf {
                     frames)));
             } else if (ebt::startswith(k, "frame")) {
                 result.features.push_back(std::make_shared<feature::frame_feature>(
-                    feature::frame_feature { frames, phone_id }));
+                    feature::frame_feature { frames, label_dim }));
             } else if (ebt::startswith(k, "lm-score")) {
                 result.features.push_back(std::make_shared<feature::lm_score>(
                     feature::lm_score{}));
@@ -161,7 +161,8 @@ namespace scrf {
         composite_feature make_feat(
             feat_dim_alloc& alloc,
             std::vector<std::string> features,
-            std::vector<std::vector<real>> const& frames)
+            std::vector<std::vector<real>> const& frames,
+            std::vector<int> const& id_dim)
         {
             composite_feature result;
 
@@ -244,7 +245,7 @@ namespace scrf {
                         frames)));
                 } else if (ebt::startswith(k, "frame")) {
                     result.features.push_back(std::make_shared<feature::frame_feature>(
-                        feature::frame_feature { alloc, frames }));
+                        feature::frame_feature { alloc, frames, id_dim }));
                 } else if (ebt::startswith(k, "lattice-score")) {
                     result.features.push_back(std::make_shared<feature::lattice_score>(
                         feature::lattice_score { alloc }));

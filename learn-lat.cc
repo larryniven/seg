@@ -26,6 +26,8 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
+    std::unordered_map<std::string, int> label_dim;
+
     std::vector<std::string> features;
 
     std::unordered_map<std::string, std::string> args;
@@ -53,7 +55,8 @@ int main(int argc, char *argv[])
             {"features", "", true},
             {"save-every", "", false},
             {"output-param", "", false},
-            {"output-opt-data", "", false}
+            {"output-opt-data", "", false},
+            {"logprob-label", "", false}
         }
     };
 
@@ -106,6 +109,12 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     if (ebt::in(std::string("output-opt-data"), args)) {
         output_opt_data = args.at("output-opt-data");
     }
+
+    if (ebt::in(std::string("logprob-label"), args)) {
+        label_dim = scrf::load_phone_id(args.at("logprob-label"));
+        label_dim["<s>"] = label_dim.at("sil");
+        label_dim["</s>"] = label_dim.at("sil");
+    }
 }
 
 void learning_env::run()
@@ -155,7 +164,7 @@ void learning_env::run()
         }
         gold_path.data->base_fst = &gold;
 
-        scrf::composite_feature gold_feat_func = scrf::make_feat(features, frames, {});
+        scrf::composite_feature gold_feat_func = scrf::make_feat(features, frames, label_dim);
 
         gold.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(features, param, gold_feat_func));
@@ -163,7 +172,7 @@ void learning_env::run()
         gold.cost_func = std::make_shared<scrf::seg_cost>(
             scrf::make_overlap_cost(ground_truth_path));
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, label_dim);
 
         scrf::scrf_t graph = scrf::make_lat_scrf(lat, lm);
 

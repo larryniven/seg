@@ -82,7 +82,7 @@ namespace scrf {
             : public scrf::scrf_feature {
         
             std::vector<std::vector<double>> const& frames;
-            std::unordered_map<std::string, int> const& phone_id;
+            std::unordered_map<std::string, int> const& label_dim;
         
             frame_feature(std::vector<std::vector<double>> const& frames,
                 std::unordered_map<std::string, int> const& phone_set);
@@ -167,11 +167,13 @@ namespace scrf {
                 : public scrf_feature {
             
                 frame_feature(feat_dim_alloc& alloc,
-                    std::vector<std::vector<double>> const& frames);
+                    std::vector<std::vector<double>> const& frames,
+                    std::vector<int> id_dim);
             
                 feat_dim_alloc& alloc;
                 int dim;
                 std::vector<std::vector<double>> const& frames;
+                std::vector<int> id_dim;
             
                 virtual void operator()(
                     param_t& feat, ilat::fst const& fst, int e) const;

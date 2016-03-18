@@ -34,6 +34,21 @@ namespace scrf {
 
         };
 
+        struct cached_linear_score
+            : public scrf_weight {
+
+            param_t const& param;
+            std::shared_ptr<scrf_feature> feat;
+
+            mutable std::unordered_map<std::tuple<int, int>, double> cache;
+
+            cached_linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
+
+            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
+        };
+
     }
 
     composite_weight make_weight(

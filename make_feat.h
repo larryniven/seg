@@ -15,7 +15,8 @@ namespace scrf {
         composite_feature make_feat(
             feat_dim_alloc& alloc,
             std::vector<std::string> features,
-            std::vector<std::vector<real>> const& frames);
+            std::vector<std::vector<real>> const& frames,
+            std::vector<int> const& id_dim);
 
     }
 

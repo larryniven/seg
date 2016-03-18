@@ -18,6 +18,8 @@ struct predict_env {
     std::shared_ptr<lm::fst> lm;
     scrf::param_t param;
 
+    std::unordered_map<std::string, int> label_dim;
+
     std::vector<std::string> features;
 
     std::unordered_map<std::string, std::string> args;
@@ -39,6 +41,7 @@ int main(int argc, char *argv[])
             {"lm", "", true},
             {"param", "", true},
             {"features", "", true},
+            {"logprob-label", "", false}
         }
     };
 
@@ -72,6 +75,12 @@ predict_env::predict_env(std::unordered_map<std::string, std::string> args)
     param = scrf::load_param(args.at("param"));
 
     features = ebt::split(args.at("features"), ",");
+
+    if (ebt::in(std::string("logprob-label"), args)) {
+        label_dim = scrf::load_phone_id(args.at("logprob-label"));
+        label_dim["<s>"] = label_dim.at("sil");
+        label_dim["</s>"] = label_dim.at("sil");
+    }
 }
 
 void predict_env::run()
@@ -92,7 +101,7 @@ void predict_env::run()
             break;
         }
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, label_dim);
 
         scrf::scrf_t graph = scrf::make_lat_scrf(lat, lm);
 

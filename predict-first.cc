@@ -23,6 +23,7 @@ struct prediction_env {
     std::unordered_map<std::string, int> label_id;
     std::vector<std::string> id_label;
     std::vector<int> labels;
+    std::vector<int> id_dim;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -43,7 +44,8 @@ int main(int argc, char *argv[])
             {"min-seg", "", false},
             {"param", "", true},
             {"features", "", true},
-            {"label", "", false}
+            {"label", "", true},
+            {"logprob-label", "", false}
         }
     };
 
@@ -62,6 +64,7 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
 prediction_env::prediction_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
@@ -89,6 +92,22 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
         labels.push_back(p.second);
         id_label[p.second] = p.first;
     }
+
+    if (ebt::in(std::string("logprob-label"), args)) {
+        std::unordered_map<std::string, int> logprob_label
+            = scrf::load_phone_id(args.at("logprob-label"));
+
+        id_dim.resize(id_label.size());
+        for (int i = 0; i < id_label.size(); ++i) {
+            if (i == label_id.at("<s>")) {
+                id_dim[i] = logprob_label.at("sil");
+            } else if (i == label_id.at("</s>")) {
+                id_dim[i] = logprob_label.at("sil");
+            } else {
+                id_dim[i] = logprob_label.at(id_label[i]);
+            }
+        }
+    }
 }
 
 void prediction_env::run()
@@ -114,7 +133,7 @@ void prediction_env::run()
         scrf::first_order::feat_dim_alloc alloc { labels };
 
         scrf::first_order::composite_feature graph_feat_func
-            = scrf::first_order::make_feat(alloc, features, frames);
+            = scrf::first_order::make_feat(alloc, features, frames, id_dim);
 
         graph.weight_func = std::make_shared<scrf::first_order::score::linear_score>(
             scrf::first_order::score::linear_score(param,
