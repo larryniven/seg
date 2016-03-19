@@ -70,7 +70,25 @@ namespace scrf {
 
         };
 
+        struct cached_seg_cost
+            : public scrf_weight {
+
+            cached_seg_cost(std::shared_ptr<segcost::first_order::cost> cost,
+                fst::path<scrf_t> const& gold_fst);
+
+            std::shared_ptr<segcost::first_order::cost> cost;
+            std::vector<segcost::first_order::segment> gold_segs;
+
+            mutable std::vector<double> cache;
+            mutable std::vector<bool> in_cache;
+
+            virtual real operator()(ilat::fst const& fst,
+                int e) const override;
+
+        };
+
         seg_cost make_overlap_cost(fst::path<scrf_t> const& gold_fst, std::vector<int> sils);
+        cached_seg_cost make_cached_overlap_cost(fst::path<scrf_t> const& gold_fst, std::vector<int> sils);
 
         struct neg_cost
             : public scrf_weight {

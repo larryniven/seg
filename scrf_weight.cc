@@ -143,8 +143,9 @@ namespace scrf {
                     in_cache.resize(fst.edges().size());
                     cache.resize(fst.edges().size());
                 }
+
                 cache[e] = s;
-                in_cache[e] = 1;
+                in_cache[e] = true;
 
                 return s;
             }

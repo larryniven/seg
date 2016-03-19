@@ -93,7 +93,7 @@ namespace scrf {
                 std::shared_ptr<scrf_feature> feat;
 
                 mutable std::vector<double> cache;
-                mutable std::vector<int> in_cache;
+                mutable std::vector<bool> in_cache;
 
                 cached_linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
 

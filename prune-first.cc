@@ -7,11 +7,13 @@
 #include "scrf/scrf_weight.h"
 #include "scrf/scrf_util.h"
 #include "scrf/make_feat.h"
+#include "scrf/scrf_cost.h"
 #include <fstream>
 
 struct pruning_env {
 
     std::ifstream frame_batch;
+    std::ifstream ground_truth_batch;
     int min_seg;
     int max_seg;
     scrf::first_order::param_t param;
@@ -25,6 +27,7 @@ struct pruning_env {
     std::vector<std::string> id_label;
     std::vector<int> labels;
     std::vector<int> id_dim;
+    std::vector<int> sils;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -41,6 +44,7 @@ int main(int argc, char *argv[])
         "Prune lattice with segmental CRF",
         {
             {"frame-batch", "", true},
+            {"gold-batch", "", false},
             {"max-seg", "", false},
             {"min-seg", "", false},
             {"param", "", true},
@@ -48,7 +52,8 @@ int main(int argc, char *argv[])
             {"alpha", "", true},
             {"output", "", true},
             {"label", "", true},
-            {"logprob-label", "", true}
+            {"logprob-label", "", false},
+            {"cost-aug", "", false}
         }
     };
 
@@ -85,6 +90,10 @@ pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
 
     param = scrf::first_order::load_param(args.at("param"));
 
+    if (ebt::in(std::string("gold-batch"), args)) {
+        ground_truth_batch.open(args.at("gold-batch"));
+    }
+
     features = ebt::split(args.at("features"), ",");
 
     alpha = std::stod(args.at("alpha"));
@@ -97,6 +106,10 @@ pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
         labels.push_back(p.second);
         id_label[p.second] = p.first;
     }
+
+    sils.push_back(label_id.at("<s>"));
+    sils.push_back(label_id.at("</s>"));
+    sils.push_back(label_id.at("sil"));
 
     if (ebt::in(std::string("logprob-label"), args)) {
         std::unordered_map<std::string, int> logprob_label
@@ -135,6 +148,20 @@ void pruning_env::run()
             }
         }
 
+        fst::path<scrf::first_order::scrf_t> ground_truth_path;
+        scrf::first_order::scrf_t ground_truth;
+
+        if (ebt::in(std::string("cost-aug"), args)) {
+            ilat::fst ground_truth_lat = ilat::load_lattice(ground_truth_batch, label_id);
+
+            if (!ground_truth_batch) {
+                break;
+            }
+
+            ground_truth.fst = std::make_shared<ilat::fst>(ground_truth_lat);
+            ground_truth_path = scrf::first_order::make_ground_truth_path(ground_truth);
+        }
+
         std::cout << i << ".lat" << std::endl;
 
         scrf::first_order::feat_dim_alloc alloc { labels };
@@ -145,9 +172,17 @@ void pruning_env::run()
         scrf::first_order::scrf_t graph = scrf::first_order::make_graph_scrf(frames.size(),
             labels, min_seg, max_seg);
 
-        graph.weight_func = std::make_shared<scrf::first_order::score::cached_linear_score>(
+        scrf::first_order::composite_weight weight;
+        weight.weights.push_back(std::make_shared<scrf::first_order::score::cached_linear_score>(
             scrf::first_order::score::cached_linear_score(param,
-                std::make_shared<scrf::first_order::composite_feature>(graph_feat_func)));
+                std::make_shared<scrf::first_order::composite_feature>(graph_feat_func))));
+
+        if (ebt::in(std::string("cost-aug"), args)) {
+            weight.weights.push_back(std::make_shared<scrf::first_order::cached_seg_cost>(
+                scrf::first_order::make_cached_overlap_cost(ground_truth_path, sils)));
+        }
+
+        graph.weight_func = std::make_shared<scrf::first_order::composite_weight>(weight);
         graph.feature_func = std::make_shared<scrf::first_order::composite_feature>(graph_feat_func);
 
         auto edges = graph.edges();

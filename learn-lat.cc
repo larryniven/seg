@@ -197,9 +197,6 @@ void learning_env::run()
 
         if (ell < 0) {
             std::cout << "loss is less than zero.  skipping." << std::endl;
-            scrf::save_param(param, "param-debug");
-            scrf::save_param(opt_data, "opt-data-debug");
-            exit(1);
         }
 
         std::cout << std::endl;

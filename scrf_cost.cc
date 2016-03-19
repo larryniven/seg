@@ -188,9 +188,54 @@ namespace scrf {
                 fst.time(tail), fst.time(head), fst.output(e) });
         }
 
+        cached_seg_cost::cached_seg_cost(std::shared_ptr<segcost::first_order::cost> cost,
+            fst::path<scrf_t> const& gold_fst)
+            : cost(cost)
+        {
+            auto& lat = *(gold_fst.data->base_fst->fst);
+
+            for (auto& e: gold_fst.edges()) {
+                int tail = lat.tail(e);
+                int head = lat.head(e);
+
+                gold_segs.push_back(segcost::first_order::segment {
+                    lat.time(tail), lat.time(head), gold_fst.output(e) });
+            }
+        }
+
+        real cached_seg_cost::operator()(ilat::fst const& fst,
+            int e) const
+        {
+            if (e < in_cache.size() && in_cache[e]) {
+                return cache[e];
+            }
+
+            int tail = fst.tail(e);
+            int head = fst.head(e);
+
+            double c = (*cost)(gold_segs, segcost::first_order::segment {
+                fst.time(tail), fst.time(head), fst.output(e) });
+
+            if (cache.size() == 0) {
+                cache.resize(fst.edges().size());
+                in_cache.resize(fst.edges().size());
+            }
+
+            cache[e] = c;
+            in_cache[e] = true;
+
+            return c;
+        }
+
         seg_cost make_overlap_cost(fst::path<scrf_t> const& gold_fst, std::vector<int> sils)
         {
             return seg_cost { std::make_shared<segcost::first_order::overlap_cost>(
+                segcost::first_order::overlap_cost { sils }), gold_fst };
+        }
+
+        cached_seg_cost make_cached_overlap_cost(fst::path<scrf_t> const& gold_fst, std::vector<int> sils)
+        {
+            return cached_seg_cost { std::make_shared<segcost::first_order::overlap_cost>(
                 segcost::first_order::overlap_cost { sils }), gold_fst };
         }
 
