@@ -64,7 +64,8 @@ int main(int argc, char *argv[])
             {"output-opt-data", "", false},
             {"loss", "", true},
             {"label", "", true},
-            {"logprob-label", "", false}
+            {"logprob-label", "", false},
+            {"loss-only", "", false}
         }
     };
 
@@ -302,7 +303,7 @@ void learning_env::run()
 
         std::cout << std::endl;
 
-        if (ell > 0) {
+        if (!ebt::in(std::string("loss-only"), args) && ell > 0) {
             if (ebt::in(std::string("momentum"), args)) {
                 scrf::first_order::const_step_update_momentum(param, std::move(param_grad),
                    opt_data, momentum, step_size);
@@ -325,8 +326,10 @@ void learning_env::run()
         ++i;
     }
 
-    scrf::first_order::save_param(param, output_param);
-    scrf::first_order::save_param(opt_data, output_opt_data);
+    if (!ebt::in(std::string("loss-only"), args)) {
+        scrf::first_order::save_param(param, output_param);
+        scrf::first_order::save_param(opt_data, output_opt_data);
+    }
 
 }
 
