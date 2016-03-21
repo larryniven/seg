@@ -18,7 +18,7 @@ struct pruning_env {
 
     std::vector<std::string> features;
 
-    real alpha;
+    double alpha;
     std::string output;
 
     std::unordered_map<std::string, int> label_id;
@@ -37,7 +37,7 @@ struct pruning_env {
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
-        "vertex-prune-first",
+        "beam-prune-first",
         "Prune lattice with segmental CRF",
         {
             {"frame-batch", "", true},
@@ -150,97 +150,72 @@ void pruning_env::run()
                 std::make_shared<scrf::first_order::composite_feature>(graph_feat_func)));
         graph.feature_func = std::make_shared<scrf::first_order::composite_feature>(graph_feat_func);
 
-        auto edges = graph.edges();
-
-        auto order = graph.topo_order;
-
-        fst::forward_one_best<scrf::first_order::scrf_t> forward;
-        for (auto v: graph.initials()) {
-            forward.extra[v] = {-1, 0};
-        }
-        forward.merge(graph, order);
-
-        std::reverse(order.begin(), order.end());
-        fst::backward_one_best<scrf::first_order::scrf_t> backward;
-        for (auto v: graph.finals()) {
-            backward.extra[v] = {-1, 0};
-        }
-        backward.merge(graph, order);
-
-        real inf = std::numeric_limits<real>::infinity();
-
-        auto fb_alpha = [&](int v) {
-            if (ebt::in(v, forward.extra)) {
-                return forward.extra[v].value;
-            } else {
-                return -inf;
-            }
-        };
-
-        auto fb_beta = [&](int v) {
-            if (ebt::in(v, forward.extra)) {
-                return backward.extra[v].value;
-            } else {
-                return -inf;
-            }
-        };
-
-        real b_max = -inf;
-
-        for (auto& i: graph.initials()) {
-            if (fb_beta(i) > b_max) {
-                b_max = fb_beta(i);
-            }
-        }
-
-        real f_max = -inf;
-
-        for (auto& f: graph.finals()) {
-            if (fb_alpha(f) > f_max) {
-                f_max = fb_alpha(f);
-            }
-        }
-
-        std::cout << "frames: " << frames.size() << std::endl;
-        std::cout << "forward: " << f_max << " backward: " << b_max << std::endl;
-
         lattice::fst_data result;
 
         std::unordered_map<int, int> vertex_map;
         std::unordered_map<int, int> edge_map;
 
-        std::vector<int> vertices = graph.vertices();
+        std::unordered_set<int> to_expand;
+        std::unordered_map<int, double> score;
 
-        double min = inf;
-        double max = -inf;
+        for (auto& i: graph.initials()) {
+            to_expand.insert(i);
+            score[i] = 0;
 
-        for (auto& v: vertices) {
-            double s = fb_alpha(v) + fb_beta(v);
-
-            if (s < min) {
-                min = s;
-            }
-
-            if (s > max) {
-                max = s;
-            }
+            int id = vertex_map.size();
+            vertex_map[i] = id;
+            lattice::add_vertex(result, id, graph.fst->time(i));
         }
 
-        for (auto& v: vertices) {
-            if (fb_alpha(v) + fb_beta(v) > min + (max - min) * alpha) {
-                int id = vertex_map.size();
-                vertex_map[v] = id;
-                lattice::add_vertex(result, id, graph.fst->time(v));
-            }
-        }
+        double inf = std::numeric_limits<double>::infinity();
 
-        for (auto& p: vertex_map) {
-            for (auto e: graph.out_edges(p.first)) {
-                if (ebt::in(graph.head(e), vertex_map)) {
-                    int id = edge_map.size();
-                    edge_map[e] = id;
-                    lattice::add_edge(result, id, id_label[graph.output(e)],
-                        vertex_map.at(graph.tail(e)), vertex_map.at(graph.head(e)), graph.weight(e));
+        for (int t = 0; t < graph.topo_order.size(); ++t) {
+
+            auto u = graph.topo_order[t];
+
+            if (ebt::in(u, to_expand)) {
+
+                to_expand.erase(u);
+
+                double max = -inf;
+                double min = inf;
+
+                for (auto e: graph.out_edges(u)) {
+                    auto v = graph.head(e);
+
+                    double candidate = ebt::get(score, u, -inf) + graph.weight(e);
+
+                    if (candidate > max) {
+                        max = candidate;
+                    }
+
+                    if (candidate < min) {
+                        min = candidate;
+                    }
+                }
+
+                for (auto e: graph.out_edges(u)) {
+                    auto v = graph.head(e);
+
+                    double candidate = ebt::get(score, u, -inf) + graph.weight(e);
+
+                    if (candidate > min + (max - min) * alpha) {
+                        if (!ebt::in(v, vertex_map)) {
+                            int id = vertex_map.size();
+                            vertex_map[v] = id;
+                            lattice::add_vertex(result, id, graph.fst->time(v));
+                        }
+
+                        int id = edge_map.size();
+                        edge_map[e] = id;
+                        lattice::add_edge(result, id, id_label[graph.output(e)],
+                            vertex_map.at(graph.tail(e)), vertex_map.at(graph.head(e)), graph.weight(e));
+
+                        if (candidate > ebt::get(score, v, -inf)) {
+                            score[v] = candidate;
+                            to_expand.insert(v);
+                        }
+                    }
                 }
             }
         }
@@ -252,7 +227,7 @@ void pruning_env::run()
 
         for (int i = 0; i < result_fst.vertices().size(); ++i) {
             ofs << i << " "
-                << "time=" << result_fst.time(i) << std::endl;
+                << "time=" << result_fst.data->vertices.at(i).time << std::endl;
         }
 
         ofs << "#" << std::endl;
@@ -266,6 +241,8 @@ void pruning_env::run()
                 << "weight=" << result.edges.at(e).weight << std::endl;
         }
         ofs << "." << std::endl;
+
+        auto edges = graph.edges();
 
         std::cout << "edges: " << edges.size() << " left: " << result.edges.size()
             << " (" << real(result.edges.size()) / edges.size() << ")" << std::endl;
