@@ -26,7 +26,7 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
-    std::unordered_map<std::string, int> label_dim;
+    std::unordered_map<std::string, std::vector<int>> label_dim;
 
     std::vector<std::string> features;
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
             {"save-every", "", false},
             {"output-param", "", false},
             {"output-opt-data", "", false},
-            {"logprob-label", "", false}
+            {"label-dim", "", false}
         }
     };
 
@@ -110,10 +110,8 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
-    if (ebt::in(std::string("logprob-label"), args)) {
-        label_dim = scrf::load_phone_id(args.at("logprob-label"));
-        label_dim["<s>"] = label_dim.at("sil");
-        label_dim["</s>"] = label_dim.at("sil");
+    if (ebt::in(std::string("label-dim"), args)) {
+        label_dim = scrf::load_label_dim(args.at("label-dim"));
     }
 }
 

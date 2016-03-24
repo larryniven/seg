@@ -19,7 +19,7 @@ namespace scrf {
     composite_feature make_feat(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& frames,
-        std::unordered_map<std::string, int> const& label_dim)
+        std::unordered_map<std::string, std::vector<int>> const& label_dim)
     {
         composite_feature result;
 
@@ -162,7 +162,7 @@ namespace scrf {
             feat_dim_alloc& alloc,
             std::vector<std::string> features,
             std::vector<std::vector<real>> const& frames,
-            std::vector<int> const& id_dim)
+            std::vector<std::vector<int>> const& label_dim)
         {
             composite_feature result;
 
@@ -245,7 +245,7 @@ namespace scrf {
                         frames)));
                 } else if (ebt::startswith(k, "frame")) {
                     result.features.push_back(std::make_shared<feature::frame_feature>(
-                        feature::frame_feature { alloc, frames, id_dim }));
+                        feature::frame_feature { alloc, frames, label_dim }));
                 } else if (ebt::startswith(k, "lattice-score")) {
                     result.features.push_back(std::make_shared<feature::lattice_score>(
                         feature::lattice_score { alloc }));

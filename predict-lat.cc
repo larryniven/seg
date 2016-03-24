@@ -18,7 +18,7 @@ struct predict_env {
     std::shared_ptr<lm::fst> lm;
     scrf::param_t param;
 
-    std::unordered_map<std::string, int> label_dim;
+    std::unordered_map<std::string, std::vector<int>> label_dim;
 
     std::vector<std::string> features;
 
@@ -76,10 +76,8 @@ predict_env::predict_env(std::unordered_map<std::string, std::string> args)
 
     features = ebt::split(args.at("features"), ",");
 
-    if (ebt::in(std::string("logprob-label"), args)) {
-        label_dim = scrf::load_phone_id(args.at("logprob-label"));
-        label_dim["<s>"] = label_dim.at("sil");
-        label_dim["</s>"] = label_dim.at("sil");
+    if (ebt::in(std::string("label-dim"), args)) {
+        label_dim = scrf::load_label_dim(args.at("label-dim"));
     }
 }
 

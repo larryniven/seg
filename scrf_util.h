@@ -32,6 +32,8 @@ namespace scrf {
 
     std::unordered_map<std::string, int> load_phone_id(std::string filename);
 
+    std::unordered_map<std::string, std::vector<int>> load_label_dim(std::string filename);
+
     namespace first_order {
 
         fst::path<scrf_t> make_min_cost_path(
@@ -45,6 +47,8 @@ namespace scrf {
         scrf_t make_graph_scrf(int frames,
             std::vector<int> const& labels, int min_seg, int max_seg);
 
+        std::vector<std::vector<int>> load_label_dim(std::string filename,
+            std::unordered_map<std::string, int> const& label_id);
     }
 
 }
