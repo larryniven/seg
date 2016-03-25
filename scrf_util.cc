@@ -231,24 +231,6 @@ namespace scrf {
         return result;
     }
 
-    std::unordered_map<std::string, std::vector<int>> load_label_dim(std::string filename)
-    {
-        std::unordered_map<std::string, std::vector<int>> result;
-        std::string line;
-        std::ifstream ifs { filename };
-    
-        while (std::getline(ifs, line)) {
-            auto parts = ebt::split(line);
-            std::vector<int> dims;
-            for (int i = 1; i < parts.size(); ++i) {
-                dims.push_back(std::stoi(parts[i]));
-            }
-            result[parts[0]] = dims;
-        }
-    
-        return result;
-    }
-
     namespace first_order {
 
         scrf_t make_graph_scrf(int frames,
@@ -310,27 +292,6 @@ namespace scrf {
             scrf_t& ground_truth)
         {
             return fst::make_path(ground_truth, ground_truth.edges());
-        }
-
-        std::vector<std::vector<int>> load_label_dim(std::string filename,
-            std::unordered_map<std::string, int> const& label_id)
-        {
-            std::vector<std::vector<int>> result;
-            result.resize(label_id.size());
-
-            std::string line;
-            std::ifstream ifs { filename };
-        
-            while (std::getline(ifs, line)) {
-                auto parts = ebt::split(line);
-                std::vector<int> dims;
-                for (int i = 1; i < parts.size(); ++i) {
-                    dims.push_back(std::stoi(parts[i]));
-                }
-                result[label_id.at(parts[0])] = dims;
-            }
-        
-            return result;
         }
 
     }

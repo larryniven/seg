@@ -45,7 +45,9 @@ int main(int argc, char *argv[])
             {"param", "", true},
             {"features", "", true},
             {"alpha", "", true},
-            {"output", "", true}
+            {"output", "", true},
+            {"label-dim", "", false},
+            {"length-stat", "", false}
         }
     };
 
@@ -117,7 +119,7 @@ void pruning_env::run()
 
         std::cout << i << ".lat" << std::endl;
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, {});
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, args);
 
         scrf::scrf_t graph;
 

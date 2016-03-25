@@ -7,6 +7,7 @@ obj = ilat.o \
     scrf_weight.o \
     segfeat.o \
     scrf_feat.o \
+    scrf_feat_util.o \
     segcost.o \
     scrf_cost.o \
     loss.o \

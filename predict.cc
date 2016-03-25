@@ -23,8 +23,6 @@ struct prediction_env {
 
     std::vector<std::string> features;
 
-    std::unordered_map<std::string, std::vector<int>> label_dim;
-
     std::unordered_map<std::string, std::string> args;
 
     prediction_env(std::unordered_map<std::string, std::string> args);
@@ -89,10 +87,6 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
     if (ebt::in(std::string("beam-width"), args)) {
         beam_width = std::stoi(args.at("beam-width"));
     }
-
-    if (ebt::in(std::string("label-dim"), args)) {
-        label_dim = scrf::load_label_dim(args.at("label-dim"));
-    }
 }
 
 void prediction_env::run()
@@ -116,7 +110,7 @@ void prediction_env::run()
 
         graph = scrf::make_graph_scrf(frames.size(), lm_output, min_seg, max_seg);
 
-        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, label_dim);
+        scrf::composite_feature graph_feat_func = scrf::make_feat(features, frames, args);
 
         graph.weight_func = std::make_shared<scrf::composite_weight>(
             scrf::make_weight(features, param, graph_feat_func));

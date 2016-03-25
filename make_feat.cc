@@ -19,7 +19,7 @@ namespace scrf {
     composite_feature make_feat(
         std::vector<std::string> features,
         std::vector<std::vector<real>> const& frames,
-        std::unordered_map<std::string, std::vector<int>> const& label_dim)
+        std::unordered_map<std::string, std::string> const& args)
     {
         composite_feature result;
 
@@ -102,7 +102,7 @@ namespace scrf {
                     frames)));
             } else if (ebt::startswith(k, "frame")) {
                 result.features.push_back(std::make_shared<feature::frame_feature>(
-                    feature::frame_feature { frames, label_dim }));
+                    feature::frame_feature { frames, args }));
             } else if (ebt::startswith(k, "lm-score")) {
                 result.features.push_back(std::make_shared<feature::lm_score>(
                     feature::lm_score{}));
@@ -147,6 +147,9 @@ namespace scrf {
                     std::make_shared<segfeat::bias>(
                         segfeat::bias {}),
                     frames)));
+            } else if (ebt::startswith(k, "quad-length")) {
+                result.features.push_back(std::make_shared<feature::quad_length>(
+                    feature::quad_length { args }));
             } else {
                 std::cerr << "unknown feature " << k << std::endl;
                 exit(1);
@@ -162,7 +165,7 @@ namespace scrf {
             feat_dim_alloc& alloc,
             std::vector<std::string> features,
             std::vector<std::vector<real>> const& frames,
-            std::vector<std::vector<int>> const& label_dim)
+            std::unordered_map<std::string, std::string> const& args)
         {
             composite_feature result;
 
@@ -245,7 +248,7 @@ namespace scrf {
                         frames)));
                 } else if (ebt::startswith(k, "frame")) {
                     result.features.push_back(std::make_shared<feature::frame_feature>(
-                        feature::frame_feature { alloc, frames, label_dim }));
+                        feature::frame_feature { alloc, frames, args }));
                 } else if (ebt::startswith(k, "lattice-score")) {
                     result.features.push_back(std::make_shared<feature::lattice_score>(
                         feature::lattice_score { alloc }));
@@ -287,6 +290,9 @@ namespace scrf {
                         std::make_shared<segfeat::la::bias>(
                             segfeat::la::bias {}),
                         frames)));
+                } else if (ebt::startswith(k, "quad-length")) {
+                    result.features.push_back(std::make_shared<feature::quad_length>(
+                        feature::quad_length { alloc, args }));
                 } else {
                     std::cerr << "unknown feature " << k << std::endl;
                     exit(1);

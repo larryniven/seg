@@ -45,7 +45,8 @@ int main(int argc, char *argv[])
             {"param", "", true},
             {"features", "", true},
             {"label", "", true},
-            {"label-dim", "", false}
+            {"label-dim", "", false},
+            {"length-stat", "", false}
         }
     };
 
@@ -92,10 +93,6 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
         labels.push_back(p.second);
         id_label[p.second] = p.first;
     }
-
-    if (ebt::in(std::string("label-dim"), args)) {
-        label_dim = scrf::first_order::load_label_dim(args.at("label-dim"), label_id);
-    }
 }
 
 void prediction_env::run()
@@ -121,7 +118,7 @@ void prediction_env::run()
         scrf::first_order::feat_dim_alloc alloc { labels };
 
         scrf::first_order::composite_feature graph_feat_func
-            = scrf::first_order::make_feat(alloc, features, frames, label_dim);
+            = scrf::first_order::make_feat(alloc, features, frames, args);
 
         graph.weight_func = std::make_shared<scrf::first_order::score::linear_score>(
             scrf::first_order::score::linear_score(param,

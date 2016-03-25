@@ -82,16 +82,38 @@ namespace scrf {
             : public scrf::scrf_feature {
         
             std::vector<std::vector<double>> const& frames;
-            std::unordered_map<std::string, std::vector<int>> const& label_dim;
+            std::unordered_map<std::string, std::vector<int>> label_dim;
         
             frame_feature(std::vector<std::vector<double>> const& frames,
-                std::unordered_map<std::string, std::vector<int>> const& phone_set);
+                std::unordered_map<std::string, std::string> const& args);
+
+            std::unordered_map<std::string, std::vector<int>>
+            load_label_dim(std::string filename);
         
             virtual void operator()(
                 feat_t& feat,
                 fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const;
+                std::tuple<int, int> const& e) const override;
         
+        };
+
+        struct quad_length
+            : public scrf_feature {
+
+            std::unordered_map<std::string, double> mean;
+            std::unordered_map<std::string, double> var;
+
+            quad_length(std::unordered_map<std::string, std::string> const& args);
+
+            std::tuple<std::unordered_map<std::string, double>,
+                std::unordered_map<std::string, double>>
+            load_length_stat(std::string filename) const;
+
+            virtual void operator()(
+                feat_t& feat,
+                fst::composed_fst<lattice::fst, lm::fst> const& fst,
+                std::tuple<int, int> const& e) const override;
+
         };
 
     }
@@ -116,17 +138,17 @@ namespace scrf {
         struct segment_feature
             : public scrf_feature {
 
-            segment_feature(
-                feat_dim_alloc& alloc,
-                int order,
-                std::shared_ptr<segfeat::la::feature> raw_feat_func,
-                std::vector<std::vector<real>> const& frames);
-
             feat_dim_alloc& alloc;
             int dim;
             int order;
             std::shared_ptr<segfeat::la::feature> feat_func;
             std::vector<std::vector<real>> const& frames;
+
+            segment_feature(
+                feat_dim_alloc& alloc,
+                int order,
+                std::shared_ptr<segfeat::la::feature> raw_feat_func,
+                std::vector<std::vector<real>> const& frames);
 
             virtual void operator()(
                 param_t& feat, ilat::fst const& fst, int e) const override;
@@ -137,10 +159,10 @@ namespace scrf {
             struct lattice_score
                 : public scrf_feature {
 
-                lattice_score(feat_dim_alloc& alloc);
-
                 feat_dim_alloc& alloc;
                 int dim;
+
+                lattice_score(feat_dim_alloc& alloc);
 
                 virtual void operator()(
                     param_t& feat, ilat::fst const& fst, int e) const override;
@@ -150,13 +172,13 @@ namespace scrf {
             struct external_feature
                 : public scrf_feature {
 
-                external_feature(feat_dim_alloc& alloc,
-                    int order, std::vector<int> dims);
-
                 feat_dim_alloc& alloc;
                 int dim;
                 int order;
                 std::vector<int> dims;
+
+                external_feature(feat_dim_alloc& alloc,
+                    int order, std::vector<int> dims);
 
                 virtual void operator()(
                     param_t& feat, ilat::fst const& fst, int e) const override;
@@ -166,18 +188,45 @@ namespace scrf {
             struct frame_feature
                 : public scrf_feature {
             
-                frame_feature(feat_dim_alloc& alloc,
-                    std::vector<std::vector<double>> const& frames,
-                    std::vector<std::vector<int>> id_dim);
-            
                 feat_dim_alloc& alloc;
                 int dim;
                 std::vector<std::vector<double>> const& frames;
+                std::unordered_map<std::string, int> label_id;
                 std::vector<std::vector<int>> id_dim;
             
-                virtual void operator()(
-                    param_t& feat, ilat::fst const& fst, int e) const;
+                frame_feature(feat_dim_alloc& alloc,
+                    std::vector<std::vector<double>> const& frames,
+                    std::unordered_map<std::string, std::string> const& args);
             
+                std::vector<std::vector<int>>
+                load_label_dim(std::string filename,
+                    std::unordered_map<std::string, int> const& label_id);
+
+                virtual void operator()(
+                    param_t& feat, ilat::fst const& fst, int e) const override;
+            
+            };
+
+            struct quad_length
+                : public scrf_feature {
+
+                feat_dim_alloc& alloc;
+                int dim;
+                std::vector<double> mean;
+                std::vector<double> var;
+                std::unordered_map<std::string, int> label_id;
+                std::vector<int> sils;
+
+                quad_length(feat_dim_alloc& alloc,
+                    std::unordered_map<std::string, std::string> const& args);
+
+                std::tuple<std::vector<double>, std::vector<double>>
+                load_length_stat(std::string filename,
+                    std::unordered_map<std::string, int> const& label_id) const;
+
+                virtual void operator()(
+                    param_t& feat, ilat::fst const& fst, int e) const override;
+
             };
 
         }

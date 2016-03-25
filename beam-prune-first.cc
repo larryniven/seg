@@ -24,7 +24,6 @@ struct pruning_env {
     std::unordered_map<std::string, int> label_id;
     std::vector<std::string> id_label;
     std::vector<int> labels;
-    std::vector<std::vector<int>> label_dim;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -48,7 +47,8 @@ int main(int argc, char *argv[])
             {"alpha", "", true},
             {"output", "", true},
             {"label", "", true},
-            {"label-dim", "", false}
+            {"label-dim", "", false},
+            {"length-stat", "", false},
         }
     };
 
@@ -97,10 +97,6 @@ pruning_env::pruning_env(std::unordered_map<std::string, std::string> args)
         labels.push_back(p.second);
         id_label[p.second] = p.first;
     }
-
-    if (ebt::in(std::string("logprob-label"), args)) {
-        label_dim = scrf::first_order::load_label_dim(args.at("label-dim"), label_id);
-    }
 }
 
 void pruning_env::run()
@@ -128,7 +124,7 @@ void pruning_env::run()
         scrf::first_order::feat_dim_alloc alloc { labels };
 
         scrf::first_order::composite_feature graph_feat_func
-            = scrf::first_order::make_feat(alloc, features, frames, label_dim);
+            = scrf::first_order::make_feat(alloc, features, frames, args);
 
         scrf::first_order::scrf_t graph = scrf::first_order::make_graph_scrf(frames.size(),
             labels, min_seg, max_seg);

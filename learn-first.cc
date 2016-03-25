@@ -31,7 +31,6 @@ struct learning_env {
     std::vector<std::string> id_label;
     std::vector<int> labels;
     std::vector<int> sils;
-    std::vector<std::vector<int>> label_dim;
 
     std::vector<std::string> features;
 
@@ -65,6 +64,7 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"label", "", true},
             {"label-dim", "", false},
+            {"length-stat", "", false},
             {"loss-only", "", false}
         }
     };
@@ -141,10 +141,6 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     sils.push_back(label_id.at("<s>"));
     sils.push_back(label_id.at("</s>"));
     sils.push_back(label_id.at("sil"));
-
-    if (ebt::in(std::string("label-dim"), args)) {
-        label_dim = scrf::first_order::load_label_dim(args.at("label-dim"), label_id);
-    }
 }
 
 void learning_env::run()
@@ -209,7 +205,7 @@ void learning_env::run()
         scrf::first_order::feat_dim_alloc gold_alloc { labels };
 
         scrf::first_order::composite_feature gold_feat_func
-            = scrf::first_order::make_feat(gold_alloc, features, frames, label_dim);
+            = scrf::first_order::make_feat(gold_alloc, features, frames, args);
 
         gold.weight_func = std::make_shared<scrf::first_order::score::linear_score>(
             scrf::first_order::score::linear_score(param,
@@ -219,7 +215,7 @@ void learning_env::run()
         scrf::first_order::feat_dim_alloc graph_alloc { labels };
 
         scrf::first_order::composite_feature graph_feat_func
-            = scrf::first_order::make_feat(graph_alloc, features, frames, label_dim);
+            = scrf::first_order::make_feat(graph_alloc, features, frames, args);
 
         scrf::first_order::scrf_t graph = scrf::first_order::make_graph_scrf(frames.size(),
             labels, min_seg, max_seg);

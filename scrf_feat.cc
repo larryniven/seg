@@ -1,5 +1,7 @@
 #include "scrf/scrf_feat.h"
 #include <cassert>
+#include "scrf/scrf_feat_util.h"
+#include <fstream>
 
 namespace scrf {
 
@@ -106,10 +108,36 @@ namespace scrf {
         }
 
         frame_feature::frame_feature(std::vector<std::vector<double>> const& frames,
-            std::unordered_map<std::string, std::vector<int>> const& label_dim)
-            : frames(frames), label_dim(label_dim)
-        {}
+            std::unordered_map<std::string, std::string> const& args)
+            : frames(frames)
+        {
+            if (!ebt::in(std::string("label-dim"), args)) {
+                std::cerr << "--label-dim missing" << std::endl;
+                exit(1);
+            }
+
+            label_dim = load_label_dim(args.at("label-dim"));
+        }
+
+        std::unordered_map<std::string, std::vector<int>>
+        frame_feature::load_label_dim(std::string filename)
+        {
+            std::unordered_map<std::string, std::vector<int>> result;
+            std::string line;
+            std::ifstream ifs { filename };
         
+            while (std::getline(ifs, line)) {
+                auto parts = ebt::split(line);
+                std::vector<int> dims;
+                for (int i = 1; i < parts.size(); ++i) {
+                    dims.push_back(std::stoi(parts[i]));
+                }
+                result[parts[0]] = dims;
+            }
+        
+            return result;
+        }
+
         void frame_feature::operator()(
             scrf::feat_t& feat,
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
@@ -119,14 +147,54 @@ namespace scrf {
             int tail_time = std::min<int>(frames.size() - 1, lat.data->vertices.at(std::get<0>(fst.tail(e))).time);
             int head_time = std::min<int>(frames.size(), lat.data->vertices.at(std::get<0>(fst.head(e))).time);
 
-            double sum = 0;
+            double result = 0;
+
             for (int i = tail_time; i < head_time; ++i) {
                 for (int dim: label_dim.at(fst.output(e))) {
-                    sum += frames[i][dim];
+                    result += frames[i][dim];
                 }
             }
 
-            feat.class_vec[""].push_back(sum);
+            feat.class_vec[""].push_back(result);
+        }
+
+        quad_length::quad_length(
+            std::unordered_map<std::string, std::string> const& args)
+        {
+            if (!ebt::in(std::string("length-stat"), args)) {
+                std::cerr << "--length-stat" << std::endl;
+                exit(1);
+            }
+
+            std::tie(mean, var) = load_length_stat(args.at("length-stat"));
+        }
+
+        std::tuple<std::unordered_map<std::string, double>,
+            std::unordered_map<std::string, double>>
+        quad_length::load_length_stat(std::string filename) const
+        {
+            std::ifstream ifs { filename };
+
+            std::string line;
+
+            ebt::json::json_parser<std::unordered_map<std::string, double>> parser;
+            std::unordered_map<std::string, double> mean = parser.parse(ifs);
+            std::getline(ifs, line);
+            
+            std::unordered_map<std::string, double> var = parser.parse(ifs);
+            std::getline(ifs, line);
+
+            return std::make_tuple(mean, var);
+        }
+
+        void quad_length::operator()(
+            feat_t& feat,
+            fst::composed_fst<lattice::fst, lm::fst> const& fst,
+            std::tuple<int, int> const& e) const
+        {
+            double d = fst.fst1->time(std::get<0>(fst.head(e))) - fst.fst1->time(std::get<0>(fst.tail(e)));
+
+            feat.class_vec[""].push_back(std::pow(d - mean.at(fst.output(e)), 2) / var.at(fst.output(e)));
         }
 
     }
@@ -150,15 +218,14 @@ namespace scrf {
             int label_tuple = 0;
 
             if (order == 0) {
-                // do nothing
+                feat.class_vec.resize(1);
             } else if (order == 1) {
                 label_tuple = fst.output(e) + 1;
+                feat.class_vec.resize(alloc.labels.size() + 1);
             } else {
                 std::cerr << "order " << order << " not implemented" << std::endl;
                 exit(1);
             }
-
-            feat.class_vec.resize(alloc.labels.size() + 1);
 
             auto& g = feat.class_vec[label_tuple];
             g.resize(alloc.order_dim[order]);
@@ -223,20 +290,55 @@ namespace scrf {
 
             frame_feature::frame_feature(feat_dim_alloc& alloc,
                     std::vector<std::vector<double>> const& frames,
-                    std::vector<std::vector<int>> id_dim)
-                : alloc(alloc), frames(frames), id_dim(id_dim)
+                    std::unordered_map<std::string, std::string> const& args)
+                : alloc(alloc), frames(frames)
             {
                 dim = alloc.alloc(0, 1);
+
+                if (!ebt::in(std::string("label-dim"), args)) {
+                    std::cerr << "--label-dim missing" << std::endl;
+                    exit(1);
+                }
+
+                if (!ebt::in(std::string("label"), args)) {
+                    std::cerr << "--label missing" << std::endl;
+                    exit(1);
+                }
+
+                label_id = scrf::load_label_id(args.at("label"));
+                id_dim = load_label_dim(args.at("label-dim"), label_id);
             }
             
+            std::vector<std::vector<int>>
+            frame_feature::load_label_dim(std::string filename,
+                std::unordered_map<std::string, int> const& label_id)
+            {
+                std::vector<std::vector<int>> result;
+                result.resize(label_id.size());
+
+                std::string line;
+                std::ifstream ifs { filename };
+            
+                while (std::getline(ifs, line)) {
+                    auto parts = ebt::split(line);
+                    std::vector<int> dims;
+                    for (int i = 1; i < parts.size(); ++i) {
+                        dims.push_back(std::stoi(parts[i]));
+                    }
+                    result[label_id.at(parts[0])] = dims;
+                }
+            
+                return result;
+            }
+
             void frame_feature::operator()(
                 param_t& feat, ilat::fst const& fst, int e) const
             {
-                double sum = 0;
+                double result = 0;
 
                 for (int i = fst.time(fst.tail(e)); i < fst.time(fst.head(e)); ++i) {
                     for (int f_dim: id_dim[fst.output(e)]) {
-                        sum += frames[i][f_dim];
+                        result += frames[i][f_dim];
                     }
                 }
 
@@ -244,8 +346,76 @@ namespace scrf {
                     feat.class_vec.resize(1);
                     feat.class_vec[0].resize(alloc.order_dim[0]);
                 }
-                feat.class_vec[0](dim) = sum;
+                feat.class_vec[0](dim) = result;
+
             }
+
+            quad_length::quad_length(feat_dim_alloc& alloc,
+                std::unordered_map<std::string, std::string> const& args)
+                : alloc(alloc)
+            {
+                if (!ebt::in(std::string("length-stat"), args)) {
+                    std::cerr << "--length-stat missing" << std::endl;
+                    exit(1);
+                }
+
+                if (!ebt::in(std::string("label"), args)) {
+                    std::cerr << "--label missing" << std::endl;
+                    exit(1);
+                }
+
+                label_id = scrf::load_label_id(args.at("label"));
+                std::tie(mean, var) = load_length_stat(args.at("length-stat"), label_id);
+
+                sils.push_back(label_id.at("<s>"));
+                sils.push_back(label_id.at("</s>"));
+                sils.push_back(label_id.at("sil"));
+
+                dim = alloc.alloc(0, 1);
+            }
+
+            std::tuple<std::vector<double>, std::vector<double>>
+            quad_length::load_length_stat(std::string filename,
+                std::unordered_map<std::string, int> const& label_id) const
+            {
+                std::vector<double> mean;
+                mean.resize(label_id.size());
+                std::vector<double> var;
+                var.resize(label_id.size());
+
+                std::ifstream ifs { filename };
+
+                std::string line;
+
+                ebt::json::json_parser<std::unordered_map<std::string, double>> parser;
+                for(auto& p: parser.parse(ifs)) {
+                    mean[label_id.at(p.first)] = p.second;
+                }
+                std::getline(ifs, line);
+                
+                for(auto& p: parser.parse(ifs)) {
+                    var[label_id.at(p.first)] = p.second;
+                }
+                std::getline(ifs, line);
+
+                return std::make_tuple(mean, var);
+            }
+
+            void quad_length::operator()(
+                param_t& feat, ilat::fst const& fst, int e) const
+            {
+                double d = fst.time(fst.head(e)) - fst.time(fst.tail(e));
+
+                for (int i: sils) {
+                    if (fst.output(e) == i) {
+                        feat.class_vec[0](dim) = 0;
+                        return;
+                    }
+                }
+
+                feat.class_vec[0](dim) = std::pow(d - mean[fst.output(e)], 2) / var[fst.output(e)];
+            }
+
 
         }
     }
