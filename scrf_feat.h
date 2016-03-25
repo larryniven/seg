@@ -100,10 +100,11 @@ namespace scrf {
         struct quad_length
             : public scrf_feature {
 
+            int order;
             std::unordered_map<std::string, double> mean;
             std::unordered_map<std::string, double> var;
 
-            quad_length(std::unordered_map<std::string, std::string> const& args);
+            quad_length(int order, std::unordered_map<std::string, std::string> const& args);
 
             std::tuple<std::unordered_map<std::string, double>,
                 std::unordered_map<std::string, double>>
@@ -212,12 +213,13 @@ namespace scrf {
 
                 feat_dim_alloc& alloc;
                 int dim;
+                int order;
                 std::vector<double> mean;
                 std::vector<double> var;
                 std::unordered_map<std::string, int> label_id;
                 std::vector<int> sils;
 
-                quad_length(feat_dim_alloc& alloc,
+                quad_length(feat_dim_alloc& alloc, int order,
                     std::unordered_map<std::string, std::string> const& args);
 
                 std::tuple<std::vector<double>, std::vector<double>>

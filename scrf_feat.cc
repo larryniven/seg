@@ -158,8 +158,9 @@ namespace scrf {
             feat.class_vec[""].push_back(result);
         }
 
-        quad_length::quad_length(
+        quad_length::quad_length(int order,
             std::unordered_map<std::string, std::string> const& args)
+            : order(order)
         {
             if (!ebt::in(std::string("length-stat"), args)) {
                 std::cerr << "--length-stat" << std::endl;
@@ -192,9 +193,11 @@ namespace scrf {
             fst::composed_fst<lattice::fst, lm::fst> const& fst,
             std::tuple<int, int> const& e) const
         {
+            std::vector<double>& g = lexicalize(order, feat, fst, e);
+
             double d = fst.fst1->time(std::get<0>(fst.head(e))) - fst.fst1->time(std::get<0>(fst.tail(e)));
 
-            feat.class_vec[""].push_back(std::pow(d - mean.at(fst.output(e)), 2) / var.at(fst.output(e)));
+            g.push_back(std::pow(d - mean.at(fst.output(e)), 2) / var.at(fst.output(e)));
         }
 
     }
@@ -351,8 +354,9 @@ namespace scrf {
             }
 
             quad_length::quad_length(feat_dim_alloc& alloc,
+                int order,
                 std::unordered_map<std::string, std::string> const& args)
-                : alloc(alloc)
+                : alloc(alloc), order(order)
             {
                 if (!ebt::in(std::string("length-stat"), args)) {
                     std::cerr << "--length-stat missing" << std::endl;
@@ -404,16 +408,18 @@ namespace scrf {
             void quad_length::operator()(
                 param_t& feat, ilat::fst const& fst, int e) const
             {
+                la::vector<double>& g = lexicalize(alloc, order, feat, fst, e);
+
                 double d = fst.time(fst.head(e)) - fst.time(fst.tail(e));
 
                 for (int i: sils) {
                     if (fst.output(e) == i) {
-                        feat.class_vec[0](dim) = 0;
+                        g(dim) = 0;
                         return;
                     }
                 }
 
-                feat.class_vec[0](dim) = std::pow(d - mean[fst.output(e)], 2) / var[fst.output(e)];
+                g(dim) = std::pow(d - mean[fst.output(e)], 2) / var[fst.output(e)];
             }
 
 

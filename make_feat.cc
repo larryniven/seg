@@ -148,8 +148,14 @@ namespace scrf {
                         segfeat::bias {}),
                     frames)));
             } else if (ebt::startswith(k, "quad-length")) {
+                std::vector<std::string> parts = ebt::split(k, "@");
+                int order = 0;
+                if (parts.size() > 1) {
+                    order = std::stoi(parts[1]);
+                }
+
                 result.features.push_back(std::make_shared<feature::quad_length>(
-                    feature::quad_length { args }));
+                    feature::quad_length { order, args }));
             } else {
                 std::cerr << "unknown feature " << k << std::endl;
                 exit(1);
@@ -291,8 +297,14 @@ namespace scrf {
                             segfeat::la::bias {}),
                         frames)));
                 } else if (ebt::startswith(k, "quad-length")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
                     result.features.push_back(std::make_shared<feature::quad_length>(
-                        feature::quad_length { alloc, args }));
+                        feature::quad_length { alloc, order, args }));
                 } else {
                     std::cerr << "unknown feature " << k << std::endl;
                     exit(1);
