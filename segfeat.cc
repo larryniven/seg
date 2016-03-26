@@ -33,8 +33,14 @@ namespace segfeat {
         int orig_size = feat.size();
         feat.resize(orig_size + max_length + 1);
 
-        if (0 <= end_time - start_time && end_time - start_time <= max_length) {
-            feat[orig_size + end_time - start_time] = 1;
+        int d = end_time - start_time;
+
+        if (1 <= d) {
+            feat[orig_size] = 1;
+        } else if (d >= max_length) {
+            feat[orig_size + max_length - 1] = 1;
+        } else {
+            feat[orig_size + d - 1] = 1;
         }
     }
 
@@ -232,14 +238,20 @@ namespace segfeat {
             std::vector<std::vector<real>> const& frames,
             int start_time, int end_time) const
         {
-            if (0 <= end_time - start_time && end_time - start_time <= max_length) {
-                feat(dim + end_time - start_time) = 1;
+            int d = end_time - start_time;
+
+            if (1 <= d) {
+                feat(dim) = 1;
+            } else if (d >= max_length) {
+                feat(dim + max_length - 1) = 1;
+            } else {
+                feat(dim + d - 1) = 1;
             }
         }
 
         int length_indicator::dim(int frame_dim) const
         {
-            return max_length + 1;
+            return max_length;
         }
 
         void check_dim(std::vector<std::vector<real>> const& frames,

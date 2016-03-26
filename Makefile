@@ -30,7 +30,8 @@ bin = libscrf.a \
     vertex-prune \
     vertex-prune-first \
     oracle-error \
-    forced-align
+    forced-align \
+    lat-cost
 
 all: $(bin)
 
@@ -100,6 +101,9 @@ oracle-error: oracle-error.o lm.o lattice.o
 forced-align: forced-align.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
+lat-cost: lat-cost.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
 ilat.o: ilat.h
 scrf.o: scrf.h fst.h lattice.h lm.h
 lm.o: lm.h
@@ -127,3 +131,4 @@ beam-prune-first.o: fst.h scrf.h util.h
 vertex-prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
 forced-align.o: fst.h scrf.h util.h
+lat-cost.o: fst.h scrf.h util.h
