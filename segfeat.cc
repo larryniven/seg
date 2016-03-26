@@ -302,6 +302,10 @@ namespace segfeat {
             auto& v = accu[start_time];
             int duration = end_time - start_time;
 
+            if (duration <= 0) {
+                return;
+            }
+
             int base = dim - capped_start_dim;
             for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
                 feat(base + d) = (u[d] - v[d]) / duration;
