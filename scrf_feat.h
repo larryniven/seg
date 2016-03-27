@@ -231,6 +231,26 @@ namespace scrf {
 
             };
 
+            struct max_hits
+                : public scrf_feature {
+
+                feat_dim_alloc& alloc;
+                int dim;
+                int order;
+                double percentile;
+                int nhits;
+                std::vector<std::vector<double>> const& frames;
+                std::vector<double> max;
+                std::vector<double> min;
+
+                max_hits(feat_dim_alloc& alloc, int order, double percentile,
+                    int nhits, std::vector<std::vector<double>> const& frames);
+
+                virtual void operator()(
+                    param_t& feat, ilat::fst const& fst, int e) const override;
+
+            };
+
         }
 
     }

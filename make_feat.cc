@@ -95,10 +95,12 @@ namespace scrf {
                     order = std::stoi(parts[1]);
                 }
 
+                int max_seg = std::stoi(args.at("max-seg"));
+
                 result.features.push_back(std::make_shared<segment_feature>(
                     segment_feature(order,
                     std::make_shared<segfeat::length_indicator>(
-                        segfeat::length_indicator { 30 }),
+                        segfeat::length_indicator { max_seg }),
                     frames)));
             } else if (ebt::startswith(k, "frame")) {
                 result.features.push_back(std::make_shared<feature::frame_feature>(
@@ -247,10 +249,12 @@ namespace scrf {
                         order = std::stoi(parts[1]);
                     }
 
+                    int max_seg = std::stoi(args.at("max-seg"));
+
                     result.features.push_back(std::make_shared<segment_feature>(
                         segment_feature(alloc, order,
                         std::make_shared<segfeat::la::length_indicator>(
-                            segfeat::la::length_indicator { 30 }),
+                            segfeat::la::length_indicator { max_seg }),
                         frames)));
                 } else if (ebt::startswith(k, "frame")) {
                     result.features.push_back(std::make_shared<feature::frame_feature>(
@@ -305,6 +309,17 @@ namespace scrf {
 
                     result.features.push_back(std::make_shared<feature::quad_length>(
                         feature::quad_length { alloc, order, args }));
+                } else if (ebt::startswith(k, "max-hits")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int max_seg = std::stoi(args.at("max-seg"));
+
+                    result.features.push_back(std::make_shared<feature::max_hits>(
+                        feature::max_hits { alloc, order, 0.9, max_seg, frames }));
                 } else {
                     std::cerr << "unknown feature " << k << std::endl;
                     exit(1);

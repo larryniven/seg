@@ -31,7 +31,7 @@ namespace segfeat {
         int start_time, int end_time) const
     {
         int orig_size = feat.size();
-        feat.resize(orig_size + max_length + 1);
+        feat.resize(orig_size + max_length);
 
         int d = end_time - start_time;
 
@@ -291,20 +291,17 @@ namespace segfeat {
 
             check_dim(frames, capped_start_dim, capped_end_dim);
 
-            if (start_time >= end_time) {
-                return;
-            }
-
-            start_time = std::min<int>(start_time, frames.size());
+            start_time = std::min<int>(start_time, frames.size() - 1);
             end_time = std::min<int>(end_time, frames.size());
 
-            auto& u = accu[end_time];
-            auto& v = accu[start_time];
             int duration = end_time - start_time;
 
             if (duration <= 0) {
                 return;
             }
+
+            auto& u = accu[end_time];
+            auto& v = accu[start_time];
 
             int base = dim - capped_start_dim;
             for (int d = capped_start_dim; d <= capped_end_dim; ++d) {

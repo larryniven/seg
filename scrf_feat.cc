@@ -339,7 +339,10 @@ namespace scrf {
             {
                 double result = 0;
 
-                for (int i = fst.time(fst.tail(e)); i < fst.time(fst.head(e)); ++i) {
+                int start = std::min<int>(fst.time(fst.tail(e)), frames.size() - 1);
+                int end = std::min<int>(fst.time(fst.head(e)), frames.size());
+
+                for (int i = start; i < end; ++i) {
                     for (int f_dim: id_dim[fst.output(e)]) {
                         result += frames[i][f_dim];
                     }
@@ -375,7 +378,7 @@ namespace scrf {
                 sils.push_back(label_id.at("</s>"));
                 sils.push_back(label_id.at("sil"));
 
-                dim = alloc.alloc(0, 1);
+                dim = alloc.alloc(order, 1);
             }
 
             std::tuple<std::vector<double>, std::vector<double>>
@@ -422,7 +425,53 @@ namespace scrf {
                 g(dim) = std::pow(d - mean[fst.output(e)], 2) / var[fst.output(e)];
             }
 
+            max_hits::max_hits(feat_dim_alloc& alloc, int order, double percentile,
+                int nhits, std::vector<std::vector<double>> const& frames)
+                : alloc(alloc), order(order), percentile(percentile), nhits(nhits), frames(frames)
+            {
+                double inf = std::numeric_limits<double>::infinity();
+                max.resize(frames.size());
+                min.resize(frames.size());
 
+                for (int i = 0; i < frames.size(); ++i) {
+                    max[i] = -inf;
+                    min[i] = inf;
+
+                    for (int j = 0; j < frames[i].size(); ++j) {
+                        if (frames[i][j] > max[i]) {
+                            max[i] = frames[i][j];
+                        }
+
+                        if (frames[i][j] < min[i]) {
+                            min[i] = frames[i][j];
+                        }
+                    }
+                }
+
+                dim = alloc.alloc(order, nhits + 1);
+            }
+
+            void max_hits::operator()(
+                param_t& feat, ilat::fst const& fst, int e) const
+            {
+                la::vector<double>& g = lexicalize(alloc, order, feat, fst, e);
+
+                int ell = fst.output(e);
+
+                int start = std::min<int>(fst.time(fst.tail(e)), frames.size() - 1);
+                int end = std::min<int>(fst.time(fst.head(e)), frames.size());
+
+                int hit = 0;
+                for (int i = start; i < end; ++i) {
+                    if (frames[i][ell] > percentile * max[i] + (1 - percentile) * min[i]) {
+                        ++hit;
+                    }
+                }
+
+                hit = std::min(hit, nhits);
+
+                g(dim + hit) = 1;
+            }
         }
     }
 }
