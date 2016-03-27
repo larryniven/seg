@@ -40,7 +40,8 @@ int main(int argc, char *argv[])
             {"param", "", true},
             {"features", "", true},
             {"label-dim", "", false},
-            {"length-stat", "", false}
+            {"length-stat", "", false},
+            {"max-seg", "", false}
         }
     };
 
