@@ -54,6 +54,19 @@ namespace segfeat {
 
     };
 
+    struct length_separator
+        : public feature {
+
+        length_separator(int max_length);
+
+        int max_length;
+
+        virtual void operator()(feat_t& feat,
+            std::vector<std::vector<real>> const& frames,
+            int start_time, int end_time) const override;
+
+    };
+
     void check_dim(std::vector<std::vector<real>> const& frames,
         int start_dim, int end_dim);
 
@@ -146,6 +159,21 @@ namespace segfeat {
             : public feature {
 
             length_indicator(int max_length);
+
+            int max_length;
+
+            virtual int dim(int frame_dim) const override;
+
+            virtual void operator()(int dim, feat_t& feat,
+                std::vector<std::vector<real>> const& frames,
+                int start_time, int end_time) const override;
+
+        };
+
+        struct length_separator
+            : public feature {
+
+            length_separator(int max_length);
 
             int max_length;
 

@@ -35,12 +35,32 @@ namespace segfeat {
 
         int d = end_time - start_time;
 
-        if (1 <= d) {
+        if (d <= 1) {
             feat[orig_size] = 1;
         } else if (d >= max_length) {
             feat[orig_size + max_length - 1] = 1;
         } else {
             feat[orig_size + d - 1] = 1;
+        }
+    }
+
+    length_separator::length_separator(int max_length)
+        : max_length(max_length)
+    {}
+
+    void length_separator::operator()(feat_t& feat,
+        std::vector<std::vector<real>> const& frames,
+        int start_time, int end_time) const
+    {
+        int orig_size = feat.size();
+        feat.resize(orig_size + max_length);
+
+        int d = end_time - start_time;
+
+        for (int i = 0; i < max_length; ++i) {
+            if (d >= i + 1) {
+                feat[orig_size + i] = 1;
+            }
         }
     }
 
@@ -84,13 +104,13 @@ namespace segfeat {
         std::vector<real> result;
         result.resize(capped_end_dim - capped_start_dim + 1);
 
+        start_time = std::min<int>(start_time, frames.size() - 1);
+        end_time = std::min<int>(end_time, frames.size());
+
         if (start_time >= end_time) {
             feat.insert(feat.end(), result.begin(), result.end());
             return;
         }
-
-        start_time = std::min<int>(start_time, frames.size());
-        end_time = std::min<int>(end_time, frames.size());
 
         auto& u = accu[end_time];
         auto& v = accu[start_time];
@@ -240,16 +260,44 @@ namespace segfeat {
         {
             int d = end_time - start_time;
 
-            if (1 <= d) {
+            if (d <= 1) {
                 feat(dim) = 1;
             } else if (d >= max_length) {
                 feat(dim + max_length - 1) = 1;
             } else {
                 feat(dim + d - 1) = 1;
             }
+
+            for (int i = 0; i < max_length; ++i) {
+                if (d >= i + 1) {
+                    feat(dim + max_length + i) = 1;
+                }
+            }
         }
 
         int length_indicator::dim(int frame_dim) const
+        {
+            return max_length;
+        }
+
+        length_separator::length_separator(int max_length)
+            : max_length(max_length)
+        {}
+
+        void length_separator::operator()(int dim, feat_t& feat,
+            std::vector<std::vector<real>> const& frames,
+            int start_time, int end_time) const
+        {
+            int d = end_time - start_time;
+
+            for (int i = 0; i < max_length; ++i) {
+                if (d >= i + 1) {
+                    feat(dim + max_length + i) = 1;
+                }
+            }
+        }
+
+        int length_separator::dim(int frame_dim) const
         {
             return max_length;
         }
@@ -294,11 +342,11 @@ namespace segfeat {
             start_time = std::min<int>(start_time, frames.size() - 1);
             end_time = std::min<int>(end_time, frames.size());
 
-            int duration = end_time - start_time;
-
-            if (duration <= 0) {
+            if (start_time >= end_time) {
                 return;
             }
+
+            int duration = end_time - start_time;
 
             auto& u = accu[end_time];
             auto& v = accu[start_time];

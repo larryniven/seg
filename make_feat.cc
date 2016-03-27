@@ -102,6 +102,20 @@ namespace scrf {
                     std::make_shared<segfeat::length_indicator>(
                         segfeat::length_indicator { max_seg }),
                     frames)));
+            } else if (ebt::startswith(k, "length-separator")) {
+                std::vector<std::string> parts = ebt::split(k, "@");
+                int order = 0;
+                if (parts.size() > 1) {
+                    order = std::stoi(parts[1]);
+                }
+
+                int max_seg = std::stoi(args.at("max-seg"));
+
+                result.features.push_back(std::make_shared<segment_feature>(
+                    segment_feature(order,
+                    std::make_shared<segfeat::length_separator>(
+                        segfeat::length_separator { max_seg }),
+                    frames)));
             } else if (ebt::startswith(k, "frame")) {
                 result.features.push_back(std::make_shared<feature::frame_feature>(
                     feature::frame_feature { frames, args }));
@@ -255,6 +269,20 @@ namespace scrf {
                         segment_feature(alloc, order,
                         std::make_shared<segfeat::la::length_indicator>(
                             segfeat::la::length_indicator { max_seg }),
+                        frames)));
+                } else if (ebt::startswith(k, "length-separator")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int max_seg = std::stoi(args.at("max-seg"));
+
+                    result.features.push_back(std::make_shared<segment_feature>(
+                        segment_feature(alloc, order,
+                        std::make_shared<segfeat::la::length_separator>(
+                            segfeat::la::length_separator { max_seg }),
                         frames)));
                 } else if (ebt::startswith(k, "frame")) {
                     result.features.push_back(std::make_shared<feature::frame_feature>(
