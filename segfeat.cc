@@ -267,12 +267,6 @@ namespace segfeat {
             } else {
                 feat(dim + d - 1) = 1;
             }
-
-            for (int i = 0; i < max_length; ++i) {
-                if (d >= i + 1) {
-                    feat(dim + max_length + i) = 1;
-                }
-            }
         }
 
         int length_indicator::dim(int frame_dim) const

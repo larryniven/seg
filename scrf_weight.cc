@@ -124,25 +124,23 @@ namespace scrf {
             }
 
             cached_linear_score::cached_linear_score(param_t const& param,
-                    std::shared_ptr<scrf_feature> feat)
+                    std::shared_ptr<scrf_feature> feat, ilat::fst const& fst)
                 : param(param), feat(feat)
-            {}
+            {
+                in_cache.resize(fst.edges().size(), false);
+                cache.resize(fst.edges().size());
+            }
 
             real cached_linear_score::operator()(ilat::fst const& fst,
                 int e) const
             {
-                if (e < in_cache.size() && in_cache[e]) {
+                if (in_cache[e]) {
                     return cache[e];
                 }
 
                 param_t f;
                 (*feat)(f, fst, e);
                 real s = dot(param, f);
-
-                if (cache.size() == 0) {
-                    in_cache.resize(fst.edges().size());
-                    cache.resize(fst.edges().size());
-                }
 
                 cache[e] = s;
                 in_cache[e] = true;

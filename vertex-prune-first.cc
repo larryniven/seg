@@ -131,7 +131,8 @@ void pruning_env::run()
 
         graph.weight_func = std::make_shared<scrf::first_order::score::cached_linear_score>(
             scrf::first_order::score::cached_linear_score(param,
-                std::make_shared<scrf::first_order::composite_feature>(graph_feat_func)));
+                std::make_shared<scrf::first_order::composite_feature>(graph_feat_func),
+                *graph.fst));
         graph.feature_func = std::make_shared<scrf::first_order::composite_feature>(graph_feat_func);
 
         auto edges = graph.edges();

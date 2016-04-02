@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
             {"label", "", true},
             {"label-dim", "", false},
             {"length-stat", "", false},
-            {"loss-only", "", false}
         }
     };
 
@@ -207,9 +206,10 @@ void learning_env::run()
         scrf::first_order::composite_feature gold_feat_func
             = scrf::first_order::make_feat(gold_alloc, features, frames, args);
 
-        gold.weight_func = std::make_shared<scrf::first_order::score::linear_score>(
-            scrf::first_order::score::linear_score(param,
-            std::make_shared<scrf::first_order::composite_feature>(gold_feat_func)));
+        gold.weight_func = std::make_shared<scrf::first_order::score::cached_linear_score>(
+            scrf::first_order::score::cached_linear_score(param,
+            std::make_shared<scrf::first_order::composite_feature>(gold_feat_func),
+            *gold.fst));
         gold.feature_func = std::make_shared<scrf::first_order::composite_feature>(gold_feat_func);
 
         scrf::first_order::feat_dim_alloc graph_alloc { labels };
@@ -221,9 +221,10 @@ void learning_env::run()
             labels, min_seg, max_seg);
 
         scrf::first_order::composite_weight weight;
-        weight.weights.push_back(std::make_shared<scrf::first_order::score::linear_score>(
-            scrf::first_order::score::linear_score(param,
-                std::make_shared<scrf::first_order::composite_feature>(graph_feat_func))));
+        weight.weights.push_back(std::make_shared<scrf::first_order::score::cached_linear_score>(
+            scrf::first_order::score::cached_linear_score(param,
+                std::make_shared<scrf::first_order::composite_feature>(graph_feat_func),
+                *graph.fst)));
         weight.weights.push_back(std::make_shared<scrf::first_order::seg_cost>(
             scrf::first_order::make_overlap_cost(ground_truth_path, sils)));
 
@@ -259,7 +260,9 @@ void learning_env::run()
             std::cout << std::endl;
 
             std::cout << "cost aug score: " << graph_score << std::endl; 
-
+        } else if (args.at("loss") == "logloss") {
+            loss_func = std::make_shared<scrf::first_order::log_loss>(
+                scrf::first_order::log_loss { gold_path, graph });
         } else {
             std::cout << "unknown loss function " << args.at("loss") << std::endl;
             exit(1);
@@ -287,18 +290,16 @@ void learning_env::run()
 
         std::cout << std::endl;
 
-        if (!ebt::in(std::string("loss-only"), args) && ell > 0) {
-            if (ebt::in(std::string("momentum"), args)) {
-                scrf::first_order::const_step_update_momentum(param, std::move(param_grad),
-                   opt_data, momentum, step_size);
-            } else {
-                scrf::first_order::adagrad_update(param, param_grad, opt_data, step_size);
-            }
+        if (ebt::in(std::string("momentum"), args)) {
+            scrf::first_order::const_step_update_momentum(param, std::move(param_grad),
+               opt_data, momentum, step_size);
+        } else {
+            scrf::first_order::adagrad_update(param, param_grad, opt_data, step_size);
+        }
 
-            if (i % save_every == 0) {
-                scrf::first_order::save_param(param, "param-last");
-                scrf::first_order::save_param(opt_data, "opt-data-last");
-            }
+        if (i % save_every == 0) {
+            scrf::first_order::save_param(param, "param-last");
+            scrf::first_order::save_param(opt_data, "opt-data-last");
         }
 
 #if DEBUG_TOP
@@ -310,10 +311,8 @@ void learning_env::run()
         ++i;
     }
 
-    if (!ebt::in(std::string("loss-only"), args)) {
-        scrf::first_order::save_param(param, output_param);
-        scrf::first_order::save_param(opt_data, output_opt_data);
-    }
+    scrf::first_order::save_param(param, output_param);
+    scrf::first_order::save_param(opt_data, output_opt_data);
 
 }
 

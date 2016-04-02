@@ -450,6 +450,183 @@ namespace scrf {
             return result;
         }
 
+        log_loss::log_loss(fst::path<scrf_t> const& gold,
+            scrf_t const& graph)
+            : gold(gold), graph(graph)
+        {
+            auto order = fst::topo_order(graph);
+
+            forward.resize(order.size());
+            backward.resize(order.size());
+            forward_feat.resize(order.size());
+            backward_feat.resize(order.size());
+
+            double inf = std::numeric_limits<double>::infinity();
+
+            for (auto& i: graph.initials()) {
+                forward[i] = 0;
+            }
+
+            for (auto& v: order) {
+                bool is_initial = false;
+
+                for (auto& i: graph.initials()) {
+                    if (v == i) {
+                        is_initial = true;
+                        break;
+                    }
+                }
+
+                if (is_initial) {
+                    continue;
+                }
+
+                double s = -inf;
+
+                std::vector<int> in_edges = graph.in_edges(v);
+
+                std::vector<double> local_scores;
+                local_scores.resize(in_edges.size());
+
+                #pragma omp parallel for
+                for (int i = 0; i < in_edges.size(); ++i) {
+                    int e = in_edges[i];
+                    local_scores[i] = forward[graph.tail(e)] + graph.weight(e);
+                }
+
+                for (double d: local_scores) {
+                    s = ebt::log_add(s, d);
+                }
+
+                forward[v] = s;
+            }
+
+            std::reverse(order.begin(), order.end());
+
+            for (auto& f: graph.finals()) {
+                backward[f] = 0;
+            }
+
+            for (auto& v: order) {
+                bool is_final = false;
+
+                for (auto& f: graph.finals()) {
+                    if (v == f) {
+                        is_final = true;
+                        break;
+                    }
+                }
+
+                if (is_final) {
+                    continue;
+                }
+
+                double s = -inf;
+
+                std::vector<int> out_edges = graph.out_edges(v);
+
+                std::vector<double> local_scores;
+                local_scores.resize(out_edges.size());
+
+                #pragma omp parallel for
+                for (int i = 0; i < out_edges.size(); ++i) {
+                    int e = out_edges[i];
+                    local_scores[i] = backward[graph.head(e)] + graph.weight(e);
+                }
+
+                for (double d: local_scores) {
+                    s = ebt::log_add(s, d);
+                }
+
+                backward[v] = s;
+            }
+
+            double logZ_b = -inf;
+
+            for (auto& i: graph.initials()) {
+                logZ_b = ebt::log_add(logZ_b, backward.at(i));
+            }
+
+            double logZ_f = -inf;
+
+            for (auto& f: graph.finals()) {
+                logZ_f = ebt::log_add(logZ_f, forward.at(f));
+            }
+
+            std::cout << "forward: " << logZ_f << " backward: " << logZ_b << std::endl; 
+
+            logZ = logZ_f;
+        }
+
+        double log_loss::loss()
+        {
+            double g_weight = 0;
+
+            for (auto& e: gold.edges()) {
+                g_weight += gold.weight(e);
+            }
+
+            std::cout << "gold score: " << g_weight << " logZ: " << logZ << std::endl; 
+
+            return -g_weight + logZ;
+        }
+
+        param_t log_loss::param_grad()
+        {
+            param_t feat;
+
+            scrf_t const& gold_scrf = *gold.data->base_fst;
+
+            for (auto& e: gold.edges()) {
+                param_t f;
+                gold_scrf.feature(f, e);
+
+                if (feat.class_vec.size() == 0) {
+                    feat.class_vec.resize(f.class_vec.size());
+                }
+
+                for (int i = 0; i < f.class_vec.size(); ++i) {
+                    if (f.class_vec[i].size() == 0) {
+                        continue;
+                    }
+
+                    if (feat.class_vec[i].size() == 0) {
+                        feat.class_vec[i].resize(f.class_vec[i].size());
+                    }
+                    la::isub(feat.class_vec[i], f.class_vec[i]);
+                }
+            }
+
+            for (auto& e: graph.edges()) {
+                param_t f;
+                graph.feature(f, e);
+
+                double s = std::exp(forward.at(graph.tail(e))
+                    + backward.at(graph.head(e)) + graph.weight(e)
+                    - logZ);
+
+                if (feat.class_vec.size() == 0) {
+                    feat.class_vec.resize(f.class_vec.size());
+                }
+
+                for (int i = 0; i < f.class_vec.size(); ++i) {
+                    if (f.class_vec[i].size() == 0) {
+                        continue;
+                    }
+
+                    auto& u = f.class_vec[i];
+                    imul(u, s);
+                    auto& v = feat.class_vec[i];
+                    if (v.size() == 0) {
+                        v.resize(u.size());
+                    }
+                    iadd(v, u);
+                }
+            }
+
+            return feat;
+        }
+
     }
 
 }
