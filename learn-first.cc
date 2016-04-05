@@ -268,7 +268,7 @@ void learning_env::run()
         if (ell > 0) {
             param_grad = loss_func->param_grad();
 
-            std::cout << "analytic grad: " << param_grad.class_vec[l_args.label_id.at("</s>")](0) << std::endl;
+            // std::cout << "analytic grad: " << param_grad.class_vec[l_args.label_id.at("</s>")](0) << std::endl;
         }
 
         if (ell < 0) {

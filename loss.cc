@@ -749,10 +749,22 @@ namespace scrf {
             for (auto e: edges) {
                 param_t p;
                 graph.feature(p, e);
-                iadd(p, f_param.at(graph.tail(e)));
-                iadd(p, b_param.at(graph.head(e)));
 
                 iadd(result, p);
+            }
+
+            auto vertices = graph.vertices();
+
+            for (auto v: vertices) {
+                int neighbors = graph.in_edges(v).size() + graph.out_edges(v).size();
+
+                param_t f = f_param.at(v);
+                imul(f, neighbors);
+                iadd(result, f);
+
+                param_t b = b_param.at(v);
+                imul(b, neighbors);
+                iadd(result, b);
             }
 
             imul(result, (1 - alpha) / edges.size());
