@@ -179,6 +179,7 @@ namespace scrf {
 
         void iadd(param_t& p1, param_t const& p2);
         void isub(param_t& p1, param_t const& p2);
+        void imul(param_t& p, double c);
 
         param_t& operator-=(param_t& p1, param_t const& p2);
         param_t& operator+=(param_t& p1, param_t const& p2);

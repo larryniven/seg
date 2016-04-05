@@ -113,6 +113,28 @@ namespace scrf {
             virtual param_t param_grad() override;
         };
 
+        struct filtering_loss
+            : public loss_func {
+
+            fst::path<scrf_t> const& gold;
+            scrf_t const& graph;
+            double alpha;
+
+            fst::path<scrf_t> graph_path;
+            fst::forward_one_best<scrf_t> forward;
+            fst::backward_one_best<scrf_t> backward;
+            std::vector<param_t> f_param;
+            std::vector<param_t> b_param;
+            double threshold;
+
+            filtering_loss(
+                fst::path<scrf_t> const& gold,
+                scrf_t const& graph,
+                double alpha);
+
+            virtual double loss() override;
+            virtual param_t param_grad() override;
+        };
     }
 
 }

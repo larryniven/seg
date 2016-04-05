@@ -627,6 +627,153 @@ namespace scrf {
             return feat;
         }
 
+        filtering_loss::filtering_loss(fst::path<scrf_t> const& gold,
+            scrf_t const& graph, double alpha)
+            : gold(gold), graph(graph), alpha(alpha)
+        {
+            f_param.resize(graph.topo_order.size());
+            b_param.resize(graph.topo_order.size());
+
+            auto order = fst::topo_order(graph);
+
+            graph_path = shortest_path(graph, order);
+
+            for (auto v: graph.initials()) {
+                forward.extra[v] = {-1, 0};
+                f_param[v] = param_t {};
+            }
+            forward.merge(graph, order);
+
+            for (auto& v: order) {
+                auto e = forward.extra.at(v).pi;
+                if (e == -1) {
+                    continue;
+                }
+                param_t p;
+                graph.feature(p, e);
+                iadd(p, f_param.at(graph.tail(e)));
+                f_param[v] = std::move(p);
+            }
+
+            std::reverse(order.begin(), order.end());
+
+            for (auto v: graph.finals()) {
+                backward.extra[v] = {-1, 0};
+                b_param[v] = param_t {};
+            }
+            backward.merge(graph, order);
+
+            for (auto& v: order) {
+                auto e = backward.extra.at(v).pi;
+                if (e == -1) {
+                    continue;
+                }
+                param_t p;
+                graph.feature(p, e);
+                iadd(p, b_param.at(graph.head(e)));
+                b_param[v] = std::move(p);
+            }
+
+            auto fb_alpha = [&](int v) {
+                return forward.extra[v].value;
+            };
+
+            auto fb_beta = [&](int v) {
+                return backward.extra[v].value;
+            };
+
+            double inf = std::numeric_limits<real>::infinity();
+
+            auto edges = graph.edges();
+
+            real sum = 0;
+            real max = -inf;
+
+            for (auto& e: edges) {
+                auto tail = graph.tail(e);
+                auto head = graph.head(e);
+
+                real s = fb_alpha(tail) + graph.weight(e) + fb_beta(head);
+
+                if (s > max) {
+                    max = s;
+                }
+
+                if (s != -inf) {
+                    sum += s;
+                }
+            }
+
+            std::cout << "max marginal avg: " << sum / edges.size() << " max: " << max << std::endl;
+
+            threshold = alpha * max + (1 - alpha) * sum / edges.size();
+
+            double f_max = -inf;
+
+            for (auto v: graph.finals()) {
+                if (forward.extra.at(v).value > f_max) {
+                    f_max = forward.extra.at(v).value;
+                }
+            }
+
+            double b_max = -inf;
+
+            for (auto v: graph.initials()) {
+                if (backward.extra.at(v).value > b_max) {
+                    b_max = backward.extra.at(v).value;
+                }
+            }
+
+            std::cout << "forward: " << f_max << " backward: " << b_max << std::endl;
+        }
+
+        double filtering_loss::loss()
+        {
+            double gold_score = 0;
+
+            for (auto e: gold.edges()) {
+                gold_score += gold.weight(e);
+            }
+
+            std::cout << "threshold: " << threshold << " gold score: " <<  gold_score << std::endl;
+
+            return std::max<double>(0.0, 1 + threshold - gold_score);
+        }
+
+        param_t filtering_loss::param_grad()
+        {
+            param_t result;
+
+            auto edges = graph.edges();
+
+            for (auto e: edges) {
+                param_t p;
+                graph.feature(p, e);
+                iadd(p, f_param.at(graph.tail(e)));
+                iadd(p, b_param.at(graph.head(e)));
+
+                iadd(result, p);
+            }
+
+            imul(result, (1 - alpha) / edges.size());
+
+            for (auto e: graph_path.edges()) {
+                param_t p;
+                graph.feature(p, e);
+
+                imul(p, alpha);
+
+                iadd(result, p);
+            }
+
+            for (auto e: gold.edges()) {
+                param_t p;
+                gold.data->base_fst->feature(p, e);
+                isub(result, p);
+            }
+
+            return result;
+        }
     }
 
 }

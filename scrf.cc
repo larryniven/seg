@@ -291,7 +291,11 @@ namespace scrf {
                     continue;
                 }
 
-                v.resize(std::max(v.size(), u.size()));
+                if (v.size() == 0) { 
+                    v.resize(u.size());
+                } else {
+                    assert(v.size() == u.size());
+                }
 
                 la::iadd(v, u);
             }
@@ -311,7 +315,11 @@ namespace scrf {
                     continue;
                 }
 
-                v.resize(std::max(v.size(), u.size()));
+                if (v.size() == 0) { 
+                    v.resize(u.size());
+                } else {
+                    assert(v.size() == u.size());
+                }
 
                 la::isub(v, u);
             }
@@ -331,7 +339,7 @@ namespace scrf {
             return p1;
         }
 
-        param_t& operator*=(param_t& p, real c)
+        void imul(param_t& p, double c)
         {
             if (c == 0) {
                 p.class_vec.clear();
@@ -344,7 +352,11 @@ namespace scrf {
 
                 la::imul(p.class_vec[i], c);
             }
+        }
 
+        param_t& operator*=(param_t& p, double c)
+        {
+            imul(p, c);
             return p;
         }
 
