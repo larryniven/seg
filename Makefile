@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../la -L ../autodiff -L ../nn -L ./
+CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../la -L ../autodiff -L ./
 AR = gcc-ar
 
 obj = ilat.o \
@@ -14,7 +14,8 @@ obj = ilat.o \
     scrf.o \
     scrf_feat.o \
     scrf_util.o \
-    make_feat.o
+    make_feat.o \
+    nn_feat.o
 
 bin = libscrf.a \
     learn \
