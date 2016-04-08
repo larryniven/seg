@@ -5,66 +5,67 @@
 
 namespace ilat {
 
+    bool operator==(vertex_data const& v1, vertex_data const& v2)
+    {
+        return v1.time == v2.time;
+    }
+
     bool operator==(edge_data const& e1, edge_data const& e2)
     {
         return e1.label == e2.label && e1.tail == e2.tail
             && e1.head == e2.head && e1.weight == e2.weight;
     }
 
-    void add_vertex(fst_data& data, int v, long time)
+    void add_vertex(fst_data& data, int v, vertex_data v_data)
     {
-        assert(v <= data.vertices.size());
+        if (!ebt::in(v, data.vertex_set)) {
+            data.vertex_set.insert(v);
+            data.vertex_indices.push_back(v);
 
-        if (v < data.vertices.size()) {
-            assert(data.vertices.at(v).time == time);
-        } else if (v == data.vertices.size()) {
-            data.vertices.push_back(vertex_data { time });
-            data.in_edges.resize(data.vertices.size());
-            data.out_edges.resize(data.vertices.size());
+            int size = std::max<int>(v + 1, data.vertices.size());
+
+            data.vertices.resize(size);
+            data.vertices[v] = v_data;
+            data.in_edges.resize(size);
+            data.out_edges.resize(size);
+        } else {
+            assert(data.vertices[v] == v_data);
         }
     }
 
-    void add_edge(fst_data& data, int e, int label, int tail, int head, real weight)
+    void add_edge(fst_data& data, int e, edge_data e_data)
     {
-        assert(head < data.vertices.size());
-        assert(tail < data.vertices.size());
+        assert(ebt::in(e_data.head, data.vertex_set));
+        assert(ebt::in(e_data.tail, data.vertex_set));
 
-        assert(e <= data.edges.size());
+        if (!ebt::in(e, data.edge_set)) {
+            data.edge_set.insert(e);
+            data.edge_indices.push_back(e);
 
-        if (e < data.edges.size()) {
-            assert((edge_data {tail, head, weight, label} == data.edges.at(e)));
-        } else if (e == data.edges.size()) {
-            data.edges.push_back(edge_data {tail, head, weight, label});
-            data.in_edges[head].push_back(e);
-            data.out_edges[tail].push_back(e);
-            data.attrs.resize(std::max<int>(data.attrs.size(), e + 1));
-            data.feats.resize(std::max<int>(data.feats.size(), e + 1));
+            int size = std::max<int>(e + 1, data.edges.size());
+
+            data.edges.resize(size);
+            data.edges[e] = e_data;
+            data.in_edges[e_data.head].push_back(e);
+            data.out_edges[e_data.tail].push_back(e);
+            data.attrs.resize(size);
+            data.feats.resize(size);
+        } else {
+            assert(data.edges[e] == e_data);
         }
     }
 
-    std::vector<int> fst::vertices() const
+    std::vector<int> const& fst::vertices() const
     {
-        std::vector<int> result;
-
-        for (int i = 0; i < data->vertices.size(); ++i) {
-            result.push_back(i);
-        }
-
-        return result;
+        return data->vertex_indices;
     }
 
-    std::vector<int> fst::edges() const
+    std::vector<int> const& fst::edges() const
     {
-        std::vector<int> result;
-
-        for (int i = 0; i < data->edges.size(); ++i) {
-            result.push_back(i);
-        }
-
-        return result;
+        return data->edge_indices;
     }
 
-    real fst::weight(int e) const
+    double fst::weight(int e) const
     {
         return data->edges.at(e).weight;
     }
@@ -89,22 +90,22 @@ namespace ilat {
         return data->edges.at(e).head;
     }
 
-    std::vector<int> fst::initials() const
+    std::vector<int> const& fst::initials() const
     {
         return data->initials;
     }
 
-    std::vector<int> fst::finals() const
+    std::vector<int> const& fst::finals() const
     {
         return data->finals;
     }
 
-    int fst::input(int e) const
+    int const& fst::input(int e) const
     {
         return data->edges.at(e).label;
     }
 
-    int fst::output(int e) const
+    int const& fst::output(int e) const
     {
         return data->edges.at(e).label;
     }
@@ -114,7 +115,7 @@ namespace ilat {
         return data->vertices.at(v).time;
     }
 
-    fst load_lattice(std::istream& is, std::unordered_map<std::string, int> const& label_id)
+    fst load_lattice(std::istream& is, std::unordered_map<std::string, int> const& symbol_id)
     {
         fst_data result;
 
@@ -152,7 +153,7 @@ namespace ilat {
                 attr[pair[0]] = pair[1];
             }
 
-            add_vertex(result, v, std::stoi(attr.at("time")));
+            ilat::add_vertex(result, v, ilat::vertex_data { std::stoi(attr.at("time")) });
         }
 
         while (std::getline(is, line) && line != ".") {
@@ -188,7 +189,7 @@ namespace ilat {
             std::string label = attr_map.at("label");
 
             int e = int(result.edges.size());
-            add_edge(result, e, label_id.at(label), tail, head, weight);
+            add_edge(result, e, edge_data { tail, head, weight, symbol_id.at(label) });
 
             result.attrs[e] = attr;
             result.feats[e] = feats;
@@ -217,6 +218,53 @@ namespace ilat {
         f.data = std::make_shared<fst_data>(std::move(result));
 
         return f;
+    }
+
+    fst add_eps_loops(fst f, int label)
+    {
+        fst_data& data = *(f.data);
+
+        for (int i = 0; i < data.vertices.size(); ++i) {
+            int e = int(data.edges.size());
+            add_edge(data, e, edge_data {i, i, 0, label});
+        }
+
+        return f;
+    }
+
+    fst ilat_path_maker::operator()(std::vector<int> const& edges, fst const& f) const
+    {
+        fst_data data;
+
+        for (auto& e: edges) {
+            add_vertex(data, f.tail(e), vertex_data { f.time(f.tail(e)) });
+            add_vertex(data, f.head(e), vertex_data { f.time(f.head(e)) });
+            add_edge(data, e, edge_data { f.tail(e), f.head(e), f.weight(e), f.output(e) });
+        }
+
+        data.name = f.data->name;
+
+        for (auto& v: f.initials()) {
+            if (ebt::in(v, data.vertex_set)) {
+                data.initials.push_back(v);
+            }
+        }
+
+        for (auto& v: f.finals()) {
+            if (ebt::in(v, data.vertex_set)) {
+                data.finals.push_back(v);
+            }
+        }
+
+        for (auto& e: data.edge_indices) {
+            data.attrs[e] = f.data->attrs[e];
+            data.feats[e] = f.data->feats[e];
+        }
+
+        fst result;
+        result.data = std::make_shared<fst_data>(data);
+
+        return result;
     }
 
 }

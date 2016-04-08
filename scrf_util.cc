@@ -1,6 +1,7 @@
 #include "scrf/scrf_util.h"
 #include "scrf/scrf_cost.h"
 #include "scrf/scrf_weight.h"
+#include "scrf/make_feat.h"
 #include <cassert>
 #include <fstream>
 
@@ -157,7 +158,7 @@ namespace scrf {
         std::reverse(lm_v.begin(), lm_v.end());
 
         std::vector<std::tuple<int, int>> topo_order;
-        for (auto v: lattice::topo_order(*(comp.fst1))) {
+        for (auto v: fst::topo_order(*(comp.fst1))) {
             for (auto u: lm_v) {
                 topo_order.push_back(std::make_tuple(v, u));
             }
@@ -206,7 +207,7 @@ namespace scrf {
         auto lm_v = lm.vertices();
 
         std::vector<std::tuple<int, int>> topo_order;
-        for (auto v: lattice::topo_order(*(comp.fst1))) {
+        for (auto v: fst::topo_order(*(comp.fst1))) {
             for (auto u: lm_v) {
                 topo_order.push_back(std::make_tuple(v, u));
             }
@@ -240,7 +241,7 @@ namespace scrf {
             ilat::fst_data data;
 
             for (int i = 0; i < frames + 1; ++i) {
-                ilat::add_vertex(data, i, i);
+                ilat::add_vertex(data, i, ilat::vertex_data { i });
             }
 
             assert(min_seg_len >= 1);
@@ -255,7 +256,7 @@ namespace scrf {
                     }
 
                     for (auto& ell: labels) {
-                        ilat::add_edge(data, data.edges.size(), ell, tail, head, 0);
+                        ilat::add_edge(data, data.edges.size(), ilat::edge_data { tail, head, 0, ell });
                     }
                 }
             }
@@ -292,6 +293,116 @@ namespace scrf {
             scrf_t& ground_truth)
         {
             return fst::make_path(ground_truth, ground_truth.edges());
+        }
+
+        sample::sample(inference_args const& args)
+            : graph_alloc(args.labels)
+        {
+        }
+        
+        void make_graph(sample& s, inference_args const& i_args)
+        {
+            s.graph = scrf::first_order::make_graph_scrf(s.frames.size(),
+                i_args.labels, i_args.min_seg, i_args.max_seg);
+        
+            scrf::first_order::composite_feature graph_feat_func
+                = scrf::first_order::make_feat(s.graph_alloc, i_args.features, s.frames, i_args.args);
+        
+            scrf::first_order::composite_weight weight;
+            weight.weights.push_back(std::make_shared<scrf::first_order::score::cached_linear_score>(
+                scrf::first_order::score::cached_linear_score(i_args.param,
+                    std::make_shared<scrf::first_order::composite_feature>(graph_feat_func),
+                    *s.graph.fst)));
+        
+            s.graph.weight_func = std::make_shared<scrf::first_order::composite_weight>(weight);
+            s.graph.feature_func = std::make_shared<scrf::first_order::composite_feature>(graph_feat_func);
+        }
+        
+        learning_args parse_learning_args(
+            std::unordered_map<std::string, std::string> const& args)
+        {
+            learning_args l_args;
+        
+            l_args.args = args;
+        
+            l_args.min_seg = 1;
+            if (ebt::in(std::string("min-seg"), args)) {
+                l_args.min_seg = std::stoi(args.at("min-seg"));
+            }
+        
+            l_args.max_seg = 20;
+            if (ebt::in(std::string("max-seg"), args)) {
+                l_args.max_seg = std::stoi(args.at("max-seg"));
+            }
+        
+            l_args.param = scrf::first_order::load_param(args.at("param"));
+            l_args.opt_data = scrf::first_order::load_param(args.at("opt-data"));
+            l_args.step_size = std::stod(args.at("step-size"));
+        
+            l_args.momentum = -1;
+            if (ebt::in(std::string("momentum"), args)) {
+                l_args.momentum = std::stod(args.at("momentum"));
+                assert(0 <= l_args.momentum && l_args.momentum <= 1);
+            }
+        
+            l_args.features = ebt::split(args.at("features"), ",");
+        
+            l_args.label_id = scrf::load_phone_id(args.at("label"));
+        
+            l_args.id_label.resize(l_args.label_id.size());
+            for (auto& p: l_args.label_id) {
+                l_args.labels.push_back(p.second);
+                l_args.id_label[p.second] = p.first;
+            }
+        
+            l_args.sils.push_back(l_args.label_id.at("<s>"));
+            l_args.sils.push_back(l_args.label_id.at("</s>"));
+            l_args.sils.push_back(l_args.label_id.at("sil"));
+        
+            return l_args;
+        }
+        
+        learning_sample::learning_sample(learning_args const& args)
+            : sample(args), gold_alloc(args.labels)
+        {
+        }
+        
+        void make_gold(learning_sample& s, learning_args const& l_args)
+        {
+            s.ground_truth.fst = std::make_shared<ilat::fst>(s.ground_truth_fst);
+            s.ground_truth_path = scrf::first_order::make_ground_truth_path(s.ground_truth);
+        
+            s.gold = s.ground_truth;
+            s.gold_path = s.ground_truth_path;
+            s.gold_path.data->base_fst = &s.gold;
+        
+            scrf::first_order::composite_feature gold_feat_func
+                = scrf::first_order::make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
+        
+            s.gold.weight_func = std::make_shared<scrf::first_order::score::cached_linear_score>(
+                scrf::first_order::score::cached_linear_score(l_args.param,
+                std::make_shared<scrf::first_order::composite_feature>(gold_feat_func),
+                *s.gold.fst));
+            s.gold.feature_func = std::make_shared<scrf::first_order::composite_feature>(gold_feat_func);
+        }
+        
+        void make_min_cost_gold(learning_sample& s, learning_args const& l_args)
+        {
+            s.ground_truth.fst = std::make_shared<ilat::fst>(s.ground_truth_fst);
+            s.ground_truth_path = scrf::first_order::make_ground_truth_path(s.ground_truth);
+        
+            s.gold = scrf::first_order::make_graph_scrf(s.frames.size(), l_args.labels, l_args.min_seg, l_args.max_seg);
+            s.gold_path = scrf::first_order::make_min_cost_path(s.gold, s.ground_truth_path, l_args.sils);
+            s.gold_path.data->base_fst = &s.gold;
+        
+            scrf::first_order::composite_feature gold_feat_func
+                = scrf::first_order::make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
+        
+            s.gold.weight_func = std::make_shared<scrf::first_order::score::cached_linear_score>(
+                scrf::first_order::score::cached_linear_score(l_args.param,
+                std::make_shared<scrf::first_order::composite_feature>(gold_feat_func),
+                *s.gold.fst));
+            s.gold.feature_func = std::make_shared<scrf::first_order::composite_feature>(gold_feat_func);
         }
 
     }

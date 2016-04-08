@@ -82,6 +82,7 @@ namespace scrf {
         std::shared_ptr<weight_func_t> weight_func;
         std::shared_ptr<feature_func_t> feature_func;
         std::shared_ptr<weight_func_t> cost_func;
+        std::vector<vertex> topo_order;
 
         std::vector<vertex> vertices() const
         {
@@ -152,8 +153,6 @@ namespace scrf {
 
     struct scrf_t
         : public scrf_fst<fst::composed_fst<lattice::fst, lm::fst>, scrf_weight, scrf_feature> {
-
-        std::vector<vertex> topo_order;
 
     };
 
@@ -266,6 +265,89 @@ namespace scrf {
 
     }
 
+    namespace experimental {
+
+        template <class edge, class vector>
+        struct with_feature {
+            virtual void feature(vector& f, edge e) const = 0;
+        };
+
+        template <class edge>
+        struct with_cost {
+            virtual double cost(edge e) const = 0;
+        };
+
+        template <class vertex, class edge, class symbol, class vector>
+        struct scrf
+            : public fst::experimental::fst<vertex, edge, symbol>
+            , public fst::experimental::timed<vertex>
+            , public fst::experimental::with_topo_order<vertex>
+            , public with_feature<edge, vector>
+            , public with_cost<edge> {
+        };
+
+        template <class fst, class vector>
+        struct scrf_feature {
+
+            virtual ~scrf_feature()
+            {}
+
+            virtual void operator()(vector& f, fst const& g,
+                typename fst::edge e) const = 0;
+
+        };
+
+        template <class fst>
+        struct scrf_weight {
+
+            virtual ~scrf_weight()
+            {}
+
+            virtual double operator()(fst const& f,
+                typename fst::edge e) const = 0;
+
+        };
+
+        struct dense_vec {
+            std::vector<la::vector<double>> class_vec;
+        };
+
+        double dot(dense_vec const& u, dense_vec const& v);
+
+        dense_vec load_vec(std::istream& is);
+        dense_vec load_vec(std::string filename);
+
+        void save_vec(dense_vec const& v, std::ostream& os);
+        void save_vec(dense_vec const& v, std::string filename);
+
+        void iadd(dense_vec& u, dense_vec const& v);
+        void isub(dense_vec& u, dense_vec const& v);
+        void imul(dense_vec& u, double c);
+
+        void adagrad_update(dense_vec& theta, dense_vec const& grad,
+            dense_vec& accu_grad_sq, double step_size);
+
+        template <class fst>
+        struct graph_maker {
+            virtual fst operator()(int frames,
+                std::vector<typename fst::symbol> const& labels,
+                int min_seg, int max_seg) const = 0;
+        };
+
+        std::unordered_map<std::string, int> load_label_id(std::string filename);
+
+        template <class vector>
+        struct loss_func {
+
+            virtual ~loss_func()
+            {}
+
+            virtual double loss() = 0;
+            virtual vector param_grad() = 0;
+
+        };
+
+    }
 }
 
 #endif

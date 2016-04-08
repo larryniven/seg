@@ -255,6 +255,92 @@ namespace scrf {
 
     }
 
+    namespace experimental {
+
+        struct feat_dim_alloc {
+
+            std::vector<int> order_dim;
+            std::vector<int> const& labels;
+
+            feat_dim_alloc(std::vector<int> const& labels);
+
+            int alloc(int order, int dim);
+        };
+
+        template <class fst, class vector>
+        struct lexicalizer {
+            virtual double* operator()(feat_dim_alloc const& alloc,
+                int order, vector& f, fst const& g, typename fst::edge e) const = 0;
+        };
+
+        template <class fst, class vector, class lexicalizer>
+        struct segment_feature
+            : public scrf_feature<fst, vector> {
+
+            segment_feature(
+                feat_dim_alloc& alloc,
+                int order,
+                std::shared_ptr<segfeat::experimental::feature> raw_feat_func,
+                std::vector<std::vector<double>> const& frames);
+
+            feat_dim_alloc& alloc;
+            int dim;
+            int order;
+            std::shared_ptr<segfeat::experimental::feature> feat_func;
+            std::vector<std::vector<double>> const& frames;
+
+            virtual void operator()(vector& f, fst const& g,
+                typename fst::edge e) const override;
+        };
+
+        template <class fst, class vector>
+        struct composite_feature
+            : public scrf_feature<fst, vector> {
+
+            std::vector<std::shared_ptr<scrf_feature<fst, vector>>> features;
+
+            composite_feature();
+
+            virtual void operator()(vector& feat, fst const& f,
+                typename fst::edge e) const override;
+        };
+
+        template <class fst, class vector, class lexicalizer>
+        segment_feature<fst, vector, lexicalizer>::segment_feature(
+            feat_dim_alloc& alloc,
+            int order,
+            std::shared_ptr<segfeat::experimental::feature> feat_func,
+            std::vector<std::vector<double>> const& frames)
+            : alloc(alloc), order(order), feat_func(feat_func), frames(frames)
+        {
+            dim = alloc.alloc(order, feat_func->dim(frames.front().size()));
+        }
+
+        template <class fst, class vector, class lexicalizer>
+        void segment_feature<fst, vector, lexicalizer>::operator()(
+            vector& f, fst const& a, typename fst::edge e) const
+        {
+            double *g = lexicalizer()(alloc, order, f, a, e);
+
+            (*feat_func)(g + dim, frames, a.time(a.tail(e)), a.time(a.head(e)));
+        }
+
+        template <class fst, class vector>
+        composite_feature<fst, vector>::composite_feature()
+        {}
+
+        template <class fst, class vector>
+        void composite_feature<fst, vector>::operator()(
+            vector& feat, fst const& f,
+            typename fst::edge e) const
+        {
+            for (auto& h: features) {
+                (*h)(feat, f, e);
+            }
+        }
+        
+    }
+
 }
 
 #endif

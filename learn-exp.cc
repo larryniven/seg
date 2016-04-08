@@ -1,14 +1,6 @@
-#include "scrf/util.h"
-#include "scrf/scrf.h"
-#include "scrf/lm.h"
-#include "scrf/lattice.h"
-#include "speech/speech.h"
+#include "scrf/iscrf.h"
 #include "scrf/loss.h"
-#include "scrf/scrf_cost.h"
-#include "scrf/scrf_feat.h"
 #include "scrf/scrf_weight.h"
-#include "scrf/scrf_util.h"
-#include "scrf/make_feat.h"
 #include <fstream>
 
 struct learning_env {
@@ -21,13 +13,14 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
-    scrf::first_order::learning_args l_args;
+    scrf::experimental::learning_args l_args;
 
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
 
     void run();
+
 };
 
 int main(int argc, char *argv[])
@@ -37,7 +30,7 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"frame-batch", "", true},
-            {"gold-batch", "", true},
+            {"ground-truth-batch", "", true},
             {"min-seg", "", false},
             {"max-seg", "", false},
             {"min-cost-path", "Use min cost path for training", false},
@@ -83,7 +76,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         frame_batch.open(args.at("frame-batch"));
     }
 
-    ground_truth_batch.open(args.at("gold-batch"));
+    ground_truth_batch.open(args.at("ground-truth-batch"));
 
     save_every = std::numeric_limits<int>::max();
     if (ebt::in(std::string("save-every"), args)) {
@@ -100,7 +93,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
-    l_args = scrf::first_order::parse_learning_args(args);
+    l_args = scrf::experimental::parse_learning_args(args);
 }
 
 void learning_env::run()
@@ -109,7 +102,7 @@ void learning_env::run()
 
     while (1) {
 
-        scrf::first_order::learning_sample s { l_args };
+        scrf::experimental::learning_sample s { l_args };
 
         s.frames = speech::load_frame_batch(frame_batch);
 
@@ -128,45 +121,48 @@ void learning_env::run()
         std::cout << std::endl;
 
         if (ebt::in(std::string("min-cost-path"), args)) {
-            scrf::first_order::make_min_cost_gold(s, l_args);
+            scrf::experimental::make_min_cost_gold(s, l_args);
         } else {
-            scrf::first_order::make_gold(s, l_args);
+            scrf::experimental::make_gold(s, l_args);
         }
 
-        s.cost = std::make_shared<scrf::first_order::seg_cost>(
-            scrf::first_order::make_overlap_cost(s.ground_truth_path, l_args.sils));
+        s.cost = std::make_shared<scrf::experimental::seg_cost<ilat::fst>>(
+            scrf::experimental::make_overlap_cost<ilat::fst>(s.ground_truth.fst, l_args.sils));
 
         double gold_cost = 0;
     
         std::cout << "gold path: ";
-        for (auto& e: s.gold_path.edges()) {
-            std::cout << l_args.id_label[s.gold_path.output(e)] << " ";
-            gold_cost += (*s.cost)(*s.gold.fst, e);
+        for (auto& e: s.gold.edges()) {
+            std::cout << l_args.id_label[s.gold.output(e)] << " ";
+            gold_cost += (*s.cost)(s.gold.fst, e);
         }
         std::cout << std::endl;
     
         std::cout << "gold cost: " << gold_cost << std::endl;
 
-        scrf::first_order::make_graph(s, l_args);
+        scrf::experimental::make_graph(s, l_args);
 
-        std::shared_ptr<scrf::first_order::loss_func> loss_func;
+        std::shared_ptr<scrf::experimental::loss_func<scrf::experimental::dense_vec>> loss_func;
 
         if (args.at("loss") == "hinge-loss") {
-            scrf::first_order::composite_weight& graph_weight_func
-                = *dynamic_cast<scrf::first_order::composite_weight*>(s.graph.weight_func.get());
+            scrf::experimental::composite_weight<ilat::fst>& graph_weight_func
+                = *dynamic_cast<scrf::experimental::composite_weight<ilat::fst>*>(s.graph.weight_func.get());
             graph_weight_func.weights.push_back(s.cost);
 
-            loss_func = std::make_shared<scrf::first_order::hinge_loss>(
-                scrf::first_order::hinge_loss { s.gold_path, s.graph });
+            using hinge_loss = scrf::experimental::hinge_loss<
+                scrf::experimental::iscrf, scrf::experimental::dense_vec,
+                scrf::experimental::iscrf_path_maker>;
 
-            scrf::first_order::hinge_loss const& loss = *dynamic_cast<scrf::first_order::hinge_loss*>(loss_func.get());
+            loss_func = std::make_shared<hinge_loss>(hinge_loss { s.gold, s.graph });
 
-            real gold_weight = 0;
+            hinge_loss const& loss = *dynamic_cast<hinge_loss*>(loss_func.get());
+
+            double gold_weight = 0;
 
             std::cout << "gold: ";
-            for (auto& e: s.gold_path.edges()) {
-                std::cout << l_args.id_label[s.gold_path.output(e)] << " ";
-                gold_weight += s.gold_path.weight(e);
+            for (auto& e: s.gold.edges()) {
+                std::cout << l_args.id_label[s.gold.output(e)] << " ";
+                gold_weight += s.gold.weight(e);
             }
             std::cout << std::endl;
 
@@ -182,36 +178,22 @@ void learning_env::run()
             std::cout << std::endl;
 
             std::cout << "cost aug score: " << graph_weight << std::endl; 
-        } else if (args.at("loss") == "log-loss") {
-            loss_func = std::make_shared<scrf::first_order::log_loss>(
-                scrf::first_order::log_loss { s.gold_path, s.graph });
-        } else if (args.at("loss") == "filtering-loss") {
-            if (!ebt::in(std::string("alpha"), args)) {
-                std::cerr << "--alpha is required" << std::endl;
-            }
-
-            double alpha = std::stod(args.at("alpha"));
-
-            loss_func = std::make_shared<scrf::first_order::filtering_loss>(
-                scrf::first_order::filtering_loss { s.gold_path, s.graph, alpha });
         } else {
             std::cout << "unknown loss function " << args.at("loss") << std::endl;
             exit(1);
         }
 
-        std::cout << "gold segs: " << s.gold_path.edges().size()
+        std::cout << "gold segs: " << s.gold.edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
         double ell = loss_func->loss();
 
         std::cout << "loss: " << ell << std::endl;
 
-        scrf::first_order::param_t param_grad;
+        scrf::experimental::dense_vec param_grad;
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
-
-            // std::cout << "analytic grad: " << param_grad.class_vec[l_args.label_id.at("</s>")](0) << std::endl;
         }
 
         if (ell < 0) {
@@ -220,16 +202,11 @@ void learning_env::run()
 
         std::cout << std::endl;
 
-        if (ebt::in(std::string("momentum"), args)) {
-            scrf::first_order::const_step_update_momentum(l_args.param, param_grad,
-               l_args.opt_data, l_args.momentum, l_args.step_size);
-        } else {
-            scrf::first_order::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
-        }
+        scrf::experimental::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
 
         if (i % save_every == 0) {
-            scrf::first_order::save_param(l_args.param, "param-last");
-            scrf::first_order::save_param(l_args.opt_data, "opt-data-last");
+            scrf::experimental::save_vec(l_args.param, "param-last");
+            scrf::experimental::save_vec(l_args.opt_data, "opt-data-last");
         }
 
 #if DEBUG_TOP
@@ -241,8 +218,8 @@ void learning_env::run()
         ++i;
     }
 
-    scrf::first_order::save_param(l_args.param, output_param);
-    scrf::first_order::save_param(l_args.opt_data, output_opt_data);
+    scrf::experimental::save_vec(l_args.param, output_param);
+    scrf::experimental::save_vec(l_args.opt_data, output_opt_data);
 
 }
 

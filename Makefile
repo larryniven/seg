@@ -1,23 +1,26 @@
 CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../la -L ../autodiff -L ./
 AR = gcc-ar
 
-obj = ilat.o \
+obj = fst.o \
+    ilat.o \
     lattice.o \
     lm.o \
     scrf_weight.o \
-    segfeat.o \
     scrf_feat.o \
     scrf_feat_util.o \
+    segfeat.o \
     segcost.o \
     scrf_cost.o \
     loss.o \
     scrf.o \
+    iscrf.o \
     scrf_feat.o \
     scrf_util.o \
     make_feat.o \
     nn_feat.o
 
 bin = libscrf.a \
+    learn-exp \
     learn \
     learn-first \
     predict \
@@ -34,16 +37,23 @@ bin = libscrf.a \
     forced-align \
     lat-cost
 
+.PHONY: all gpu clean header
+
 all: $(bin)
 
 gpu: learn-e2e predict-e2e
 
 clean:
-	-rm *.o
+	-rm *.o *.gch
 	-rm $(bin)
+
+header: fst.h.gch
 
 libscrf.a: $(obj)
 	$(AR) rcs libscrf.a $(obj)
+
+learn-exp: learn-exp.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 learn: learn.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
@@ -105,6 +115,7 @@ forced-align: forced-align.o libscrf.a
 lat-cost: lat-cost.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
+fst.o: fst.h
 ilat.o: ilat.h
 scrf.o: scrf.h fst.h lattice.h lm.h
 lm.o: lm.h
@@ -117,6 +128,10 @@ nn.o: nn.h
 scrf_weight.o: scrf_weight.h scrf_feat.h scrf.h
 scrf_feat.o: scrf_feat.h scrf.h
 make_feat.o: make_feat.h scrf_feat.h
+scrf_cost.o: scrf_cost.h
+segcost.o: segcost.h
+segfeat.o: segfeat.h
+iscrf.o: iscrf.h scrf.h fst.h
 
 learn.o: fst.h scrf.h util.h
 learn-first.o: fst.h scrf.h util.h
@@ -133,3 +148,6 @@ vertex-prune.o: fst.h scrf.h util.h
 oracle-error.o: fst.h scrf.h util.h
 forced-align.o: fst.h scrf.h util.h
 lat-cost.o: fst.h scrf.h util.h
+
+fst.h.gch: fst.h
+	$(CXX) $(CXXFLAGS) -c -o $@ $^
