@@ -319,6 +319,15 @@ namespace ilat {
 
         fst_data result;
 
+        result.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(symbol_id);
+
+        std::vector<std::string> id_symbol;
+        id_symbol.resize(symbol_id.size());
+        for (auto& p: symbol_id) {
+            id_symbol[p.second] = p.first;
+        }
+        result.id_symbol = std::make_shared<std::vector<std::string>>(id_symbol);
+
         result.initials.push_back(0);
         add_vertex(result, 0, vertex_data { 0 });
 
@@ -635,12 +644,20 @@ namespace ilat {
 
     std::vector<composed_pair::edge> const& composed_pair::in_edges(composed_pair::vertex v) const
     {
-        return data->in_edges.at(v);
+        if (ebt::in(v, data->in_edges)) {
+            return data->in_edges.at(v);
+        } else {
+            return data->empty;
+        }
     }
 
     std::vector<composed_pair::edge> const& composed_pair::out_edges(composed_pair::vertex v) const
     {
-        return data->out_edges.at(v);
+        if (ebt::in(v, data->out_edges)) {
+            return data->out_edges.at(v);
+        } else {
+            return data->empty;
+        }
     }
 
     composed_pair::vertex composed_pair::tail(composed_pair::edge e) const

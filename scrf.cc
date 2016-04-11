@@ -710,7 +710,7 @@ namespace scrf {
         {
             std::ifstream ifs { filename };
 
-            load_sparse_vec(ifs);
+            return load_sparse_vec(ifs);
         }
 
         void save_vec(sparse_vec const& v, std::ostream& os)
@@ -758,6 +758,14 @@ namespace scrf {
             sparse_vec& accu_grad_sq, double step_size)
         {
             for (auto& p: grad.class_vec) {
+                if (theta.class_vec[p.first].size() == 0) {
+                    theta.class_vec[p.first].resize(p.second.size());
+                }
+
+                if (accu_grad_sq.class_vec[p.first].size() == 0) {
+                    accu_grad_sq.class_vec[p.first].resize(p.second.size());
+                }
+
                 opt::adagrad_update(theta.class_vec.at(p.first), p.second,
                     accu_grad_sq.class_vec.at(p.first), step_size);
             }

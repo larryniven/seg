@@ -189,6 +189,8 @@ namespace ilat {
         std::unordered_map<vertex, std::vector<edge>> out_edges;
         std::vector<vertex> initials;
         std::vector<vertex> finals;
+
+        std::vector<edge> empty;
     };
 
     struct composed_pair

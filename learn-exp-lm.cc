@@ -1,7 +1,10 @@
-#include "scrf/iscrf.h"
+#include "scrf/pair_scrf.h"
 #include "scrf/loss.h"
 #include "scrf/scrf_weight.h"
+#include "scrf/iscrf.h"
 #include <fstream>
+
+namespace second_order = scrf::experimental::second_order;
 
 struct learning_env {
 
@@ -15,7 +18,7 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
-    scrf::experimental::learning_args l_args;
+    second_order::learning_args l_args;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -31,9 +34,10 @@ int main(int argc, char *argv[])
         "learn-first",
         "Learn segmental CRF",
         {
-            {"frame-batch", "", true},
+            {"frame-batch", "", false},
+            {"lm", "", true},
             {"ground-truth-batch", "", true},
-            {"lattice-batch", "", false},
+            {"lattice-batch", "", true},
             {"min-seg", "", false},
             {"max-seg", "", false},
             {"min-cost-path", "Use min cost path for training", false},
@@ -97,7 +101,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
-    l_args = scrf::experimental::parse_learning_args(args);
+    l_args = second_order::parse_learning_args(args);
 }
 
 void learning_env::run()
@@ -106,9 +110,11 @@ void learning_env::run()
 
     while (1) {
 
-        scrf::experimental::learning_sample s { l_args };
+        second_order::learning_sample s { l_args };
 
-        s.frames = speech::load_frame_batch(frame_batch);
+        if (ebt::in(std::string("frame-batch"), args)) {
+            s.frames = speech::load_frame_batch(frame_batch);
+        }
 
         s.ground_truth_fst = ilat::load_lattice(ground_truth_batch, l_args.label_id);
 
@@ -124,49 +130,34 @@ void learning_env::run()
         }
         std::cout << std::endl;
 
-        if (ebt::in(std::string("lattice-batch"), args)) {
-            ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
+        ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
 
-            if (!lattice_batch) {
-                std::cerr << "error reading " << args.at("lattice-batch") << std::endl;
-                exit(1);
-            }
-
-            scrf::experimental::make_lattice(lat, s, l_args);
-        } else {
-            scrf::experimental::make_graph(s, l_args);
+        if (!lattice_batch) {
+            std::cerr << "error reading " << args.at("lattice-batch") << std::endl;
+            exit(1);
         }
+
+        second_order::make_lattice(lat, s, l_args);
 
         if (ebt::in(std::string("min-cost-path"), args)) {
-            scrf::experimental::make_min_cost_gold(s, l_args);
+            second_order::make_min_cost_gold(s, l_args);
         } else {
-            scrf::experimental::make_gold(s, l_args);
+            second_order::make_gold(s, l_args);
         }
 
-        s.cost = std::make_shared<scrf::experimental::seg_cost<ilat::fst>>(
-            scrf::experimental::make_overlap_cost<ilat::fst>(*s.ground_truth.fst, l_args.sils));
+        s.cost = std::make_shared<scrf::experimental::seg_cost<ilat::pair_fst>>(
+            scrf::experimental::make_overlap_cost<ilat::pair_fst>(*s.ground_truth->fst, l_args.sils));
 
-        double gold_cost = 0;
-    
-        std::cout << "gold path: ";
-        for (auto& e: s.gold->edges()) {
-            std::cout << l_args.id_label[s.gold->output(e)] << " ";
-            gold_cost += (*s.cost)(*s.gold->fst, e);
-        }
-        std::cout << std::endl;
-    
-        std::cout << "gold cost: " << gold_cost << std::endl;
-
-        std::shared_ptr<scrf::experimental::loss_func<scrf::experimental::dense_vec>> loss_func;
+        std::shared_ptr<scrf::experimental::loss_func<scrf::experimental::sparse_vec>> loss_func;
 
         if (args.at("loss") == "hinge-loss") {
-            scrf::experimental::composite_weight<ilat::fst>& graph_weight_func
-                = *dynamic_cast<scrf::experimental::composite_weight<ilat::fst>*>(s.graph.weight_func.get());
+            scrf::experimental::composite_weight<ilat::pair_fst>& graph_weight_func
+                = *dynamic_cast<scrf::experimental::composite_weight<ilat::pair_fst>*>(s.graph.weight_func.get());
             graph_weight_func.weights.push_back(s.cost);
 
             using hinge_loss = scrf::experimental::hinge_loss<
-                scrf::experimental::iscrf, scrf::experimental::dense_vec,
-                scrf::experimental::iscrf_path_maker>;
+                second_order::pair_scrf, scrf::experimental::sparse_vec,
+                second_order::pair_scrf_path_maker>;
 
             loss_func = std::make_shared<hinge_loss>(hinge_loss { *s.gold, s.graph });
 
@@ -205,7 +196,7 @@ void learning_env::run()
 
         std::cout << "loss: " << ell << std::endl;
 
-        scrf::experimental::dense_vec param_grad;
+        scrf::experimental::sparse_vec param_grad;
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();

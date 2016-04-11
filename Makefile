@@ -14,6 +14,7 @@ obj = fst.o \
     loss.o \
     scrf.o \
     iscrf.o \
+    pair_scrf.o \
     scrf_feat.o \
     scrf_util.o \
     make_feat.o \
@@ -53,6 +54,9 @@ libscrf.a: $(obj)
 	$(AR) rcs libscrf.a $(obj)
 
 learn-exp: learn-exp.o libscrf.a
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+
+learn-exp-lm: learn-exp-lm.o libscrf.a
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
 
 learn: learn.o libscrf.a
