@@ -82,9 +82,6 @@ namespace lattice {
         out_edges_map(int v) const override;
     };
 
-    fst to_lat(ilat::fst&& ilat);
-    fst to_lat(ilat::fst const& ilat);
-
     fst load_lattice(std::istream& is);
 
     fst add_eps_loops(fst f, std::string label="<eps>");

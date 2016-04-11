@@ -950,6 +950,11 @@ namespace fst {
             out_edges_map(vertex v) const = 0;
         };
 
+        /*
+         * The class `symbol_trait` is useful for defining `eps`
+         * and other special symbols.
+         *
+         */
         template <class symbol>
         struct symbol_trait;
 
@@ -958,22 +963,24 @@ namespace fst {
             static std::string eps;
         };
 
-        template <>
-        struct symbol_trait<int> {
-            static int eps;
-        };
-
+        /*
+         * The class `edge_trait` is usefule for creating null edges.
+         * Null edges are used, for example, in tracking back
+         * the shortest path.
+         *
+         */
         template <class edge>
         struct edge_trait;
 
-        template <>
-        struct edge_trait<int> {
-            static int null;
-        };
-
+        /*
+         * The return type is a `shared_ptr` so that subclasses of `fst`
+         * can be returned and the data is managed.
+         *
+         */
         template <class fst>
         struct path_maker {
-            virtual fst operator()(std::vector<typename fst::edge> const& edges, fst const& f) const = 0;
+            virtual std::shared_ptr<fst> operator()(std::vector<typename fst::edge> const& edges,
+                fst const& f) const = 0;
         };
 
         template <class fst>
@@ -989,88 +996,97 @@ namespace fst {
 
             std::unordered_map<vertex, extra_data> extra;
 
-            void merge(fst const& f, std::vector<vertex> const& order)
-            {
-                double inf = std::numeric_limits<real>::infinity();
+            void merge(fst const& f, std::vector<vertex> const& order);
 
-                auto get_value = [&](vertex v) {
-                    if (!ebt::in(v, extra)) {
-                        return -inf;
-                    } else {
-                        return extra.at(v).value;
-                    }
-                };
-
-                for (auto& u: order) {
-                    double max = get_value(u);
-                    edge argmax;
-                    bool update = false;
-
-                    std::vector<edge> edges = f.in_edges(u);
-                    std::vector<double> candidate_value;
-                    candidate_value.resize(edges.size());
-
-                    #pragma omp parallel for
-                    for (int i = 0; i < edges.size(); ++i) {
-                        edge& e = edges[i];
-                        vertex v = f.tail(e);
-                        candidate_value[i] = get_value(v) + f.weight(e);
-                    }
-
-                    for (int i = 0; i < edges.size(); ++i) {
-                        if (candidate_value[i] > max) {
-                            max = candidate_value[i];
-                            argmax = edges[i];
-                            update = true;
-                        }
-                    }
-
-                    if (update) {
-                        extra[u] = extra_data { argmax, max };
-                    }
-                }
-            }
-
-            std::vector<typename fst::edge> best_path(fst const& f)
-            {
-                double inf = std::numeric_limits<double>::infinity();
-                double max = -inf;
-                vertex argmax;
-
-                for (auto v: f.finals()) {
-                    if (ebt::in(v, extra) && extra.at(v).value > max) {
-                        max = extra.at(v).value;
-                        argmax = v;
-                    }
-                }
-
-                std::vector<typename fst::edge> result;
-
-                if (max == -inf) {
-                    return result;
-                }
-
-                vertex u = argmax;
-
-                std::vector<typename fst::vertex> const& initials = f.initials();
-                std::unordered_set<vertex> initial_set { initials.begin(), initials.end() };
-
-                while (!ebt::in(u, initial_set)) {
-                    edge e = extra.at(u).pi;
-                    vertex v = f.tail(e);
-                    result.push_back(e);
-                    u = v;
-                }
-
-                std::reverse(result.begin(), result.end());
-
-                return result;
-            }
+            std::vector<typename fst::edge> best_path(fst const& f);
 
         };
 
         template <class fst, class path_maker>
-        fst shortest_path(fst const& f)
+        std::shared_ptr<fst> shortest_path(fst const& f);
+
+        template <class fst>
+        void forward_one_best<fst>::merge(fst const& f, std::vector<typename fst::vertex> const& order)
+        {
+            double inf = std::numeric_limits<double>::infinity();
+
+            auto get_value = [&](vertex v) {
+                if (!ebt::in(v, extra)) {
+                    return -inf;
+                } else {
+                    return extra.at(v).value;
+                }
+            };
+
+            for (auto& u: order) {
+                double max = get_value(u);
+                typename fst::edge argmax;
+                bool update = false;
+
+                std::vector<edge> edges = f.in_edges(u);
+                std::vector<double> candidate_value;
+                candidate_value.resize(edges.size());
+
+                #pragma omp parallel for
+                for (int i = 0; i < edges.size(); ++i) {
+                    typename fst::edge& e = edges[i];
+                    typename fst::vertex v = f.tail(e);
+                    candidate_value[i] = get_value(v) + f.weight(e);
+                }
+
+                for (int i = 0; i < edges.size(); ++i) {
+                    if (candidate_value[i] > max) {
+                        max = candidate_value[i];
+                        argmax = edges[i];
+                        update = true;
+                    }
+                }
+
+                if (update) {
+                    extra[u] = extra_data { argmax, max };
+                }
+            }
+        }
+
+        template <class fst>
+        std::vector<typename fst::edge> forward_one_best<fst>::best_path(fst const& f)
+        {
+            double inf = std::numeric_limits<double>::infinity();
+            double max = -inf;
+            typename fst::vertex argmax;
+
+            for (auto v: f.finals()) {
+                if (ebt::in(v, extra) && extra.at(v).value > max) {
+                    max = extra.at(v).value;
+                    argmax = v;
+                }
+            }
+
+            std::vector<typename fst::edge> result;
+
+            if (max == -inf) {
+                return result;
+            }
+
+            vertex u = argmax;
+
+            std::vector<typename fst::vertex> const& initials = f.initials();
+            std::unordered_set<typename fst::vertex> initial_set { initials.begin(), initials.end() };
+
+            while (!ebt::in(u, initial_set)) {
+                edge e = extra.at(u).pi;
+                vertex v = f.tail(e);
+                result.push_back(e);
+                u = v;
+            }
+
+            std::reverse(result.begin(), result.end());
+
+            return result;
+        }
+
+        template <class fst, class path_maker>
+        std::shared_ptr<fst> shortest_path(fst const& f)
         {
             forward_one_best<fst> one_best;
             for (auto& v: f.initials()) {

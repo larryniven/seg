@@ -145,7 +145,7 @@ namespace scrf {
 
             fst const& gold;
             fst const& graph;
-            fst graph_path;
+            std::shared_ptr<fst> graph_path;
 
             hinge_loss(fst const& gold, fst const& graph);
 
@@ -159,7 +159,7 @@ namespace scrf {
         {
             graph_path = ::fst::experimental::shortest_path<fst, path_maker>(graph);
 
-            if (graph_path.edges().size() == 0) {
+            if (graph_path->edges().size() == 0) {
                 std::cout << "no cost aug path" << std::endl;
                 exit(1);
             }
@@ -176,8 +176,8 @@ namespace scrf {
 
             double graph_score = 0;
 
-            for (auto& e: graph_path.edges()) {
-                graph_score += graph_path.weight(e);
+            for (auto& e: graph_path->edges()) {
+                graph_score += graph_path->weight(e);
             }
 
             return graph_score - gold_score;
@@ -195,7 +195,7 @@ namespace scrf {
                 isub(result, f);
             }
 
-            for (auto& e: graph_path.edges()) {
+            for (auto& e: graph_path->edges()) {
                 vector f;
                 graph.feature(f, e);
 

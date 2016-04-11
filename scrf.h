@@ -312,14 +312,13 @@ namespace scrf {
             std::vector<la::vector<double>> class_vec;
         };
 
-        double dot(dense_vec const& u, dense_vec const& v);
-
-        dense_vec load_vec(std::istream& is);
-        dense_vec load_vec(std::string filename);
+        dense_vec load_dense_vec(std::istream& is);
+        dense_vec load_dense_vec(std::string filename);
 
         void save_vec(dense_vec const& v, std::ostream& os);
         void save_vec(dense_vec const& v, std::string filename);
 
+        double dot(dense_vec const& u, dense_vec const& v);
         void iadd(dense_vec& u, dense_vec const& v);
         void isub(dense_vec& u, dense_vec const& v);
         void imul(dense_vec& u, double c);
@@ -327,12 +326,23 @@ namespace scrf {
         void adagrad_update(dense_vec& theta, dense_vec const& grad,
             dense_vec& accu_grad_sq, double step_size);
 
-        template <class fst>
-        struct graph_maker {
-            virtual fst operator()(int frames,
-                std::vector<typename fst::symbol> const& labels,
-                int min_seg, int max_seg) const = 0;
+        struct sparse_vec {
+            std::unordered_map<std::string, la::vector<double>> class_vec;
         };
+
+        sparse_vec load_sparse_vec(std::istream& is);
+        sparse_vec load_sparse_vec(std::string filename);
+
+        void save_vec(sparse_vec const& v, std::ostream& os);
+        void save_vec(sparse_vec const& v, std::string filename);
+
+        double dot(sparse_vec const& u, sparse_vec const& v);
+        void iadd(sparse_vec& u, sparse_vec const& v);
+        void isub(sparse_vec& u, sparse_vec const& v);
+        void imul(sparse_vec& u, double c);
+
+        void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
+            sparse_vec& accu_grad_sq, double step_size);
 
         std::unordered_map<std::string, int> load_label_id(std::string filename);
 

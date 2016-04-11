@@ -1,152 +1,121 @@
-#include "scrf/iscrf.h"
+#include "scrf/pair_scrf.h"
 #include "scrf/scrf_weight.h"
 
 namespace scrf {
 
     namespace experimental {
 
-        std::vector<int> const& iscrf::vertices() const
+        std::vector<pair_scrf::vertex> const& pair_scrf::vertices() const
         {
             return fst->vertices();
         }
 
-        std::vector<int> const& iscrf::edges() const
+        std::vector<pair_scrf::edge> const& pair_scrf::edges() const
         {
             return fst->edges();
         }
 
-        int iscrf::head(int e) const
+        pair_scrf::vertex pair_scrf::head(pair_scrf::edge e) const
         {
             return fst->head(e);
         }
 
-        int iscrf::tail(int e) const
+        pair_scrf::vertex pair_scrf::tail(pair_scrf::edge e) const
         {
             return fst->tail(e);
         }
 
-        std::vector<int> const& iscrf::in_edges(int v) const
+        std::vector<pair_scrf::edge> const& pair_scrf::in_edges(pair_scrf::vertex v) const
         {
             return fst->in_edges(v);
         }
 
-        std::vector<int> const& iscrf::out_edges(int v) const
+        std::vector<pair_scrf::edge> const& pair_scrf::out_edges(pair_scrf::vertex v) const
         {
             return fst->out_edges(v);
         }
 
-        double iscrf::weight(int e) const
+        double pair_scrf::weight(pair_scrf::edge e) const
         {
             return (*weight_func)(*fst, e);
         }
 
-        int const& iscrf::input(int e) const
+        int const& pair_scrf::input(pair_scrf::edge e) const
         {
             return fst->input(e);
         }
 
-        int const& iscrf::output(int e) const
+        int const& pair_scrf::output(pair_scrf::edge e) const
         {
             return fst->output(e);
         }
 
-        std::vector<int> const& iscrf::initials() const
+        std::vector<pair_scrf::vertex> const& pair_scrf::initials() const
         {
             return fst->initials();
         }
 
-        std::vector<int> const& iscrf::finals() const
+        std::vector<pair_scrf::vertex> const& pair_scrf::finals() const
         {
             return fst->finals();
         }
 
-        long iscrf::time(int e) const
+        long pair_scrf::time(pair_scrf::edge e) const
         {
             return fst->time(e);
         }
 
-        void iscrf::feature(dense_vec& f, int e) const
+        void pair_scrf::feature(sparse_vec& f, pair_scrf::edge e) const
         {
             (*feature_func)(f, *fst, e);
         }
 
-        double iscrf::cost(int e) const
+        double pair_scrf::cost(pair_scrf::edge e) const
         {
             return (*cost_func)(*fst, e);
         }
 
-        std::vector<int> const& iscrf::topo_order() const
+        std::vector<pair_scrf::vertex> const& pair_scrf::topo_order() const
         {
             return topo_order_cache;
         }
 
-        std::shared_ptr<iscrf> iscrf_path_maker::operator()(std::vector<int> const& edges,
-            iscrf const& f) const
+        std::shared_ptr<pair_scrf> pair_scrf_path_maker::operator()(std::vector<pair_scrf::edge> const& edges,
+            pair_scrf const& f) const
         {
-            iscrf result;
+            pair_scrf result;
 
-            result.fst = ilat::ilat_path_maker()(edges, *f.fst);
+            result.fst = ilat::pair_fst_path_maker()(edges, *f.fst);
             result.topo_order_cache = fst::topo_order(*result.fst);
             result.weight_func = f.weight_func;
             result.feature_func = f.feature_func;
             result.cost_func = f.cost_func;
 
-            return std::make_shared<iscrf>(result);
+            return std::make_shared<pair_scrf>(result);
         }
 
-        iscrf make_graph(int frames,
-            std::vector<int> const& labels,
-            int min_seg_len, int max_seg_len)
-        {
-            ilat::fst_data data;
-
-            for (int i = 0; i < frames + 1; ++i) {
-                ilat::add_vertex(data, i, ilat::vertex_data { i });
-            }
-
-            assert(min_seg_len >= 1);
-
-            for (int i = 0; i < frames + 1; ++i) {
-                for (int j = min_seg_len; j <= max_seg_len; ++j) {
-                    int tail = i;
-                    int head = i + j;
-
-                    if (head > frames) {
-                        continue;
-                    }
-
-                    for (auto& ell: labels) {
-                        if (ell == 0) {
-                            continue;
-                        }
-
-                        ilat::add_edge(data, data.edges.size(), ilat::edge_data { tail, head, 0, ell });
-                    }
-                }
-            }
-
-            data.initials.push_back(0);
-            data.finals.push_back(frames);
-
-            iscrf result;
-
-            result.fst->data = std::make_shared<ilat::fst_data>(std::move(data));
-            result.topo_order_cache = fst::topo_order(*result.fst);
-
-            return result;
-        }
-
-        double* ilat_lexicalizer::operator()(
+        double* pair_fst_lexicalizer::operator()(
             feat_dim_alloc const& alloc, int order,
-            dense_vec& feat, ilat::fst const& fst, int e) const
+            sparse_vec& feat, ilat::pair_fst const& fst,
+            ilat::pair_fst::edge e) const
         {
-            int label_tuple = 0;
+            std::string label_tuple;
+            auto const& vertex_attrs = fst.fst2().data->vertex_attrs;
+            auto const& id_symbol = *fst.fst1().data->id_symbol;
 
             if (order == 0) {
-                feat.class_vec.resize(1);
+                // do nothing
             } else if (order == 1) {
-                label_tuple = fst.output(e) + 1;
-                feat.class_vec.resize(alloc.labels.size() + 1);
+                label_tuple = id_symbol.at(fst.output(e));
+            } else if (order == 2) {
+                for (auto& p: vertex_attrs.at(std::get<1>(fst.tail(e)))) {
+                    if (p.first == "history") {
+                        label_tuple = p.second;
+                        break;
+                    }
+                }
+
+                label_tuple += "_" + id_symbol.at(fst.output(e));
             } else {
                 std::cerr << "order " << order << " not implemented" << std::endl;
                 exit(1);
@@ -156,6 +125,12 @@ namespace scrf {
             g.resize(alloc.order_dim[order]);
 
             return g.data();
+        }
+
+        double backoff_cost::operator()(ilat::pair_fst const& f,
+            ilat::pair_fst::edge e) const
+        {
+            return (f.fst1().output(std::get<0>(e)) == 0 ? 1 : 0);
         }
 
         std::pair<int, int> get_dim(std::string feat)
@@ -172,15 +147,15 @@ namespace scrf {
             return std::make_pair(start_dim, end_dim);
         }
 
-        composite_feature<ilat::fst, dense_vec> make_feat(
+        composite_feature<ilat::pair_fst, sparse_vec> make_feat(
             feat_dim_alloc& alloc,
             std::vector<std::string> features,
             std::vector<std::vector<real>> const& frames,
             std::unordered_map<std::string, std::string> const& args)
         {
-            composite_feature<ilat::fst, dense_vec> result;
+            composite_feature<ilat::pair_fst, sparse_vec> result;
 
-            using feat_func = segment_feature<ilat::fst, dense_vec, ilat_lexicalizer>;
+            using feat_func = segment_feature<ilat::pair_fst, sparse_vec, pair_fst_lexicalizer>;
 
             for (auto& k: features) {
                 if (ebt::startswith(k, "frame-avg")) {
@@ -292,38 +267,27 @@ namespace scrf {
         {
         }
         
-        void make_graph(sample& s, inference_args const& i_args)
-        {
-            s.graph = make_graph(s.frames.size(),
-                i_args.labels, i_args.min_seg, i_args.max_seg);
-        
-            composite_feature<ilat::fst, dense_vec> graph_feat_func
-                = make_feat(s.graph_alloc, i_args.features, s.frames, i_args.args);
-        
-            composite_weight<ilat::fst> weight;
-            weight.weights.push_back(std::make_shared<linear_score<ilat::fst, dense_vec>>(
-                linear_score<ilat::fst, dense_vec>(i_args.param,
-                    std::make_shared<composite_feature<ilat::fst, dense_vec>>(graph_feat_func))));
-        
-            s.graph.weight_func = std::make_shared<composite_weight<ilat::fst>>(weight);
-            s.graph.feature_func = std::make_shared<composite_feature<ilat::fst, dense_vec>>(graph_feat_func);
-        }
-
         void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args)
         {
-            s.graph.fst = std::make_shared<ilat::fst>(lat);
-            s.graph.topo_order_cache = fst::topo_order(lat);
-        
-            composite_feature<ilat::fst, dense_vec> graph_feat_func
+            s.graph.fst = std::make_shared<ilat::lazy_pair>(ilat::lazy_pair { lat, i_args.lm });
+
+            auto lat_order = fst::topo_order(lat);
+            for (int i = i_args.lm.vertices().size() - 1; i >= 0; --i) {
+                for (auto& v: lat_order) {
+                    s.graph.topo_order_cache.push_back(std::make_tuple(v, i));
+                }
+            }
+
+            composite_feature<ilat::pair_fst, sparse_vec> graph_feat_func
                 = make_feat(s.graph_alloc, i_args.features, s.frames, i_args.args);
         
-            composite_weight<ilat::fst> weight;
-            weight.weights.push_back(std::make_shared<linear_score<ilat::fst, dense_vec>>(
-                linear_score<ilat::fst, dense_vec>(i_args.param,
-                    std::make_shared<composite_feature<ilat::fst, dense_vec>>(graph_feat_func))));
+            composite_weight<ilat::pair_fst> weight;
+            weight.weights.push_back(std::make_shared<linear_score<ilat::pair_fst, sparse_vec>>(
+                linear_score<ilat::pair_fst, sparse_vec>(i_args.param,
+                    std::make_shared<composite_feature<ilat::pair_fst, sparse_vec>>(graph_feat_func))));
         
-            s.graph.weight_func = std::make_shared<composite_weight<ilat::fst>>(weight);
-            s.graph.feature_func = std::make_shared<composite_feature<ilat::fst, dense_vec>>(graph_feat_func);
+            s.graph.weight_func = std::make_shared<composite_weight<ilat::pair_fst>>(weight);
+            s.graph.feature_func = std::make_shared<composite_feature<ilat::pair_fst, sparse_vec>>(graph_feat_func);
         }
         
         learning_args parse_learning_args(
@@ -343,8 +307,8 @@ namespace scrf {
                 l_args.max_seg = std::stoi(args.at("max-seg"));
             }
         
-            l_args.param = load_dense_vec(args.at("param"));
-            l_args.opt_data = load_dense_vec(args.at("opt-data"));
+            l_args.param = load_sparse_vec(args.at("param"));
+            l_args.opt_data = load_sparse_vec(args.at("opt-data"));
             l_args.step_size = std::stod(args.at("step-size"));
         
             l_args.momentum = -1;
@@ -367,6 +331,8 @@ namespace scrf {
             l_args.sils.push_back(l_args.label_id.at("</s>"));
             l_args.sils.push_back(l_args.label_id.at("sil"));
         
+            l_args.lm = ilat::load_arpa_lm(l_args.args.at("lm"), l_args.label_id);
+
             return l_args;
         }
         
@@ -377,40 +343,55 @@ namespace scrf {
         
         void make_gold(learning_sample& s, learning_args const& l_args)
         {
-            s.ground_truth.fst = std::make_shared<ilat::fst>(s.ground_truth_fst);
+            ilat::lazy_pair comp_lat { s.ground_truth_fst, l_args.lm };
+
+            s.ground_truth.fst = std::make_shared<ilat::lazy_pair>(comp_lat);
+
+            s.ground_truth.weight_func = std::make_shared<neg<ilat::pair_fst>>(
+                neg<ilat::pair_fst>(std::make_shared<backoff_cost>(backoff_cost{})));
+
+            s.gold = fst::experimental::shortest_path<pair_scrf, pair_scrf_path_maker>(s.ground_truth);
+
+            using comp_feat = composite_feature<ilat::pair_fst, sparse_vec>;
+
+            comp_feat gold_feat_func = make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
         
-            s.gold = std::make_shared<iscrf>(s.ground_truth);
-        
-            composite_feature<ilat::fst, dense_vec> gold_feat_func
-                = make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
-        
-            s.gold->weight_func = std::make_shared<linear_score<ilat::fst, dense_vec>>(
-                linear_score<ilat::fst, dense_vec>(l_args.param,
-                    std::make_shared<composite_feature<ilat::fst, dense_vec>>(gold_feat_func)));
-            s.gold->feature_func = std::make_shared<composite_feature<ilat::fst, dense_vec>>(gold_feat_func);
+            s.gold->weight_func = std::make_shared<linear_score<ilat::pair_fst, sparse_vec>>(
+                linear_score<ilat::pair_fst, sparse_vec>(l_args.param,
+                std::make_shared<comp_feat>(gold_feat_func)));
+            s.gold->feature_func = std::make_shared<comp_feat>(gold_feat_func);
         }
-        
+
         void make_min_cost_gold(learning_sample& s, learning_args const& l_args)
         {
-            s.ground_truth.fst = std::make_shared<ilat::fst>(s.ground_truth_fst);
+            ilat::lazy_pair comp_lat { s.ground_truth_fst, l_args.lm };
+
+            s.ground_truth.fst = std::make_shared<ilat::lazy_pair>(comp_lat);
+
+            s.ground_truth.weight_func = std::make_shared<neg<ilat::pair_fst>>(
+                neg<ilat::pair_fst>(std::make_shared<backoff_cost>(backoff_cost{})));
+
+            std::shared_ptr<pair_scrf> min_backoff_path
+                = fst::experimental::shortest_path<pair_scrf, pair_scrf_path_maker>(s.ground_truth);
 
             auto old_weight_func = s.graph.weight_func;
 
-            s.graph.weight_func = std::make_shared<neg<ilat::fst>>(neg<ilat::fst>(
-                std::make_shared<seg_cost<ilat::fst>>(
-                    make_overlap_cost<ilat::fst>(s.ground_truth_fst, l_args.sils))));
+            s.graph.weight_func = std::make_shared<neg<ilat::pair_fst>>(neg<ilat::pair_fst>(
+                std::make_shared<seg_cost<ilat::pair_fst>>(
+                    make_overlap_cost<ilat::pair_fst>(*min_backoff_path->fst, l_args.sils))));
 
-            s.gold = fst::experimental::shortest_path<iscrf, iscrf_path_maker>(s.graph);
+            s.gold = fst::experimental::shortest_path<pair_scrf, pair_scrf_path_maker>(s.graph);
 
             s.graph.weight_func = old_weight_func;
         
-            composite_feature<ilat::fst, dense_vec> gold_feat_func
-                = make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
+            using comp_feat = composite_feature<ilat::pair_fst, sparse_vec>;
+
+            comp_feat gold_feat_func = make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
         
-            s.gold->weight_func = std::make_shared<linear_score<ilat::fst, dense_vec>>(
-                linear_score<ilat::fst, dense_vec>(l_args.param,
-                std::make_shared<composite_feature<ilat::fst, dense_vec>>(gold_feat_func)));
-            s.gold->feature_func = std::make_shared<composite_feature<ilat::fst, dense_vec>>(gold_feat_func);
+            s.gold->weight_func = std::make_shared<linear_score<ilat::pair_fst, sparse_vec>>(
+                linear_score<ilat::pair_fst, sparse_vec>(l_args.param,
+                std::make_shared<comp_feat>(gold_feat_func)));
+            s.gold->feature_func = std::make_shared<comp_feat>(gold_feat_func);
         }
 
     }

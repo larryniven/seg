@@ -8,6 +8,8 @@ struct learning_env {
     std::ifstream frame_batch;
     std::ifstream ground_truth_batch;
 
+    std::ifstream lattice_batch;
+
     int save_every;
 
     std::string output_param;
@@ -31,6 +33,7 @@ int main(int argc, char *argv[])
         {
             {"frame-batch", "", true},
             {"ground-truth-batch", "", true},
+            {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
             {"min-cost-path", "Use min cost path for training", false},
@@ -78,6 +81,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
 
     ground_truth_batch.open(args.at("ground-truth-batch"));
 
+    if (ebt::in(std::string("lattice-batch"), args)) {
+        lattice_batch.open(args.at("lattice-batch"));
+    }
+
     save_every = std::numeric_limits<int>::max();
     if (ebt::in(std::string("save-every"), args)) {
         save_every = std::stoi(args.at("save-every"));
@@ -120,6 +127,19 @@ void learning_env::run()
         }
         std::cout << std::endl;
 
+        if (ebt::in(std::string("lattice-batch"), args)) {
+            ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
+
+            if (!lattice_batch) {
+                std::cerr << "error reading " << args.at("lattice-batch") << std::endl;
+                exit(1);
+            }
+
+            scrf::experimental::make_lattice(lat, s, l_args);
+        } else {
+            scrf::experimental::make_graph(s, l_args);
+        }
+
         if (ebt::in(std::string("min-cost-path"), args)) {
             scrf::experimental::make_min_cost_gold(s, l_args);
         } else {
@@ -127,20 +147,18 @@ void learning_env::run()
         }
 
         s.cost = std::make_shared<scrf::experimental::seg_cost<ilat::fst>>(
-            scrf::experimental::make_overlap_cost<ilat::fst>(s.ground_truth.fst, l_args.sils));
+            scrf::experimental::make_overlap_cost<ilat::fst>(*s.ground_truth.fst, l_args.sils));
 
         double gold_cost = 0;
     
         std::cout << "gold path: ";
-        for (auto& e: s.gold.edges()) {
-            std::cout << l_args.id_label[s.gold.output(e)] << " ";
-            gold_cost += (*s.cost)(s.gold.fst, e);
+        for (auto& e: s.gold->edges()) {
+            std::cout << l_args.id_label[s.gold->output(e)] << " ";
+            gold_cost += (*s.cost)(*s.gold->fst, e);
         }
         std::cout << std::endl;
     
         std::cout << "gold cost: " << gold_cost << std::endl;
-
-        scrf::experimental::make_graph(s, l_args);
 
         std::shared_ptr<scrf::experimental::loss_func<scrf::experimental::dense_vec>> loss_func;
 
@@ -153,16 +171,16 @@ void learning_env::run()
                 scrf::experimental::iscrf, scrf::experimental::dense_vec,
                 scrf::experimental::iscrf_path_maker>;
 
-            loss_func = std::make_shared<hinge_loss>(hinge_loss { s.gold, s.graph });
+            loss_func = std::make_shared<hinge_loss>(hinge_loss { *s.gold, s.graph });
 
             hinge_loss const& loss = *dynamic_cast<hinge_loss*>(loss_func.get());
 
             double gold_weight = 0;
 
             std::cout << "gold: ";
-            for (auto& e: s.gold.edges()) {
-                std::cout << l_args.id_label[s.gold.output(e)] << " ";
-                gold_weight += s.gold.weight(e);
+            for (auto& e: s.gold->edges()) {
+                std::cout << l_args.id_label[s.gold->output(e)] << " ";
+                gold_weight += s.gold->weight(e);
             }
             std::cout << std::endl;
 
@@ -171,9 +189,9 @@ void learning_env::run()
             double graph_weight = 0;
 
             std::cout << "cost aug: ";
-            for (auto& e: loss.graph_path.edges()) {
+            for (auto& e: loss.graph_path->edges()) {
                 std::cout << l_args.id_label[loss.graph.output(e)] << " ";
-                graph_weight += loss.graph_path.weight(e);
+                graph_weight += loss.graph_path->weight(e);
             }
             std::cout << std::endl;
 
@@ -183,7 +201,7 @@ void learning_env::run()
             exit(1);
         }
 
-        std::cout << "gold segs: " << s.gold.edges().size()
+        std::cout << "gold segs: " << s.gold->edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
         double ell = loss_func->loss();

@@ -125,8 +125,8 @@ namespace scrf {
             : cost(cost)
         {
             for (auto& e: gold_path.edges()) {
-                int tail = gold_path.tail(e);
-                int head = gold_path.head(e);
+                auto tail = gold_path.tail(e);
+                auto head = gold_path.head(e);
 
                 gold_segs.push_back(segcost::experimental::segment<typename fst::symbol> {
                     gold_path.time(tail), gold_path.time(head), gold_path.output(e) });
@@ -137,8 +137,8 @@ namespace scrf {
         double seg_cost<fst>::operator()(fst const& f,
             typename fst::edge e) const
         {
-            int tail = f.tail(e);
-            int head = f.head(e);
+            auto tail = f.tail(e);
+            auto head = f.head(e);
 
             return (*cost)(gold_segs, segcost::experimental::segment<typename fst::symbol> {
                 f.time(tail), f.time(head), f.output(e) });

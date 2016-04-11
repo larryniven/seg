@@ -132,6 +132,7 @@ scrf_cost.o: scrf_cost.h
 segcost.o: segcost.h
 segfeat.o: segfeat.h
 iscrf.o: iscrf.h scrf.h fst.h
+pair_scrf.o: pair_scrf.h
 
 learn.o: fst.h scrf.h util.h
 learn-first.o: fst.h scrf.h util.h

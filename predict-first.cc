@@ -46,7 +46,8 @@ int main(int argc, char *argv[])
             {"features", "", true},
             {"label", "", true},
             {"label-dim", "", false},
-            {"length-stat", "", false}
+            {"length-stat", "", false},
+            {"print-seg", "", false}
         }
     };
 
@@ -132,15 +133,42 @@ void prediction_env::run()
 
         one_best = scrf::first_order::shortest_path(graph, graph.topo_order);
 
-        double weight = 0;
+        if (ebt::in(std::string("print-seg"), args)) {
+            auto& lat = *graph.fst;
 
-        for (auto& e: one_best.edges()) {
-            std::cout << id_label[one_best.output(e)] << " ";
-            weight += one_best.weight(e);
+            std::cout << frame_file << std::endl;
+
+            for (auto& e: one_best.edges()) {
+                int tail = lat.tail(e);
+                int head = lat.head(e);
+
+                std::cout << "--";
+
+                std::string output = id_label.at(one_best.output(e));
+                std::cout << " " << output << std::endl;
+
+                for (int i = 0; i < lat.time(head) - lat.time(tail) - 1; ++i) {
+                    std::cout << "|" << std::endl;
+                }
+            }
+
+            std::cout << "--" << std::endl;
+
+            std::cout << "." << std::endl;
+        } else {
+            for (auto& e: one_best.edges()) {
+                std::cout << id_label[one_best.output(e)] << " ";
+            }
+            std::cout << "(" << frame_file << ")" << std::endl;
+
+            double weight = 0;
+
+            for (auto& e: one_best.edges()) {
+                weight += one_best.weight(e);
+            }
+
+            std::cout << "weight: " << weight << std::endl;
         }
-
-        std::cout << "(" << frame_file << ")" << std::endl;
-        std::cout << "weight: " << weight << std::endl;
 
         ++i;
     }

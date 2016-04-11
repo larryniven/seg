@@ -17,7 +17,7 @@ namespace scrf {
             using edge = int;
             using symbol = int;
 
-            ilat::fst fst;
+            std::shared_ptr<ilat::fst> fst;
             std::vector<vertex> topo_order_cache;
 
             std::shared_ptr<scrf_weight<ilat::fst>> weight_func;
@@ -48,17 +48,14 @@ namespace scrf {
         struct iscrf_path_maker
             : public fst::experimental::path_maker<iscrf> {
 
-            virtual iscrf operator()(std::vector<int> const& edges, iscrf const& f) const override;
+            virtual std::shared_ptr<iscrf> operator()(std::vector<int> const& edges,
+                iscrf const& f) const override;
         };
 
-        struct iscrf_graph_maker
-            : public graph_maker<iscrf> {
+        iscrf make_graph(int frames,
+            std::vector<int> const& labels,
+            int min_seg_len, int max_seg_len);
 
-            virtual iscrf operator()(int frames,
-                std::vector<int> const& labels,
-                int min_seg_len, int max_seg_len) const override;
-
-        };
 
         struct ilat_lexicalizer
             : public lexicalizer<ilat::fst, dense_vec> {
@@ -92,12 +89,13 @@ namespace scrf {
             feat_dim_alloc graph_alloc;
         
             iscrf graph;
-            iscrf graph_path;
+            std::shared_ptr<iscrf> graph_path;
         
             sample(inference_args const& args);
         };
         
         void make_graph(sample& s, inference_args const& i_args);
+        void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args);
         
         struct learning_args
             : public inference_args {
@@ -116,7 +114,7 @@ namespace scrf {
             feat_dim_alloc gold_alloc;
         
             iscrf ground_truth;
-            iscrf gold;
+            std::shared_ptr<iscrf> gold;
         
             std::shared_ptr<seg_cost<ilat::fst>> cost;
         
