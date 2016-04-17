@@ -120,7 +120,7 @@ namespace segfeat {
 
     void frame_avg::frame_grad(
         std::vector<std::vector<double>>& grad,
-        double const *param,
+        double const *feat_grad,
         std::vector<std::vector<double>> const& frames,
         int start_time, int end_time) const
     {
@@ -145,7 +145,7 @@ namespace segfeat {
 
         for (int t = start_time; t < end_time; ++t) {
             for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
-                grad[t][d] += param[d - capped_start_dim] / duration;
+                grad[t][d] += feat_grad[d - capped_start_dim] / duration;
             }
         }
     }
@@ -188,6 +188,37 @@ namespace segfeat {
         }
     }
 
+    void frame_samples::frame_grad(
+        std::vector<std::vector<double>>& grad,
+        double const *feat_grad,
+        std::vector<std::vector<double>> const& frames,
+        int start_time, int end_time) const
+    {
+        assert(frames.size() >= 1);
+
+        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
+        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
+
+        check_dim(frames, capped_start_dim, capped_end_dim);
+
+        double span = (end_time - start_time) / samples;
+        int length = capped_end_dim - capped_start_dim + 1;
+
+        if (start_time >= end_time) {
+            return;
+        }
+
+        for (int i = 0; i < samples; ++i) {
+            auto& u = grad.at(std::min<int>(
+                std::floor(start_time + (i + 0.5) * span), frames.size() - 1));
+
+            int base = i * length - capped_start_dim;
+            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+                u[d] += feat_grad[base + d];
+            }
+        }
+    }
+
     int frame_samples::dim(int frame_dim) const
     {
         return samples * frame_dim;
@@ -225,6 +256,36 @@ namespace segfeat {
         }
     }
 
+    void left_boundary::frame_grad(
+        std::vector<std::vector<double>>& grad,
+        double const *feat_grad,
+        std::vector<std::vector<double>> const& frames,
+        int start_time, int end_time) const
+    {
+        assert(frames.size() >= 1);
+
+        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
+        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
+
+        check_dim(frames, capped_start_dim, capped_end_dim);
+
+        int length = capped_end_dim - capped_start_dim + 1;
+
+        if (start_time >= end_time) {
+            return;
+        }
+
+        for (int i = 0; i < 3; ++i) {
+            auto& tail_u = grad.at(std::min<int>(frames.size() - 1,
+                std::max<int>(start_time - i, 0)));
+
+            int base = i * length - capped_start_dim;
+            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+                tail_u[d] += feat_grad[base + d];
+            }
+        }
+    }
+
     int left_boundary::dim(int frame_dim) const
     {
         return 3 * frame_dim;
@@ -258,6 +319,36 @@ namespace segfeat {
             int base = i * length - capped_start_dim;
             for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
                 feat[base + d] = head_u[d];
+            }
+        }
+    }
+
+    void right_boundary::frame_grad(
+        std::vector<std::vector<double>>& grad,
+        double const *feat_grad,
+        std::vector<std::vector<double>> const& frames,
+        int start_time, int end_time) const
+    {
+        assert(frames.size() >= 1);
+
+        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
+        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
+
+        check_dim(frames, capped_start_dim, capped_end_dim);
+
+        int length = capped_end_dim - capped_start_dim + 1;
+
+        if (start_time >= end_time) {
+            return;
+        }
+
+        for (int i = 0; i < 3; ++i) {
+            auto& head_u = grad.at(std::min<int>(frames.size() - 1,
+                std::max<int>(end_time + i, 0)));
+
+            int base = i * length - capped_start_dim;
+            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+                head_u[d] += feat_grad[base + d];
             }
         }
     }

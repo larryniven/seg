@@ -83,7 +83,8 @@ namespace segfeat {
     struct frame_avg
         : public feature_with_frame_grad {
 
-        frame_avg(std::vector<std::vector<double>> const& frames, int start_dim = -1, int end_dim = -1);
+        frame_avg(std::vector<std::vector<double>> const& frames,
+            int start_dim = -1, int end_dim = -1);
 
         int start_dim;
         int end_dim;
@@ -98,14 +99,14 @@ namespace segfeat {
 
         virtual void frame_grad(
             std::vector<std::vector<double>>& grad,
-            double const *param,
+            double const *feat_grad,
             std::vector<std::vector<double>> const& frames,
             int start_time, int end_time) const override;
 
     };
 
     struct frame_samples
-        : public feature {
+        : public feature_with_frame_grad {
 
         frame_samples(int samples, int start_dim = -1, int end_dim = -1);
 
@@ -119,10 +120,16 @@ namespace segfeat {
             std::vector<std::vector<double>> const& frames,
             int start_time, int end_time) const override;
 
+        virtual void frame_grad(
+            std::vector<std::vector<double>>& grad,
+            double const *feat_grad,
+            std::vector<std::vector<double>> const& frames,
+            int start_time, int end_time) const override;
+
     };
 
     struct left_boundary
-        : public feature {
+        : public feature_with_frame_grad {
 
         left_boundary(int start_dim, int end_dim);
 
@@ -134,10 +141,16 @@ namespace segfeat {
         virtual void operator()(double *feat,
             std::vector<std::vector<double>> const& frames,
             int start_time, int end_time) const override;
+
+        virtual void frame_grad(
+            std::vector<std::vector<double>>& grad,
+            double const *feat_grad,
+            std::vector<std::vector<double>> const& frames,
+            int start_time, int end_time) const override;
     };
 
     struct right_boundary
-        : public feature {
+        : public feature_with_frame_grad {
 
         right_boundary(int start_dim, int end_dim);
 
@@ -147,6 +160,12 @@ namespace segfeat {
         virtual int dim(int frame_dim) const override;
 
         virtual void operator()(double *feat,
+            std::vector<std::vector<double>> const& frames,
+            int start_time, int end_time) const override;
+
+        virtual void frame_grad(
+            std::vector<std::vector<double>>& grad,
+            double const *feat_grad,
             std::vector<std::vector<double>> const& frames,
             int start_time, int end_time) const override;
     };

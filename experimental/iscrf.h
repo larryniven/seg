@@ -106,6 +106,7 @@ namespace scrf {
         dense_vec opt_data;
         double step_size;
         double momentum;
+        double decay;
         std::vector<int> sils;
     };
 
@@ -206,6 +207,7 @@ namespace scrf {
             rnn::pred_param_t pred_opt_data;
             double step_size;
             double momentum;
+            double decay;
             std::vector<int> sils;
         };
 

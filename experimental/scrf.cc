@@ -143,6 +143,30 @@ namespace scrf {
         }
     }
 
+    void rmsprop_update(dense_vec& param, dense_vec const& grad,
+        dense_vec& accu_grad_sq, double decay, double step_size)
+    {
+        if (accu_grad_sq.class_vec.size() == 0) {
+            accu_grad_sq.class_vec.resize(grad.class_vec.size());
+        }
+
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+            accu_grad_sq.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::rmsprop_update(param.class_vec[i], grad.class_vec[i],
+                accu_grad_sq.class_vec[i], decay, step_size);
+        }
+    }
+
     double dot(sparse_vec const& u, sparse_vec const& v)
     {
          double sum = 0;
@@ -225,6 +249,23 @@ namespace scrf {
 
             opt::adagrad_update(theta.class_vec.at(p.first), p.second,
                 accu_grad_sq.class_vec.at(p.first), step_size);
+        }
+    }
+
+    void rmsprop_update(sparse_vec& theta, sparse_vec const& grad,
+        sparse_vec& accu_grad_sq, double decay, double step_size)
+    {
+        for (auto& p: grad.class_vec) {
+            if (theta.class_vec[p.first].size() == 0) {
+                theta.class_vec[p.first].resize(p.second.size());
+            }
+
+            if (accu_grad_sq.class_vec[p.first].size() == 0) {
+                accu_grad_sq.class_vec[p.first].resize(p.second.size());
+            }
+
+            opt::rmsprop_update(theta.class_vec.at(p.first), p.second,
+                accu_grad_sq.class_vec.at(p.first), decay, step_size);
         }
     }
 

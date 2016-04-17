@@ -94,20 +94,14 @@ void prediction_env::run()
             frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
         }
 
-        std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input
-            = rnn::subsample_input(frame_ops, i_args.subsample_freq, i_args.subsample_shift);
-
-        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, subsampled_input);
+        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, frame_ops);
         rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
 
-        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output
-            = rnn::upsample_output(pred_nn.logprob, i_args.subsample_freq, i_args.subsample_shift, frames.size());
-
-        auto order = autodiff::topo_order(upsampled_output);
+        auto order = autodiff::topo_order(pred_nn.logprob);
         autodiff::eval(order, autodiff::eval_funcs);
 
         std::vector<std::vector<double>> inputs;
-        for (auto& o: upsampled_output) {
+        for (auto& o: nn.layer.back().output) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
             inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }
@@ -134,7 +128,7 @@ void prediction_env::run()
         for (auto& e: s.graph_path->edges()) {
             std::cout << i_args.id_label.at(s.graph_path->output(e)) << " ";
         }
-        std::cout << "(" << i << ")" << std::endl;
+        std::cout << "(" << i << ".phn)" << std::endl;
 
 #if DEBUG_TOP
         if (i == DEBUG_TOP) {

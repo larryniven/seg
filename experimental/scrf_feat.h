@@ -70,7 +70,7 @@ namespace scrf {
 
         virtual void frame_grad(
             std::vector<std::vector<double>>& grad,
-            vector const& param,
+            vector const& feat_grad,
             fst const& a, typename fst::edge e) const;
     };
 
@@ -142,10 +142,10 @@ namespace scrf {
     template <class fst, class vector, class lexicalizer>
     void segment_feature_with_frame_grad<fst, vector, lexicalizer>::frame_grad(
         std::vector<std::vector<double>>& grad,
-        vector const& param,
+        vector const& feat_grad,
         fst const& a, typename fst::edge e) const
     {
-        double const *g = lexicalizer().const_lex(alloc, order, param, a, e);
+        double const *g = lexicalizer().const_lex(alloc, order, feat_grad, a, e);
 
         feat_func->frame_grad(grad, g + dim, frames, a.time(a.tail(e)), a.time(a.head(e)));
     }

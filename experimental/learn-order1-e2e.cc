@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
             {"nn-param", "", true},
             {"nn-opt-data", "", true},
             {"momentum", "", false},
+            {"decay", "", false},
             {"features", "", true},
             {"save-every", "", false},
             {"output-param", "", false},
@@ -125,9 +126,6 @@ void learning_env::run()
 {
     int i = 1;
 
-    int subsample_freq = 2;
-    int subsample_shift = 0;
-
     while (1) {
 
         scrf::e2e::learning_sample s { l_args };
@@ -159,7 +157,7 @@ void learning_env::run()
         autodiff::eval(order, autodiff::eval_funcs);
 
         std::vector<std::vector<double>> inputs;
-        for (auto& o: nn.layer.back().output) {
+        for (auto& o: pred_nn.logprob) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
             inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }
@@ -289,7 +287,63 @@ void learning_env::run()
 
             nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
             pred_grad = rnn::copy_grad(pred_nn);
+
+            std::cout << "analytical grad: "
+                << pred_grad.softmax_weight(0, 0) << std::endl;
         }
+
+#if 0
+        {
+            scrf::e2e::learning_args l_args2 = l_args;
+            l_args2.pred_param.softmax_weight(0, 0) += 1e-8;
+
+            scrf::e2e::learning_sample s2 { l_args2 };
+
+            autodiff::computation_graph comp_graph2;
+
+            std::vector<std::shared_ptr<autodiff::op_t>> frame_ops2;
+            for (auto& f: frames) {
+                frame_ops2.push_back(comp_graph2.var(la::vector<double>(f)));
+            }
+
+            lstm::dblstm_feat_nn_t nn2 = lstm::make_dblstm_feat_nn(
+                comp_graph2, l_args2.nn_param, frame_ops2);
+
+            rnn::pred_nn_t pred_nn2 = rnn::make_pred_nn(
+                comp_graph2, l_args2.pred_param, nn2.layer.back().output);
+
+            auto order2 = autodiff::topo_order(pred_nn2.logprob);
+            autodiff::eval(order2, autodiff::eval_funcs);
+
+            std::vector<std::vector<double>> inputs2;
+            for (auto& o: pred_nn2.logprob) {
+                auto& f = autodiff::get_output<la::vector<double>>(o);
+                inputs2.push_back(std::vector<double> {f.data(), f.data() + f.size()});
+            }
+
+            s2.frames = inputs2;
+            s2.ground_truth_fst = s.ground_truth_fst;
+
+            scrf::e2e::make_graph(s2, l_args2);
+            scrf::e2e::make_min_cost_gold(s2, l_args2);
+            s2.cost = std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(*s2.ground_truth->fst, l_args2.sils));
+
+            scrf::e2e::parameterize(s2, l_args2);
+
+            scrf::composite_weight<ilat::fst>& graph_weight_func
+                = *dynamic_cast<scrf::composite_weight<ilat::fst>*>(s2.graph.weight_func.get());
+            graph_weight_func.weights.push_back(s2.cost);
+
+            using hinge_loss = scrf::hinge_loss_with_frame_grad<
+                scrf::e2e::iscrf, scrf::dense_vec,
+                scrf::e2e::iscrf_path_maker>;
+
+            hinge_loss loss_func2 { *s2.gold, s2.graph };
+
+            std::cout << "numerical grad: " << (loss_func2.loss() - loss_func->loss()) / 1e-8 << std::endl;
+        }
+#endif
 
         if (ell < 0) {
             std::cout << "loss is less than zero.  skipping." << std::endl;
@@ -297,9 +351,15 @@ void learning_env::run()
 
         std::cout << std::endl;
 
-        scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
-        lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data, l_args.step_size);
-        rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data, l_args.step_size);
+        if (ebt::in(std::string("decay"), args)) {
+            scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data, l_args.decay, l_args.step_size);
+            lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data, l_args.decay, l_args.step_size);
+            rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data, l_args.decay, l_args.step_size);
+        } else {
+            scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
+            lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data, l_args.step_size);
+            rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data, l_args.step_size);
+        }
 
         if (i % save_every == 0) {
             scrf::save_vec(l_args.param, "param-last");

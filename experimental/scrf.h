@@ -89,6 +89,9 @@ namespace scrf {
     void adagrad_update(dense_vec& theta, dense_vec const& grad,
         dense_vec& accu_grad_sq, double step_size);
 
+    void rmsprop_update(dense_vec& theta, dense_vec const& grad,
+        dense_vec& accu_grad_sq, double decay, double step_size);
+
     struct sparse_vec {
         std::unordered_map<std::string, la::vector<double>> class_vec;
     };
@@ -106,6 +109,9 @@ namespace scrf {
 
     void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
         sparse_vec& accu_grad_sq, double step_size);
+
+    void rmsprop_update(sparse_vec& theta, sparse_vec const& grad,
+        sparse_vec& accu_grad_sq, double decay, double step_size);
 
     std::unordered_map<std::string, int> load_label_id(std::string filename);
 

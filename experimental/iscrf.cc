@@ -144,7 +144,9 @@ namespace scrf {
         int label_tuple = 0;
 
         if (order == 0) {
-            feat.class_vec.resize(1);
+            if (feat.class_vec.size() < 1) {
+                feat.class_vec.resize(1);
+            }
         } else if (order == 1) {
             label_tuple = fst.output(e) + 1;
             feat.class_vec.resize(alloc.labels.size() + 1);
@@ -435,7 +437,79 @@ namespace scrf {
             using feat_func = segment_feature<ilat::fst, dense_vec, ilat_lexicalizer>;
 
             for (auto& k: features) {
-                if (ebt::startswith(k, "frame-samples")) {
+                if (ebt::startswith(k, "length-indicator")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    if (!ebt::in(std::string("max-seg"), args)) {
+                        std::cerr << "--max-seg is required" << std::endl;
+                        exit(1);
+                    }
+
+                    int max_seg = std::stoi(args.at("max-seg"));
+
+                    result.features.push_back(std::make_shared<feat_func>(
+                        feat_func(alloc, order,
+                        std::make_shared<segfeat::length_indicator>(
+                            segfeat::length_indicator { max_seg }),
+                        frames)));
+                } else if (ebt::startswith(k, "bias")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    result.features.push_back(std::make_shared<feat_func>(
+                        feat_func(alloc, order,
+                        std::make_shared<segfeat::bias>(
+                            segfeat::bias {}),
+                        frames)));
+                } else if (ebt::startswith(k, "frame-avg")
+                        || ebt::startswith(k, "frame-samples")
+                        || ebt::startswith(k, "left-boundary")
+                        || ebt::startswith(k, "right-boundary")) {
+                    // leave it for later
+                } else {
+                    std::cerr << "unknown feature " << k << std::endl;
+                    exit(1);
+                }
+            }
+
+            return result;
+        }
+
+        composite_feature_with_frame_grad<ilat::fst, dense_vec> make_feat_with_frame_grad(
+            feat_dim_alloc& alloc,
+            std::vector<std::string> features,
+            std::vector<std::vector<double>> const& frames,
+            std::unordered_map<std::string, std::string> const& args)
+        {
+            composite_feature_with_frame_grad<ilat::fst, dense_vec> result;
+
+            using feat_func = segment_feature_with_frame_grad<ilat::fst, dense_vec, ilat_lexicalizer>;
+
+            for (auto& k: features) {
+                if (ebt::startswith(k, "frame-avg")) {
+                    std::vector<std::string> parts = ebt::split(k, "@");
+                    int order = 0;
+                    if (parts.size() > 1) {
+                        order = std::stoi(parts[1]);
+                    }
+
+                    int start_dim = -1;
+                    int end_dim = -1;
+                    std::tie(start_dim, end_dim) = get_dim(parts[0]);
+
+                    result.features.push_back(std::make_shared<feat_func>(
+                        feat_func(alloc, order,
+                        std::make_shared<segfeat::frame_avg>(
+                            segfeat::frame_avg { frames, start_dim, end_dim }),
+                        frames)));
+                } else if (ebt::startswith(k, "frame-samples")) {
                     std::vector<std::string> parts = ebt::split(k, "@");
                     int order = 0;
                     if (parts.size() > 1) {
@@ -482,70 +556,6 @@ namespace scrf {
                         feat_func(alloc, order,
                         std::make_shared<segfeat::right_boundary>(
                             segfeat::right_boundary { start_dim, end_dim }),
-                        frames)));
-                } else if (ebt::startswith(k, "length-indicator")) {
-                    std::vector<std::string> parts = ebt::split(k, "@");
-                    int order = 0;
-                    if (parts.size() > 1) {
-                        order = std::stoi(parts[1]);
-                    }
-
-                    if (!ebt::in(std::string("max-seg"), args)) {
-                        std::cerr << "--max-seg is required" << std::endl;
-                        exit(1);
-                    }
-
-                    int max_seg = std::stoi(args.at("max-seg"));
-
-                    result.features.push_back(std::make_shared<feat_func>(
-                        feat_func(alloc, order,
-                        std::make_shared<segfeat::length_indicator>(
-                            segfeat::length_indicator { max_seg }),
-                        frames)));
-                } else if (ebt::startswith(k, "bias")) {
-                    std::vector<std::string> parts = ebt::split(k, "@");
-                    int order = 0;
-                    if (parts.size() > 1) {
-                        order = std::stoi(parts[1]);
-                    }
-
-                    result.features.push_back(std::make_shared<feat_func>(
-                        feat_func(alloc, order,
-                        std::make_shared<segfeat::bias>(
-                            segfeat::bias {}),
-                        frames)));
-                }
-            }
-
-            return result;
-        }
-
-        composite_feature_with_frame_grad<ilat::fst, dense_vec> make_feat_with_frame_grad(
-            feat_dim_alloc& alloc,
-            std::vector<std::string> features,
-            std::vector<std::vector<double>> const& frames,
-            std::unordered_map<std::string, std::string> const& args)
-        {
-            composite_feature_with_frame_grad<ilat::fst, dense_vec> result;
-
-            using feat_func = segment_feature_with_frame_grad<ilat::fst, dense_vec, ilat_lexicalizer>;
-
-            for (auto& k: features) {
-                if (ebt::startswith(k, "frame-avg")) {
-                    std::vector<std::string> parts = ebt::split(k, "@");
-                    int order = 0;
-                    if (parts.size() > 1) {
-                        order = std::stoi(parts[1]);
-                    }
-
-                    int start_dim = -1;
-                    int end_dim = -1;
-                    std::tie(start_dim, end_dim) = get_dim(parts[0]);
-
-                    result.features.push_back(std::make_shared<feat_func>(
-                        feat_func(alloc, order,
-                        std::make_shared<segfeat::frame_avg>(
-                            segfeat::frame_avg { frames, start_dim, end_dim }),
                         frames)));
                 }
             }
@@ -622,6 +632,12 @@ namespace scrf {
             if (ebt::in(std::string("momentum"), args)) {
                 l_args.momentum = std::stod(args.at("momentum"));
                 assert(0 <= l_args.momentum && l_args.momentum <= 1);
+            }
+
+            l_args.decay = -1;
+            if (ebt::in(std::string("decay"), args)) {
+                l_args.decay = std::stod(args.at("decay"));
+                assert(0 <= l_args.decay && l_args.decay <= 1);
             }
 
             l_args.sils.push_back(l_args.label_id.at("<s>"));

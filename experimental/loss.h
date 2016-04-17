@@ -146,14 +146,11 @@ namespace scrf {
     void hinge_loss_with_frame_grad<fst, vector, path_maker>::frame_grad(
         std::vector<std::vector<double>>& grad, vector const& param) const
     {
-        for (auto& e: gold.edges()) {
-            gold.frame_grad(grad, param, e);
-        }
+        vector neg_param = param;
+        imul(neg_param, -1);
 
-        for (int i = 0; i < grad.size(); ++i) {
-            for (int j = 0; j < grad[i].size(); ++j) {
-                 grad[i][j] = -grad[i][j];
-            }
+        for (auto& e: gold.edges()) {
+            gold.frame_grad(grad, neg_param, e);
         }
 
         for (auto& e: graph_path->edges()) {
