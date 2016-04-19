@@ -39,7 +39,7 @@ namespace scrf {
 
     double dot(dense_vec const& p1, dense_vec const& p2)
     {
-        if (p1.class_vec.size() == 0) {
+        if (p1.class_vec.size() == 0 || p2.class_vec.size() == 0) {
             return 0;
         }
 

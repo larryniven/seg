@@ -112,11 +112,10 @@ namespace scrf {
         struct learning_sample
             : public sample {
         
-            ilat::fst ground_truth_fst;
+            std::vector<segcost::segment<int>> gold_segs;
         
             feat_dim_alloc gold_alloc;
         
-            std::shared_ptr<pair_scrf> ground_truth;
             std::shared_ptr<pair_scrf> gold;
         
             std::shared_ptr<seg_cost<ilat::pair_fst>> cost;
@@ -127,7 +126,6 @@ namespace scrf {
         learning_args parse_learning_args(
             std::unordered_map<std::string, std::string> const& args);
 
-        void make_gold(learning_sample& s, learning_args const& l_args);
         void make_min_cost_gold(learning_sample& s, learning_args const& l_args);
     }
 

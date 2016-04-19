@@ -96,11 +96,6 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
         start_time = std::min<int>(start_time, frames.size() - 1);
         end_time = std::min<int>(end_time, frames.size());
 
@@ -108,13 +103,13 @@ namespace segfeat {
             return;
         }
 
-        int duration = end_time - start_time;
+        double duration = end_time - start_time;
 
         auto& u = accu[end_time];
         auto& v = accu[start_time];
 
-        for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
-            feat[d - capped_start_dim] = (u[d] - v[d]) / duration;
+        for (int d = 0; d < frames.front().size(); ++d) {
+            feat[d] = (u[d] - v[d]) / duration;
         }
     }
 
@@ -126,11 +121,6 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
         start_time = std::min<int>(start_time, frames.size() - 1);
         end_time = std::min<int>(end_time, frames.size());
 
@@ -138,14 +128,14 @@ namespace segfeat {
             return;
         }
 
-        int duration = end_time - start_time;
+        double duration = end_time - start_time;
 
         auto& u = accu[end_time];
         auto& v = accu[start_time];
 
         for (int t = start_time; t < end_time; ++t) {
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
-                grad[t][d] += feat_grad[d - capped_start_dim] / duration;
+            for (int d = 0; d < frames.front().size(); ++d) {
+                grad[t][d] += feat_grad[d] / duration;
             }
         }
     }
@@ -165,13 +155,8 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
         double span = (end_time - start_time) / samples;
-        int length = capped_end_dim - capped_start_dim + 1;
+        int length = frames.front().size();
 
         if (start_time >= end_time) {
             return;
@@ -181,8 +166,8 @@ namespace segfeat {
             auto& u = frames.at(std::min<int>(
                 std::floor(start_time + (i + 0.5) * span), frames.size() - 1));
 
-            int base = i * length - capped_start_dim;
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+            int base = i * length;
+            for (int d = 0; d < length; ++d) {
                 feat[base + d] = u[d];
             }
         }
@@ -196,13 +181,8 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
         double span = (end_time - start_time) / samples;
-        int length = capped_end_dim - capped_start_dim + 1;
+        int length = frames.front().size();
 
         if (start_time >= end_time) {
             return;
@@ -212,8 +192,8 @@ namespace segfeat {
             auto& u = grad.at(std::min<int>(
                 std::floor(start_time + (i + 0.5) * span), frames.size() - 1));
 
-            int base = i * length - capped_start_dim;
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+            int base = i * length;
+            for (int d = 0; d < length; ++d) {
                 u[d] += feat_grad[base + d];
             }
         }
@@ -234,12 +214,7 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
-        int length = capped_end_dim - capped_start_dim + 1;
+        int length = frames.front().size();
 
         if (start_time >= end_time) {
             return;
@@ -249,8 +224,8 @@ namespace segfeat {
             auto& tail_u = frames.at(std::min<int>(frames.size() - 1,
                 std::max<int>(start_time - i, 0)));
 
-            int base = i * length - capped_start_dim;
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+            int base = i * length;
+            for (int d = 0; d < length; ++d) {
                 feat[base + d] = tail_u[d];
             }
         }
@@ -264,12 +239,7 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
-        int length = capped_end_dim - capped_start_dim + 1;
+        int length = frames.front().size();
 
         if (start_time >= end_time) {
             return;
@@ -279,8 +249,8 @@ namespace segfeat {
             auto& tail_u = grad.at(std::min<int>(frames.size() - 1,
                 std::max<int>(start_time - i, 0)));
 
-            int base = i * length - capped_start_dim;
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+            int base = i * length;
+            for (int d = 0; d < length; ++d) {
                 tail_u[d] += feat_grad[base + d];
             }
         }
@@ -301,12 +271,7 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
-        int length = capped_end_dim - capped_start_dim + 1;
+        int length = frames.front().size();
 
         if (start_time >= end_time) {
             return;
@@ -316,8 +281,8 @@ namespace segfeat {
             auto& head_u = frames.at(std::min<int>(frames.size() - 1,
                 std::max<int>(end_time + i, 0)));
 
-            int base = i * length - capped_start_dim;
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+            int base = i * length;
+            for (int d = 0; d < length; ++d) {
                 feat[base + d] = head_u[d];
             }
         }
@@ -331,12 +296,7 @@ namespace segfeat {
     {
         assert(frames.size() >= 1);
 
-        int capped_start_dim = (start_dim == -1 ? 0 : start_dim);
-        int capped_end_dim = (end_dim == -1 ? frames.front().size() - 1 : end_dim);
-
-        check_dim(frames, capped_start_dim, capped_end_dim);
-
-        int length = capped_end_dim - capped_start_dim + 1;
+        int length = frames.front().size();
 
         if (start_time >= end_time) {
             return;
@@ -346,8 +306,8 @@ namespace segfeat {
             auto& head_u = grad.at(std::min<int>(frames.size() - 1,
                 std::max<int>(end_time + i, 0)));
 
-            int base = i * length - capped_start_dim;
-            for (int d = capped_start_dim; d <= capped_end_dim; ++d) {
+            int base = i * length;
+            for (int d = 0; d < length; ++d) {
                 head_u[d] += feat_grad[base + d];
             }
         }

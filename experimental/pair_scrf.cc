@@ -345,92 +345,16 @@ namespace scrf {
         {
         }
         
-        void make_gold(learning_sample& s, learning_args const& l_args)
-        {
-            ilat::fst ground_truth_with_loops;
-            ground_truth_with_loops.data = std::make_shared<ilat::fst_data>(*s.ground_truth_fst.data);
-            add_eps_loops(ground_truth_with_loops);
-
-            ilat::lazy_pair comp_lat { ground_truth_with_loops, l_args.lm };
-
-            pair_scrf gt_lm;
-            gt_lm.fst = std::make_shared<ilat::lazy_pair>(comp_lat);
-
-            auto lat_order = fst::topo_order(s.ground_truth_fst);
-            for (auto& v: lat_order) {
-                for (int i = l_args.lm.vertices().size() - 1; i >= 0; --i) {
-                    gt_lm.topo_order_cache.push_back(std::make_tuple(v, i));
-                }
-            }
-
-            gt_lm.weight_func = std::make_shared<neg<ilat::pair_fst>>(
-                neg<ilat::pair_fst>(std::make_shared<backoff_cost>(backoff_cost{})));
-
-            s.ground_truth = fst::shortest_path<pair_scrf, pair_scrf_path_maker>(gt_lm);
-
-            std::cout << "ground truth path: ";
-            for (auto& e: s.ground_truth->edges()) {
-                std::cout << l_args.id_label.at(s.ground_truth->output(e)) << " ";
-            }
-            std::cout << std::endl;
-
-            s.gold = fst::shortest_path<pair_scrf, pair_scrf_path_maker>(*s.ground_truth);
-
-            using comp_feat = composite_feature<ilat::pair_fst, sparse_vec>;
-
-            comp_feat gold_feat_func = make_feat(s.gold_alloc, l_args.features, s.frames, l_args.args);
-        
-            s.gold->weight_func = std::make_shared<linear_score<ilat::pair_fst, sparse_vec>>(
-                linear_score<ilat::pair_fst, sparse_vec>(l_args.param,
-                std::make_shared<comp_feat>(gold_feat_func)));
-            s.gold->feature_func = std::make_shared<comp_feat>(gold_feat_func);
-        }
-
         void make_min_cost_gold(learning_sample& s, learning_args const& l_args)
         {
-            ilat::fst ground_truth_with_loops;
-            ground_truth_with_loops.data = std::make_shared<ilat::fst_data>(*s.ground_truth_fst.data);
-            add_eps_loops(ground_truth_with_loops);
-
-            ilat::lazy_pair comp_lat { ground_truth_with_loops, l_args.lm };
-
-            pair_scrf gt_lm;
-            gt_lm.fst = std::make_shared<ilat::lazy_pair>(comp_lat);
-
-            auto lat_order = fst::topo_order(s.ground_truth_fst);
-            for (auto& v: lat_order) {
-                for (int i = l_args.lm.vertices().size() - 1; i >= 0; --i) {
-                    gt_lm.topo_order_cache.push_back(std::make_tuple(v, i));
-                }
-            }
-
-            gt_lm.weight_func = std::make_shared<neg<ilat::pair_fst>>(
-                neg<ilat::pair_fst>(std::make_shared<backoff_cost>(backoff_cost{})));
-
-            s.ground_truth = fst::shortest_path<pair_scrf, pair_scrf_path_maker>(gt_lm);
-
-            std::cout << "ground truth path: ";
-            for (auto& e: s.ground_truth->edges()) {
-                std::cout << l_args.id_label.at(s.ground_truth->output(e)) << " ";
-            }
-            std::cout << std::endl;
-
             auto old_weight_func = s.graph.weight_func;
 
-            s.graph.weight_func = std::make_shared<neg<ilat::pair_fst>>(neg<ilat::pair_fst>(
+            s.graph.weight_func = std::make_shared<mul<ilat::pair_fst>>(mul<ilat::pair_fst>(
                 std::make_shared<seg_cost<ilat::pair_fst>>(
-                    make_overlap_cost<ilat::pair_fst>(*s.ground_truth->fst, l_args.sils))));
+                    make_overlap_cost<ilat::pair_fst>(s.gold_segs, l_args.sils)),
+                -1));
 
             s.gold = fst::shortest_path<pair_scrf, pair_scrf_path_maker>(s.graph);
-
-            std::cout << "gold path: ";
-            double gold_path_weight = 0;
-            for (auto& e: s.gold->edges()) {
-                std::cout << l_args.id_label.at(s.gold->output(e)) << " ";
-                gold_path_weight += s.gold->weight(e);
-            }
-            std::cout << std::endl;
-            std::cout << "gold cost: " << gold_path_weight << std::endl;
 
             s.graph.weight_func = old_weight_func;
         

@@ -6,7 +6,7 @@
 struct learning_env {
 
     std::ifstream frame_batch;
-    std::ifstream ground_truth_batch;
+    std::ifstream gold_batch;
 
     std::ifstream lattice_batch;
 
@@ -32,11 +32,10 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"frame-batch", "", true},
-            {"ground-truth-batch", "", true},
+            {"gold-batch", "", true},
             {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
-            {"min-cost-path", "Use min cost path for training", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
@@ -46,6 +45,7 @@ int main(int argc, char *argv[])
             {"output-param", "", false},
             {"output-opt-data", "", false},
             {"loss", "", true},
+            {"cost-scale", "", false},
             {"label", "", true},
         }
     };
@@ -76,7 +76,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         frame_batch.open(args.at("frame-batch"));
     }
 
-    ground_truth_batch.open(args.at("ground-truth-batch"));
+    gold_batch.open(args.at("gold-batch"));
 
     if (ebt::in(std::string("lattice-batch"), args)) {
         lattice_batch.open(args.at("lattice-batch"));
@@ -97,11 +97,13 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
-    l_args = scrf::parse_learning_args(args);
+    scrf::parse_learning_args(l_args, args);
 }
 
 void learning_env::run()
 {
+    ebt::Timer timer;
+
     int i = 1;
 
     while (1) {
@@ -110,19 +112,11 @@ void learning_env::run()
 
         s.frames = speech::load_frame_batch(frame_batch);
 
-        s.ground_truth_fst = ilat::load_lattice(ground_truth_batch, l_args.label_id);
+        s.gold_segs = scrf::load_segments(gold_batch, l_args.label_id);
 
-        if (!ground_truth_batch) {
+        if (!gold_batch) {
             break;
         }
-
-        std::cout << s.ground_truth_fst.data->name << std::endl;
-
-        std::cout << "ground truth: ";
-        for (auto& e: s.ground_truth_fst.edges()) {
-            std::cout << l_args.id_label[s.ground_truth_fst.output(e)] << " ";
-        }
-        std::cout << std::endl;
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
@@ -137,15 +131,13 @@ void learning_env::run()
             scrf::make_graph(s, l_args);
         }
 
-        if (ebt::in(std::string("min-cost-path"), args)) {
-            scrf::make_min_cost_gold(s, l_args);
-        } else {
-            scrf::make_gold(s, l_args);
-        }
+        scrf::make_min_cost_gold(s, l_args);
 
         parameterize(s, l_args);
-        s.cost = std::make_shared<scrf::seg_cost<ilat::fst>>(
-            scrf::make_overlap_cost<ilat::fst>(*s.ground_truth->fst, l_args.sils));
+        s.cost = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
+            std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
+            l_args.cost_scale));
 
         double gold_cost = 0;
     

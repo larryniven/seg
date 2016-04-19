@@ -1,4 +1,4 @@
-#include "scrf/experimental/iscrf.h"
+#include "scrf/experimental/iscrf_e2e.h"
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "autodiff/autodiff.h"
@@ -94,14 +94,30 @@ void prediction_env::run()
             frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
         }
 
+        std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input;
+        if (i_args.subsample_freq > 1) {
+            subsampled_input = rnn::subsample_input(frame_ops,
+                i_args.subsample_freq, i_args.subsample_shift);
+        } else {
+            subsampled_input = frame_ops;
+        }
+
         lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, frame_ops);
         rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
 
-        auto order = autodiff::topo_order(pred_nn.logprob);
+        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
+        if (i_args.subsample_freq > 1) {
+             upsampled_output = rnn::upsample_output(pred_nn.logprob,
+                 i_args.subsample_freq, i_args.subsample_shift, frames.size());
+        } else {
+             upsampled_output = pred_nn.logprob;
+        }
+
+        auto order = autodiff::topo_order(upsampled_output);
         autodiff::eval(order, autodiff::eval_funcs);
 
         std::vector<std::vector<double>> inputs;
-        for (auto& o: nn.layer.back().output) {
+        for (auto& o: upsampled_output) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
             inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }

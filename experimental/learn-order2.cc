@@ -9,7 +9,7 @@ namespace second_order = scrf::second_order;
 struct learning_env {
 
     std::ifstream frame_batch;
-    std::ifstream ground_truth_batch;
+    std::ifstream gold_batch;
 
     std::ifstream lattice_batch;
 
@@ -36,11 +36,10 @@ int main(int argc, char *argv[])
         {
             {"frame-batch", "", false},
             {"lm", "", true},
-            {"ground-truth-batch", "", true},
+            {"gold-batch", "", true},
             {"lattice-batch", "", true},
             {"min-seg", "", false},
             {"max-seg", "", false},
-            {"min-cost-path", "Use min cost path for training", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
@@ -80,7 +79,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         frame_batch.open(args.at("frame-batch"));
     }
 
-    ground_truth_batch.open(args.at("ground-truth-batch"));
+    gold_batch.open(args.at("gold-batch"));
 
     if (ebt::in(std::string("lattice-batch"), args)) {
         lattice_batch.open(args.at("lattice-batch"));
@@ -116,19 +115,11 @@ void learning_env::run()
             s.frames = speech::load_frame_batch(frame_batch);
         }
 
-        s.ground_truth_fst = ilat::load_lattice(ground_truth_batch, l_args.label_id);
+        s.gold_segs = scrf::load_segments(gold_batch, l_args.label_id);
 
-        if (!ground_truth_batch) {
+        if (!gold_batch) {
             break;
         }
-
-        std::cout << s.ground_truth_fst.data->name << std::endl;
-
-        std::cout << "ground truth: ";
-        for (auto& e: s.ground_truth_fst.edges()) {
-            std::cout << l_args.id_label[s.ground_truth_fst.output(e)] << " ";
-        }
-        std::cout << std::endl;
 
         ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
 
@@ -139,14 +130,10 @@ void learning_env::run()
 
         second_order::make_lattice(lat, s, l_args);
 
-        if (ebt::in(std::string("min-cost-path"), args)) {
-            second_order::make_min_cost_gold(s, l_args);
-        } else {
-            second_order::make_gold(s, l_args);
-        }
+        second_order::make_min_cost_gold(s, l_args);
 
         s.cost = std::make_shared<scrf::seg_cost<ilat::pair_fst>>(
-            scrf::make_overlap_cost<ilat::pair_fst>(*s.ground_truth->fst, l_args.sils));
+            scrf::make_overlap_cost<ilat::pair_fst>(s.gold_segs, l_args.sils));
 
         std::shared_ptr<scrf::loss_func<scrf::sparse_vec>> loss_func;
 

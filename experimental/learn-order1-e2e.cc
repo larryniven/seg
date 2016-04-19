@@ -1,4 +1,4 @@
-#include "scrf/experimental/iscrf.h"
+#include "scrf/experimental/iscrf_e2e.h"
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "autodiff/autodiff.h"
@@ -8,7 +8,7 @@
 struct learning_env {
 
     std::ifstream frame_batch;
-    std::ifstream ground_truth_batch;
+    std::ifstream gold_batch;
 
     std::ifstream lattice_batch;
 
@@ -37,11 +37,10 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"frame-batch", "", true},
-            {"ground-truth-batch", "", true},
+            {"gold-batch", "", true},
             {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
-            {"min-cost-path", "Use min cost path for training", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
@@ -56,6 +55,7 @@ int main(int argc, char *argv[])
             {"output-nn-param", "", false},
             {"output-nn-opt-data", "", false},
             {"loss", "", true},
+            {"cost-scale", "", false},
             {"label", "", true},
             {"subsample-freq", "", false},
             {"subsample-shift", "", false},
@@ -88,7 +88,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         frame_batch.open(args.at("frame-batch"));
     }
 
-    ground_truth_batch.open(args.at("ground-truth-batch"));
+    gold_batch.open(args.at("gold-batch"));
 
     if (ebt::in(std::string("lattice-batch"), args)) {
         lattice_batch.open(args.at("lattice-batch"));
@@ -136,6 +136,12 @@ void learning_env::run()
             break;
         }
 
+        s.gold_segs = scrf::load_segments(gold_batch, l_args.label_id);
+
+        if (!gold_batch) {
+            break;
+        }
+
         autodiff::computation_graph comp_graph;
 
         std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
@@ -143,40 +149,38 @@ void learning_env::run()
             frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
         }
 
-        // std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input
-        //     = rnn::subsample_input(frame_ops, subsample_freq, subsample_shift);
+        std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input;
+        if (l_args.subsample_freq > 1) {
+            subsampled_input = rnn::subsample_input(frame_ops,
+                l_args.subsample_freq, l_args.subsample_shift);
+        } else {
+            subsampled_input = frame_ops;
+        }
 
-        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, l_args.nn_param, frame_ops);
+        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(
+            comp_graph, l_args.nn_param, subsampled_input);
 
-        rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph, l_args.pred_param, nn.layer.back().output);
+        rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph,
+            l_args.pred_param, nn.layer.back().output);
 
-        // std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output
-        //     = rnn::upsample_output(pred_nn.logprob, subsample_freq, subsample_shift, frames.size());
+        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
+        if (l_args.subsample_freq > 1) {
+             upsampled_output = rnn::upsample_output(pred_nn.logprob,
+                 l_args.subsample_freq, l_args.subsample_shift, frames.size());
+        } else {
+             upsampled_output = pred_nn.logprob;
+        }
 
-        auto order = autodiff::topo_order(pred_nn.logprob);
+        auto order = autodiff::topo_order(upsampled_output);
         autodiff::eval(order, autodiff::eval_funcs);
 
         std::vector<std::vector<double>> inputs;
-        for (auto& o: pred_nn.logprob) {
+        for (auto& o: upsampled_output) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
             inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }
 
         s.frames = inputs;
-
-        s.ground_truth_fst = ilat::load_lattice(ground_truth_batch, l_args.label_id);
-
-        if (!ground_truth_batch) {
-            break;
-        }
-
-        std::cout << s.ground_truth_fst.data->name << std::endl;
-
-        std::cout << "ground truth: ";
-        for (auto& e: s.ground_truth_fst.edges()) {
-            std::cout << l_args.id_label[s.ground_truth_fst.output(e)] << " ";
-        }
-        std::cout << std::endl;
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
@@ -191,14 +195,12 @@ void learning_env::run()
             scrf::e2e::make_graph(s, l_args);
         }
 
-        if (ebt::in(std::string("min-cost-path"), args)) {
-            scrf::e2e::make_min_cost_gold(s, l_args);
-        } else {
-            scrf::e2e::make_gold(s, l_args);
-        }
+        scrf::e2e::make_min_cost_gold(s, l_args);
 
-        s.cost = std::make_shared<scrf::seg_cost<ilat::fst>>(
-            scrf::make_overlap_cost<ilat::fst>(*s.ground_truth->fst, l_args.sils));
+        s.cost = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
+            std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
+            -1));
 
         double gold_cost = 0;
     
@@ -279,7 +281,7 @@ void learning_env::run()
             loss_func->frame_grad(frame_grad, l_args.param);
 
             for (int i = 0; i < frame_grad.size(); ++i) {
-                pred_nn.logprob[i]->grad = std::make_shared<la::vector<double>>(
+                upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
                     frame_grad[i]);
             }
 
@@ -352,13 +354,19 @@ void learning_env::run()
         std::cout << std::endl;
 
         if (ebt::in(std::string("decay"), args)) {
-            scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data, l_args.decay, l_args.step_size);
-            lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data, l_args.decay, l_args.step_size);
-            rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data, l_args.decay, l_args.step_size);
+            scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
+                l_args.decay, l_args.step_size);
+            lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                l_args.decay, l_args.step_size);
+            rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                l_args.decay, l_args.step_size);
         } else {
-            scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
-            lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data, l_args.step_size);
-            rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data, l_args.step_size);
+            scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
+                l_args.step_size);
+            lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                l_args.step_size);
+            rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                l_args.step_size);
         }
 
         if (i % save_every == 0) {

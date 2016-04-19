@@ -18,12 +18,13 @@ namespace scrf {
     };
 
     template <class fst>
-    struct neg
+    struct mul
         : public scrf_weight<fst> {
 
         std::shared_ptr<scrf_weight<fst>> weight;
+        double alpha;
 
-        neg(std::shared_ptr<scrf_weight<fst>> weight);
+        mul(std::shared_ptr<scrf_weight<fst>> weight, double alpha);
 
         virtual double operator()(fst const& f,
             typename fst::edge e) const override;
@@ -56,15 +57,15 @@ namespace scrf {
     }
 
     template <class fst>
-    neg<fst>::neg(std::shared_ptr<scrf_weight<fst>> weight)
-        : weight(weight)
+    mul<fst>::mul(std::shared_ptr<scrf_weight<fst>> weight, double alpha)
+        : weight(weight), alpha(alpha)
     {}
 
     template <class fst>
-    double neg<fst>::operator()(fst const& f,
+    double mul<fst>::operator()(fst const& f,
         typename fst::edge e) const
     {
-        return -(*weight)(f, e);
+        return (*weight)(f, e) * alpha;
     }
 
     template <class fst, class vector>

@@ -11,10 +11,10 @@ namespace scrf {
         : public scrf_weight<fst> {
 
         seg_cost(std::shared_ptr<segcost::cost<typename fst::symbol>> cost,
-            fst const& gold_path);
+            std::vector<segcost::segment<typename fst::symbol>> const& gold_segs);
 
         std::shared_ptr<segcost::cost<typename fst::symbol>> cost;
-        std::vector<segcost::segment<typename fst::symbol>> gold_segs;
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs;
 
         virtual double operator()(fst const& f, typename fst::edge e) const override;
 
@@ -22,17 +22,9 @@ namespace scrf {
 
     template <class fst>
     seg_cost<fst>::seg_cost(std::shared_ptr<segcost::cost<typename fst::symbol>> cost,
-        fst const& gold_path)
-        : cost(cost)
-    {
-        for (auto& e: gold_path.edges()) {
-            auto tail = gold_path.tail(e);
-            auto head = gold_path.head(e);
-
-            gold_segs.push_back(segcost::segment<typename fst::symbol> {
-                gold_path.time(tail), gold_path.time(head), gold_path.output(e) });
-        }
-    }
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs)
+        : cost(cost), gold_segs(gold_segs)
+    {}
 
     template <class fst>
     double seg_cost<fst>::operator()(fst const& f,
@@ -46,11 +38,12 @@ namespace scrf {
     }
 
     template <class fst>
-    seg_cost<fst> make_overlap_cost(fst const& gold,
+    seg_cost<fst> make_overlap_cost(
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs,
         std::vector<typename fst::symbol> sils)
     {
         return seg_cost<fst> { std::make_shared<segcost::overlap_cost<typename fst::symbol>>(
-            segcost::overlap_cost<typename fst::symbol>{ sils }), gold };
+            segcost::overlap_cost<typename fst::symbol>{ sils }), gold_segs };
     }
 
 }
