@@ -76,6 +76,7 @@ namespace scrf {
             double momentum;
             double decay;
             std::vector<int> sils;
+            double cost_scale;
         };
 
         void parse_learning_args(learning_args& l_args,

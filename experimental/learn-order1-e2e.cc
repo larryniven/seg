@@ -200,7 +200,7 @@ void learning_env::run()
         s.cost = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
             std::make_shared<scrf::seg_cost<ilat::fst>>(
                 scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
-            -1));
+            l_args.cost_scale));
 
         double gold_cost = 0;
     

@@ -231,7 +231,8 @@ namespace scrf {
 
             l_args.opt_data = load_dense_vec(args.at("opt-data"));
 
-            std::tie(l_args.nn_opt_data, l_args.pred_opt_data) = load_lstm_param(args.at("nn-opt-data"));
+            std::tie(l_args.nn_opt_data, l_args.pred_opt_data)
+                = load_lstm_param(args.at("nn-opt-data"));
 
             l_args.step_size = std::stod(args.at("step-size"));
 
@@ -245,6 +246,12 @@ namespace scrf {
             if (ebt::in(std::string("decay"), args)) {
                 l_args.decay = std::stod(args.at("decay"));
                 assert(0 <= l_args.decay && l_args.decay <= 1);
+            }
+
+            l_args.cost_scale = 1;
+            if (ebt::in(std::string("cost-scale"), args)) {
+                l_args.cost_scale = std::stod(args.at("cost-scale"));
+                assert(l_args.cost_scale >= 0);
             }
 
             l_args.sils.push_back(l_args.label_id.at("sil"));

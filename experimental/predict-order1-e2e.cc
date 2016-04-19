@@ -102,7 +102,7 @@ void prediction_env::run()
             subsampled_input = frame_ops;
         }
 
-        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, frame_ops);
+        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, subsampled_input);
         rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
 
         std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
