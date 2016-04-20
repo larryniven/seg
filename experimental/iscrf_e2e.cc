@@ -196,6 +196,12 @@ namespace scrf {
                 i_args.id_label[p.second] = p.first;
             }
 
+            i_args.rnndrop_prob = 1;
+            if (ebt::in(std::string("rnndrop-prob"), args)) {
+                i_args.rnndrop_prob = std::stod(args.at("rnndrop-prob"));
+                assert(0 <= i_args.rnndrop_prob && i_args.rnndrop_prob <= 1);
+            }
+
             i_args.subsample_freq = 1;
             if (ebt::in(std::string("subsample-freq"), args)) {
                 i_args.subsample_freq = std::stoi(args.at("subsample-freq"));
@@ -252,6 +258,11 @@ namespace scrf {
             if (ebt::in(std::string("cost-scale"), args)) {
                 l_args.cost_scale = std::stod(args.at("cost-scale"));
                 assert(l_args.cost_scale >= 0);
+            }
+
+            l_args.rnndrop_seed = 0;
+            if (ebt::in(std::string("rnndrop-seed"), args)) {
+                l_args.rnndrop_seed = std::stoi(args.at("rnndrop-seed"));
             }
 
             l_args.sils.push_back(l_args.label_id.at("sil"));

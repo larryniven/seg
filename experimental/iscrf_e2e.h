@@ -46,6 +46,7 @@ namespace scrf {
             rnn::pred_param_t pred_param;
             int subsample_freq;
             int subsample_shift;
+            double rnndrop_prob;
         };
 
         void parse_inference_args(inference_args& i_args,
@@ -77,6 +78,7 @@ namespace scrf {
             double decay;
             std::vector<int> sils;
             double cost_scale;
+            int rnndrop_seed;
         };
 
         void parse_learning_args(learning_args& l_args,

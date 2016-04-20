@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
             {"nn-param", "", true},
             {"features", "", true},
             {"label", "", true},
+            {"rnndrop-prob", "", false},
             {"subsample-freq", "", false},
             {"subsample-shift", "", false}
         }
@@ -103,6 +104,11 @@ void prediction_env::run()
         }
 
         lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, subsampled_input);
+
+        if (ebt::in(std::string("rnndrop-prob"), args)) {
+            lstm::apply_mask(nn, i_args.nn_param, i_args.rnndrop_prob);
+        }
+
         rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
 
         std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;

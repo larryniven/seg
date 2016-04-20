@@ -4,6 +4,7 @@
 #include "autodiff/autodiff.h"
 #include "nn/lstm.h"
 #include <fstream>
+#include <random>
 
 struct learning_env {
 
@@ -57,6 +58,8 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
+            {"rnndrop-prob", "", false},
+            {"rnndrop-seed", "", false},
             {"subsample-freq", "", false},
             {"subsample-shift", "", false},
         }
@@ -126,6 +129,8 @@ void learning_env::run()
 {
     int i = 1;
 
+    std::default_random_engine gen { l_args.rnndrop_seed };
+
     while (1) {
 
         scrf::e2e::learning_sample s { l_args };
@@ -159,6 +164,10 @@ void learning_env::run()
 
         lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(
             comp_graph, l_args.nn_param, subsampled_input);
+
+        if (ebt::in(std::string("rnndrop-prob"), args)) {
+            lstm::apply_random_mask(nn, l_args.nn_param, gen, l_args.rnndrop_prob);
+        }
 
         rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph,
             l_args.pred_param, nn.layer.back().output);
