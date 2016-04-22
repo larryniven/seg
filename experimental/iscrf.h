@@ -144,6 +144,9 @@ namespace scrf {
 
     void parameterize(learning_sample& s, learning_args const& l_args);
 
+    ilat::fst make_label_seq_fst(std::vector<std::string> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id);
+
 }
 
 
