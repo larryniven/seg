@@ -134,6 +134,8 @@ namespace scrf {
             vector const& param) const = 0;
     };
 
+    std::pair<int, int> get_dim(std::string feat);
+
 }
 
 #endif

@@ -164,20 +164,6 @@ namespace scrf {
         return g.data();
     }
 
-    std::pair<int, int> get_dim(std::string feat)
-    {
-        std::vector<std::string> parts = ebt::split(feat, ":");
-        int start_dim = -1;
-        int end_dim = -1;
-        if (parts.size() == 2) {
-            std::vector<std::string> indices = ebt::split(parts.back(), "-");
-            start_dim = std::stoi(indices.at(0));
-            end_dim = std::stoi(indices.at(1));
-        }
-
-        return std::make_pair(start_dim, end_dim);
-    }
-
     composite_feature<ilat::fst, dense_vec> make_feat(
         feat_dim_alloc& alloc,
         std::vector<std::string> features,
@@ -446,6 +432,21 @@ namespace scrf {
     {
         parameterize(s.graph, s.graph_alloc, s.frames, l_args);
         parameterize(*s.gold, s.gold_alloc, s.frames, l_args);
+    }
+
+    std::vector<std::string> load_label_seq(std::istream& is)
+    {
+        std::string line;
+        std::getline(is, line);
+
+        std::vector<std::string> parts;
+
+        if (is) {
+            parts = ebt::split(line);
+            parts.pop_back();
+        }
+
+        return parts;
     }
 
     ilat::fst make_label_seq_fst(std::vector<std::string> const& label_seq,

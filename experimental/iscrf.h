@@ -66,8 +66,6 @@ namespace scrf {
             int order, dense_vec& f, ilat::fst const& a, int e) const override;
     };
 
-    std::pair<int, int> get_dim(std::string feat);
-
     composite_feature<ilat::fst, dense_vec> make_feat(
         feat_dim_alloc& alloc,
         std::vector<std::string> features,
@@ -143,6 +141,8 @@ namespace scrf {
         inference_args const& i_args);
 
     void parameterize(learning_sample& s, learning_args const& l_args);
+
+    std::vector<std::string> load_label_seq(std::istream& is);
 
     ilat::fst make_label_seq_fst(std::vector<std::string> const& label_seq,
         std::unordered_map<std::string, int> const& label_id);
