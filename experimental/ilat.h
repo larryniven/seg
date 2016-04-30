@@ -114,6 +114,7 @@ namespace ilat {
 
     fst load_arpa_lm(std::istream& is,
         std::unordered_map<std::string, int> const& symbol_id);
+
     fst load_arpa_lm(std::string filename,
         std::unordered_map<std::string, int> const& symbol_id);
 

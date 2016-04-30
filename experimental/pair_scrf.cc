@@ -7,6 +7,39 @@ namespace scrf {
 
         namespace sparse {
 
+            double* pair_fst_lexicalizer::lex(
+                feat_dim_alloc const& alloc, int order,
+                sparse_vec& feat, ilat::pair_fst const& fst,
+                ilat::pair_fst::edge e) const
+            {
+                std::string label_tuple;
+                auto const& vertex_attrs = fst.fst2().data->vertex_attrs;
+                auto const& id_symbol = *fst.fst1().data->id_symbol;
+
+                if (order == 0) {
+                    // do nothing
+                } else if (order == 1) {
+                    label_tuple = id_symbol.at(fst.output(e));
+                } else if (order == 2) {
+                    for (auto& p: vertex_attrs.at(std::get<1>(fst.tail(e)))) {
+                        if (p.first == "history") {
+                            label_tuple = p.second;
+                            break;
+                        }
+                    }
+
+                    label_tuple += "_" + id_symbol.at(fst.output(e));
+                } else {
+                    std::cerr << "order " << order << " not implemented" << std::endl;
+                    exit(1);
+                }
+
+                la::vector<double>& g = feat.class_vec[label_tuple];
+                g.resize(alloc.order_dim[order]);
+
+                return g.data();
+            }
+
             double backoff_cost::operator()(ilat::pair_fst const& f,
                 ilat::pair_fst::edge e) const
             {
@@ -34,7 +67,8 @@ namespace scrf {
                 }
 
                 composite_feature<ilat::pair_fst, sparse_vec> graph_feat_func
-                    = make_feat<sparse_vec, pair_fst_lexicalizer<sparse_vec>>(s.graph_alloc, i_args.features, s.frames, i_args.args);
+                    = make_feat<sparse_vec, pair_fst_lexicalizer>(
+                        s.graph_alloc, i_args.features, s.frames, i_args.args);
             
                 composite_weight<ilat::pair_fst> weight;
                 weight.weights.push_back(std::make_shared<linear_score<ilat::pair_fst, sparse_vec>>(
@@ -42,7 +76,8 @@ namespace scrf {
                         std::make_shared<composite_feature<ilat::pair_fst, sparse_vec>>(graph_feat_func))));
             
                 s.graph.weight_func = std::make_shared<composite_weight<ilat::pair_fst>>(weight);
-                s.graph.feature_func = std::make_shared<composite_feature<ilat::pair_fst, sparse_vec>>(graph_feat_func);
+                s.graph.feature_func = std::make_shared<composite_feature<ilat::pair_fst, sparse_vec>>(
+                    graph_feat_func);
             }
             
             learning_args parse_learning_args(
@@ -111,7 +146,8 @@ namespace scrf {
             
                 using comp_feat = composite_feature<ilat::pair_fst, sparse_vec>;
 
-                comp_feat gold_feat_func = make_feat<sparse_vec, pair_fst_lexicalizer<sparse_vec>>(s.gold_alloc, l_args.features, s.frames, l_args.args);
+                comp_feat gold_feat_func = make_feat<sparse_vec, pair_fst_lexicalizer>(
+                    s.gold_alloc, l_args.features, s.frames, l_args.args);
             
                 s.gold->weight_func = std::make_shared<linear_score<ilat::pair_fst, sparse_vec>>(
                     linear_score<ilat::pair_fst, sparse_vec>(l_args.param,
@@ -122,6 +158,52 @@ namespace scrf {
         }
 
         namespace dense {
+
+            double* pair_fst_lexicalizer::lex(
+                feat_dim_alloc const& alloc, int order,
+                dense_vec& feat, ilat::pair_fst const& fst,
+                ilat::pair_fst::edge e) const
+            {
+                int label_tuple = 0;
+                auto const& vertex_attrs = fst.fst2().data->vertex_attrs;
+                auto const& id_symbol = *fst.fst1().data->id_symbol;
+                auto const& symbol_id = *fst.fst1().data->symbol_id;
+
+                if (order == 0) {
+                    if (feat.class_vec.size() < 1) {
+                        feat.class_vec.resize(1);
+                    }
+
+                    // do nothing
+                } else if (order == 1) {
+                    label_tuple = fst.output(e) + 1;
+
+                    if (feat.class_vec.size() < 1 + alloc.labels.size()) {
+                        feat.class_vec.resize(1 + alloc.labels.size());
+                    }
+                } else if (order == 2) {
+                    if (feat.class_vec.size() < 1 + alloc.labels.size() + alloc.labels.size() * alloc.labels.size()) {
+                        feat.class_vec.resize(1 + alloc.labels.size() + alloc.labels.size() * alloc.labels.size());
+                    }
+
+                    for (auto& p: vertex_attrs.at(std::get<1>(fst.tail(e)))) {
+                        if (p.first == "history") {
+                            label_tuple = 1 + alloc.labels.size() + symbol_id.at(p.second) * symbol_id.size();
+                            break;
+                        }
+                    }
+
+                    label_tuple += fst.output(e);
+                } else {
+                    std::cerr << "order " << order << " not implemented" << std::endl;
+                    exit(1);
+                }
+
+                la::vector<double>& g = feat.class_vec[label_tuple];
+                g.resize(alloc.order_dim[order]);
+
+                return g.data();
+            }
 
         }
 

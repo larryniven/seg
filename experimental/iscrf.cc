@@ -434,38 +434,4 @@ namespace scrf {
         parameterize(*s.gold, s.gold_alloc, s.frames, l_args);
     }
 
-    std::vector<std::string> load_label_seq(std::istream& is)
-    {
-        std::string line;
-        std::getline(is, line);
-
-        std::vector<std::string> parts;
-
-        if (is) {
-            parts = ebt::split(line);
-            parts.pop_back();
-        }
-
-        return parts;
-    }
-
-    ilat::fst make_label_seq_fst(std::vector<std::string> const& label_seq,
-        std::unordered_map<std::string, int> const& label_id)
-    {
-        ilat::fst_data data;
-
-        ilat::add_vertex(data, 0, ilat::vertex_data { 0 });
-
-        for (int i = 0; i < label_seq.size(); ++i) {
-            std::string const& s = label_seq.at(i);
-            add_vertex(data, i + 1, ilat::vertex_data { 0 });
-            add_edge(data, i, ilat::edge_data { i, i+1, 0, label_id.at(s), label_id.at(s) });
-        }
-
-        ilat::fst result;
-        result.data = std::make_shared<ilat::fst_data>(std::move(data));
-
-        return result;
-    }
-
 }

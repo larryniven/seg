@@ -18,6 +18,7 @@ namespace scrf {
 
     template <class fst, class vector>
     struct lexicalizer {
+
         virtual double* lex(feat_dim_alloc const& alloc,
             int order, vector& f, fst const& a, typename fst::edge e) const = 0;
 

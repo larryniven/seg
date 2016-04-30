@@ -54,15 +54,6 @@ namespace scrf {
                 pair_scrf<vector> const& f) const override;
         };
 
-        template <class vector>
-        struct pair_fst_lexicalizer
-            : public lexicalizer<ilat::pair_fst, sparse_vec> {
-
-            virtual double* lex(feat_dim_alloc const& alloc,
-                int order, vector& f, ilat::pair_fst const& a,
-                ilat::pair_fst::edge e) const override;
-        };
-
         template <class vector, class lexicalizer>
         composite_feature<ilat::pair_fst, vector> make_feat(
             feat_dim_alloc& alloc,
@@ -71,6 +62,14 @@ namespace scrf {
             std::unordered_map<std::string, std::string> const& args);
 
         namespace sparse {
+
+            struct pair_fst_lexicalizer
+                : public lexicalizer<ilat::pair_fst, sparse_vec> {
+
+                double* lex(feat_dim_alloc const& alloc, int order,
+                    sparse_vec& feat, ilat::pair_fst const& fst,
+                    ilat::pair_fst::edge e) const override;
+            };
 
             struct backoff_cost
                 : public scrf_weight<ilat::pair_fst> {
@@ -136,6 +135,14 @@ namespace scrf {
         }
 
         namespace dense {
+
+            struct pair_fst_lexicalizer
+                : public lexicalizer<ilat::pair_fst, dense_vec> {
+
+                double* lex(feat_dim_alloc const& alloc, int order,
+                    dense_vec& feat, ilat::pair_fst const& fst,
+                    ilat::pair_fst::edge e) const override;
+            };
 
         }
 
@@ -260,40 +267,6 @@ namespace scrf {
             result.cost_func = f.cost_func;
 
             return std::make_shared<pair_scrf<vector>>(result);
-        }
-
-        template <class vector>
-        double* pair_fst_lexicalizer<vector>::lex(
-            feat_dim_alloc const& alloc, int order,
-            vector& feat, ilat::pair_fst const& fst,
-            ilat::pair_fst::edge e) const
-        {
-            std::string label_tuple;
-            auto const& vertex_attrs = fst.fst2().data->vertex_attrs;
-            auto const& id_symbol = *fst.fst1().data->id_symbol;
-
-            if (order == 0) {
-                // do nothing
-            } else if (order == 1) {
-                label_tuple = id_symbol.at(fst.output(e));
-            } else if (order == 2) {
-                for (auto& p: vertex_attrs.at(std::get<1>(fst.tail(e)))) {
-                    if (p.first == "history") {
-                        label_tuple = p.second;
-                        break;
-                    }
-                }
-
-                label_tuple += "_" + id_symbol.at(fst.output(e));
-            } else {
-                std::cerr << "order " << order << " not implemented" << std::endl;
-                exit(1);
-            }
-
-            la::vector<double>& g = feat.class_vec[label_tuple];
-            g.resize(alloc.order_dim[order]);
-
-            return g.data();
         }
 
         template <class vector, class lexicalizer>
