@@ -23,10 +23,7 @@ namespace scrf {
             int order, vector& f, fst const& a, typename fst::edge e) const = 0;
 
         virtual double const* const_lex(feat_dim_alloc const& alloc,
-            int order, vector const& f, fst const& a, typename fst::edge e)
-        {
-            return lex(alloc, order, const_cast<vector&>(f), a, e);
-        }
+            int order, vector const& f, fst const& a, typename fst::edge e);
     };
 
     template <class fst, class vector, class lexicalizer>
@@ -99,6 +96,17 @@ namespace scrf {
             vector const& param,
             fst const& a, typename fst::edge e) const;
     };
+
+}
+
+namespace scrf {
+
+    template <class fst, class vector>
+    double const* lexicalizer<fst, vector>::const_lex(feat_dim_alloc const& alloc,
+        int order, vector const& f, fst const& a, typename fst::edge e)
+    {
+        return lex(alloc, order, const_cast<vector&>(f), a, e);
+    }
 
     template <class fst, class vector, class lexicalizer>
     segment_feature<fst, vector, lexicalizer>::segment_feature(

@@ -37,6 +37,10 @@ namespace scrf {
             vector const& param) const override;
     };
 
+}
+
+namespace scrf {
+
     template <class fst, class vector, class path_maker>
     hinge_loss<fst, vector, path_maker>::hinge_loss(fst const& gold, fst const& graph)
         : gold(gold), graph(graph)

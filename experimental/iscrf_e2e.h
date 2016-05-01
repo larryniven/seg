@@ -112,6 +112,7 @@ namespace scrf {
             inference_args const& i_args);
 
         void parameterize(learning_sample& s, learning_args const& l_args);
+
     }
 
 }
