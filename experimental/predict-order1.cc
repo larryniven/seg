@@ -11,7 +11,7 @@ struct prediction_env {
 
     std::ifstream lattice_batch;
 
-    scrf::inference_args i_args;
+    iscrf::inference_args i_args;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -67,7 +67,7 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
         lattice_batch.open(args.at("lattice-batch"));
     }
 
-    scrf::parse_inference_args(i_args, args);
+    iscrf::parse_inference_args(i_args, args);
 }
 
 void prediction_env::run()
@@ -76,7 +76,7 @@ void prediction_env::run()
 
     while (1) {
 
-        scrf::sample s { i_args };
+        iscrf::sample s { i_args };
 
         s.frames = speech::load_frame_batch(frame_batch);
 
@@ -92,17 +92,17 @@ void prediction_env::run()
                 exit(1);
             }
 
-            scrf::make_lattice(lat, s, i_args);
+            iscrf::make_lattice(lat, s, i_args);
         } else {
-            scrf::make_graph(s, i_args);
+            iscrf::make_graph(s, i_args);
         }
 
-        scrf::parameterize(s.graph, s.graph_alloc, s.frames, i_args);
+        iscrf::parameterize(s.graph_data, s.graph_alloc, s.frames, i_args);
 
-        s.graph_path = fst::shortest_path<scrf::iscrf, scrf::iscrf_path_maker>(s.graph);
+        std::shared_ptr<ilat::fst> graph_path = scrf::shortest_path<iscrf::iscrf_data>(s.graph_data);
 
-        for (auto& e: s.graph_path->edges()) {
-            std::cout << i_args.id_label.at(s.graph_path->output(e)) << " ";
+        for (auto& e: graph_path->edges()) {
+            std::cout << i_args.id_label.at(graph_path->output(e)) << " ";
         }
         std::cout << "(" << i << ".phn)" << std::endl;
 

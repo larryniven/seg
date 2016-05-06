@@ -21,7 +21,7 @@ struct learning_env {
     std::string output_nn_param;
     std::string output_nn_opt_data;
 
-    scrf::e2e::learning_args l_args;
+    iscrf::e2e::learning_args l_args;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -122,7 +122,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_nn_opt_data = args.at("output-nn-opt-data");
     }
 
-    scrf::e2e::parse_learning_args(l_args, args);
+    iscrf::e2e::parse_learning_args(l_args, args);
 }
 
 void learning_env::run()
@@ -133,7 +133,7 @@ void learning_env::run()
 
     while (1) {
 
-        scrf::e2e::learning_sample s { l_args };
+        iscrf::learning_sample s { l_args };
 
         std::vector<std::vector<double>> frames = speech::load_frame_batch(frame_batch);
 
@@ -141,7 +141,7 @@ void learning_env::run()
             break;
         }
 
-        s.gold_segs = scrf::load_segments(gold_batch, l_args.label_id);
+        s.gold_segs = iscrf::load_segments(gold_batch, l_args.label_id);
 
         if (!gold_batch) {
             break;
@@ -199,54 +199,52 @@ void learning_env::run()
                 exit(1);
             }
 
-            scrf::e2e::make_lattice(lat, s, l_args);
+            iscrf::make_lattice(lat, s, l_args);
         } else {
-            scrf::e2e::make_graph(s, l_args);
+            iscrf::make_graph(s, l_args);
         }
 
-        scrf::e2e::make_min_cost_gold(s, l_args);
-
-        s.cost = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
-            std::make_shared<scrf::seg_cost<ilat::fst>>(
-                scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
-            l_args.cost_scale));
+        iscrf::make_min_cost_gold(s, l_args);
 
         double gold_cost = 0;
+
+        iscrf::iscrf_fst gold { s.gold_data };
     
         std::cout << "gold path: ";
-        for (auto& e: s.gold->edges()) {
-            std::cout << l_args.id_label[s.gold->output(e)] << " ";
-            gold_cost += (*s.cost)(*s.gold->fst, e);
+        for (auto& e: gold.edges()) {
+            std::cout << l_args.id_label[gold.output(e)] << " ";
+            gold_cost += cost(s.gold_data, e);
         }
         std::cout << std::endl;
     
         std::cout << "gold cost: " << gold_cost << std::endl;
 
-        scrf::e2e::parameterize(s, l_args);
+        iscrf::parameterize(s, l_args);
 
-        std::shared_ptr<scrf::loss_func_with_frame_grad<scrf::dense_vec>> loss_func;
+        std::shared_ptr<scrf::loss_func_with_frame_grad<scrf::dense_vec, ilat::fst>> loss_func;
 
         if (args.at("loss") == "hinge-loss") {
-            scrf::composite_weight<ilat::fst>& graph_weight_func
-                = *dynamic_cast<scrf::composite_weight<ilat::fst>*>(s.graph.weight_func.get());
-            graph_weight_func.weights.push_back(s.cost);
+            scrf::composite_weight<ilat::fst> weight_func_with_cost;
+            weight_func_with_cost.weights.push_back(s.graph_data.weight_func);
+            weight_func_with_cost.weights.push_back(s.graph_data.cost_func);
+            s.graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func_with_cost);
 
-            using hinge_loss = scrf::hinge_loss_with_frame_grad<
-                scrf::e2e::iscrf, scrf::dense_vec,
-                scrf::e2e::iscrf_path_maker>;
+            using hinge_loss = scrf::hinge_loss<iscrf::iscrf_data>;
 
             loss_func = std::make_shared<hinge_loss>(
-                hinge_loss { *s.gold, s.graph });
+                hinge_loss { s.gold_data, s.graph_data });
 
             hinge_loss const& loss
                 = *dynamic_cast<hinge_loss*>(loss_func.get());
 
             double gold_weight = 0;
 
+            iscrf::iscrf_fst gold { s.gold_data };
+
             std::cout << "gold: ";
-            for (auto& e: s.gold->edges()) {
-                std::cout << l_args.id_label[s.gold->output(e)] << " ";
-                gold_weight += s.gold->weight(e);
+            for (auto& e: gold.edges()) {
+                std::cout << l_args.id_label[gold.output(e)] << " ";
+                gold_weight += gold.weight(e);
             }
             std::cout << std::endl;
 
@@ -254,10 +252,12 @@ void learning_env::run()
 
             double graph_weight = 0;
 
+            iscrf::iscrf_fst graph_path { loss.graph_path };
+
             std::cout << "cost aug: ";
-            for (auto& e: loss.graph_path->edges()) {
-                std::cout << l_args.id_label[loss.graph.output(e)] << " ";
-                graph_weight += loss.graph_path->weight(e);
+            for (auto& e: graph_path.edges()) {
+                std::cout << l_args.id_label[graph_path.output(e)] << " ";
+                graph_weight += graph_path.weight(e);
             }
             std::cout << std::endl;
 
@@ -267,7 +267,7 @@ void learning_env::run()
             exit(1);
         }
 
-        std::cout << "gold segs: " << s.gold->edges().size()
+        std::cout << "gold segs: " << s.gold_data.fst->edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
         double ell = loss_func->loss();
@@ -287,7 +287,10 @@ void learning_env::run()
                 frame_grad[i].resize(inputs[i].size());
             }
 
-            loss_func->frame_grad(frame_grad, l_args.param);
+            std::shared_ptr<scrf::scrf_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
+                = iscrf::e2e::filter_feat_with_frame_grad(s.graph_data);
+
+            loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
 
             for (int i = 0; i < frame_grad.size(); ++i) {
                 upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
@@ -302,59 +305,6 @@ void learning_env::run()
             std::cout << "analytical grad: "
                 << pred_grad.softmax_weight(0, 0) << std::endl;
         }
-
-#if 0
-        {
-            scrf::e2e::learning_args l_args2 = l_args;
-            l_args2.pred_param.softmax_weight(0, 0) += 1e-8;
-
-            scrf::e2e::learning_sample s2 { l_args2 };
-
-            autodiff::computation_graph comp_graph2;
-
-            std::vector<std::shared_ptr<autodiff::op_t>> frame_ops2;
-            for (auto& f: frames) {
-                frame_ops2.push_back(comp_graph2.var(la::vector<double>(f)));
-            }
-
-            lstm::dblstm_feat_nn_t nn2 = lstm::make_dblstm_feat_nn(
-                comp_graph2, l_args2.nn_param, frame_ops2);
-
-            rnn::pred_nn_t pred_nn2 = rnn::make_pred_nn(
-                comp_graph2, l_args2.pred_param, nn2.layer.back().output);
-
-            auto order2 = autodiff::topo_order(pred_nn2.logprob);
-            autodiff::eval(order2, autodiff::eval_funcs);
-
-            std::vector<std::vector<double>> inputs2;
-            for (auto& o: pred_nn2.logprob) {
-                auto& f = autodiff::get_output<la::vector<double>>(o);
-                inputs2.push_back(std::vector<double> {f.data(), f.data() + f.size()});
-            }
-
-            s2.frames = inputs2;
-            s2.ground_truth_fst = s.ground_truth_fst;
-
-            scrf::e2e::make_graph(s2, l_args2);
-            scrf::e2e::make_min_cost_gold(s2, l_args2);
-            s2.cost = std::make_shared<scrf::seg_cost<ilat::fst>>(
-                scrf::make_overlap_cost<ilat::fst>(*s2.ground_truth->fst, l_args2.sils));
-
-            scrf::e2e::parameterize(s2, l_args2);
-
-            scrf::composite_weight<ilat::fst>& graph_weight_func
-                = *dynamic_cast<scrf::composite_weight<ilat::fst>*>(s2.graph.weight_func.get());
-            graph_weight_func.weights.push_back(s2.cost);
-
-            using hinge_loss = scrf::hinge_loss_with_frame_grad<
-                scrf::e2e::iscrf, scrf::dense_vec,
-                scrf::e2e::iscrf_path_maker>;
-
-            hinge_loss loss_func2 { *s2.gold, s2.graph };
-
-            std::cout << "numerical grad: " << (loss_func2.loss() - loss_func->loss()) / 1e-8 << std::endl;
-        }
-#endif
 
         if (ell < 0) {
             std::cout << "loss is less than zero.  skipping." << std::endl;
@@ -381,8 +331,8 @@ void learning_env::run()
         if (i % save_every == 0) {
             scrf::save_vec(l_args.param, "param-last");
             scrf::save_vec(l_args.opt_data, "opt-data-last");
-            scrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, "nn-param-last");
-            scrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, "nn-opt-data-last");
+            iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, "nn-param-last");
+            iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, "nn-opt-data-last");
         }
 
 #if DEBUG_TOP
@@ -396,8 +346,8 @@ void learning_env::run()
 
     scrf::save_vec(l_args.param, output_param);
     scrf::save_vec(l_args.opt_data, output_opt_data);
-    scrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, output_nn_param);
-    scrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, output_nn_opt_data);
+    iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, output_nn_param);
+    iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, output_nn_opt_data);
 
 }
 

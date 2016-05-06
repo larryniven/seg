@@ -15,7 +15,7 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
-    scrf::learning_args l_args;
+    iscrf::learning_args l_args;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -97,7 +97,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
-    scrf::parse_learning_args(l_args, args);
+    iscrf::parse_learning_args(l_args, args);
 }
 
 void learning_env::run()
@@ -108,11 +108,11 @@ void learning_env::run()
 
     while (1) {
 
-        scrf::learning_sample s { l_args };
+        iscrf::learning_sample s { l_args };
 
         s.frames = speech::load_frame_batch(frame_batch);
 
-        s.gold_segs = scrf::load_segments(gold_batch, l_args.label_id);
+        s.gold_segs = iscrf::load_segments(gold_batch, l_args.label_id);
 
         if (!gold_batch) {
             break;
@@ -126,25 +126,23 @@ void learning_env::run()
                 exit(1);
             }
 
-            scrf::make_lattice(lat, s, l_args);
+            iscrf::make_lattice(lat, s, l_args);
         } else {
-            scrf::make_graph(s, l_args);
+            iscrf::make_graph(s, l_args);
         }
 
-        scrf::make_min_cost_gold(s, l_args);
+        iscrf::make_min_cost_gold(s, l_args);
 
         parameterize(s, l_args);
-        s.cost = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
-            std::make_shared<scrf::seg_cost<ilat::fst>>(
-                scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
-            l_args.cost_scale));
 
         double gold_cost = 0;
+
+        iscrf::iscrf_fst gold { s.gold_data };
     
         std::cout << "gold path: ";
-        for (auto& e: s.gold->edges()) {
-            std::cout << l_args.id_label[s.gold->output(e)] << " ";
-            gold_cost += (*s.cost)(*s.gold->fst, e);
+        for (auto& e: gold.edges()) {
+            std::cout << l_args.id_label[gold.output(e)] << " ";
+            gold_cost += iscrf::cost(s.gold_data, e);
         }
         std::cout << std::endl;
     
@@ -153,24 +151,25 @@ void learning_env::run()
         std::shared_ptr<scrf::loss_func<scrf::dense_vec>> loss_func;
 
         if (args.at("loss") == "hinge-loss") {
-            scrf::composite_weight<ilat::fst>& graph_weight_func
-                = *dynamic_cast<scrf::composite_weight<ilat::fst>*>(s.graph.weight_func.get());
-            graph_weight_func.weights.push_back(s.cost);
+            scrf::composite_weight<ilat::fst> weight_func_with_cost;
+            weight_func_with_cost.weights.push_back(s.graph_data.weight_func);
+            weight_func_with_cost.weights.push_back(s.graph_data.cost_func);
+            s.graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func_with_cost);
 
-            using hinge_loss = scrf::hinge_loss<
-                scrf::iscrf, scrf::dense_vec,
-                scrf::iscrf_path_maker>;
+            using hinge_loss = scrf::hinge_loss<iscrf::iscrf_data>;
 
-            loss_func = std::make_shared<hinge_loss>(hinge_loss { *s.gold, s.graph });
+            loss_func = std::make_shared<hinge_loss>(hinge_loss { s.gold_data, s.graph_data });
 
             hinge_loss const& loss = *dynamic_cast<hinge_loss*>(loss_func.get());
 
             double gold_weight = 0;
 
+            iscrf::iscrf_fst gold { s.gold_data };
+
             std::cout << "gold: ";
-            for (auto& e: s.gold->edges()) {
-                std::cout << l_args.id_label[s.gold->output(e)] << " ";
-                gold_weight += s.gold->weight(e);
+            for (auto& e: gold.edges()) {
+                std::cout << l_args.id_label[gold.output(e)] << " ";
+                gold_weight += gold.weight(e);
             }
             std::cout << std::endl;
 
@@ -178,10 +177,12 @@ void learning_env::run()
 
             double graph_weight = 0;
 
+            iscrf::iscrf_fst graph_path { loss.graph_path };
+
             std::cout << "cost aug: ";
-            for (auto& e: loss.graph_path->edges()) {
-                std::cout << l_args.id_label[loss.graph.output(e)] << " ";
-                graph_weight += loss.graph_path->weight(e);
+            for (auto& e: graph_path.edges()) {
+                std::cout << l_args.id_label[graph_path.output(e)] << " ";
+                graph_weight += graph_path.weight(e);
             }
             std::cout << std::endl;
 
@@ -191,7 +192,7 @@ void learning_env::run()
             exit(1);
         }
 
-        std::cout << "gold segs: " << s.gold->edges().size()
+        std::cout << "gold segs: " << s.gold_data.fst->edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
         double ell = loss_func->loss();

@@ -126,15 +126,41 @@ namespace scrf {
 
     };
 
-    template <class vector>
+    template <class vector, class fst>
     struct loss_func_with_frame_grad
         : public loss_func<vector> {
 
-        virtual void frame_grad(std::vector<std::vector<double>>& grad,
+        virtual void frame_grad(
+            scrf_feature_with_frame_grad<fst, vector> const& feat_func,
+            std::vector<std::vector<double>>& grad,
             vector const& param) const = 0;
     };
 
     std::pair<int, int> get_dim(std::string feat);
+
+    template <class scrf_data>
+    struct scrf_data_trait;
+
+    template <class scrf_data>
+    std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst> shortest_path(scrf_data const& data);
+
+}
+
+namespace scrf {
+
+    template <class scrf_data>
+    std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst> shortest_path(scrf_data const& data)
+    {
+        typename scrf_data_trait<scrf_data>::fst f { data };
+        fst::forward_one_best<typename scrf_data_trait<scrf_data>::fst> one_best;
+        for (auto& v: f.initials()) {
+            one_best.extra[v] = { fst::edge_trait<typename scrf_data_trait<scrf_data>::edge>::null, 0 };
+        }
+        one_best.merge(f, f.topo_order());
+        std::vector<typename scrf_data_trait<scrf_data>::edge> edges = one_best.best_path(f);
+
+        return typename scrf_data_trait<scrf_data>::path_maker()(edges, *data.fst);
+    }
 
 }
 

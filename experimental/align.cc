@@ -56,7 +56,7 @@ namespace scrf {
         ilat::fst label_seq_fst = make_label_seq_fst(label_seq,
             i_args.label_id, i_args.id_label);
 
-        ilat::lazy_pair pair_fst { *s.graph.fst, label_seq_fst};
+        ilat::lazy_pair pair_fst { *s.graph_data.fst, label_seq_fst};
 
         second_order::pair_scrf<dense_vec> ali_scrf;
 
