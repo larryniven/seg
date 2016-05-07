@@ -4,86 +4,21 @@
 
 namespace iscrf {
 
-    double weight(iscrf_data const& data, int e)
-    {
-         return (*data.weight_func)(*data.fst, e);
-    }
-
-    void feature(iscrf_data const& data, scrf::dense_vec& f, int e)
-    {
-         (*data.feature_func)(f, *data.fst, e);
-    }
-
-    double cost(iscrf_data const& data, int e)
-    {
-         return (*data.cost_func)(*data.fst, e);
-    }
-
-    std::vector<int> const& iscrf_fst::vertices() const
-    {
-        return data.fst->vertices();
-    }
-
-    std::vector<int> const& iscrf_fst::edges() const
-    {
-        return data.fst->edges();
-    }
-
-    int iscrf_fst::head(int e) const
-    {
-        return data.fst->head(e);
-    }
-
-    int iscrf_fst::tail(int e) const
-    {
-        return data.fst->tail(e);
-    }
-
-    std::vector<int> const& iscrf_fst::in_edges(int v) const
-    {
-        return data.fst->in_edges(v);
-    }
-
-    std::vector<int> const& iscrf_fst::out_edges(int v) const
-    {
-        return data.fst->out_edges(v);
-    }
-
-    double iscrf_fst::weight(int e) const
-    {
-        return (*data.weight_func)(*data.fst, e);
-    }
-
-    int const& iscrf_fst::input(int e) const
-    {
-        return data.fst->input(e);
-    }
-
-    int const& iscrf_fst::output(int e) const
-    {
-        return data.fst->output(e);
-    }
-
-    std::vector<int> const& iscrf_fst::initials() const
-    {
-        return data.fst->initials();
-    }
-
-    std::vector<int> const& iscrf_fst::finals() const
-    {
-        return data.fst->finals();
-    }
-
-    long iscrf_fst::time(int e) const
-    {
-        return data.fst->time(e);
-    }
-
-    std::vector<int> const& iscrf_fst::topo_order() const
-    {
-        return *data.topo_order;
-    }
-
+     double weight(iscrf_data const& data, int e)
+     {
+          return (*data.weight_func)(*data.fst, e);
+     }
+ 
+     void feature(iscrf_data const& data, scrf::dense_vec& f, int e)
+     {
+          (*data.feature_func)(f, *data.fst, e);
+     }
+ 
+     double cost(iscrf_data const& data, int e)
+     {
+          return (*data.cost_func)(*data.fst, e);
+     }
+ 
     std::shared_ptr<ilat::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
@@ -164,6 +99,8 @@ namespace iscrf {
         scrf::composite_feature<ilat::fst, scrf::dense_vec> result;
 
         using feat_func = scrf::segment_feature<ilat::fst, scrf::dense_vec, ilat_lexicalizer>;
+        using feat_func_with_frame_grad = scrf::segment_feature_with_frame_grad<
+            ilat::fst, scrf::dense_vec, ilat_lexicalizer>;
 
         for (auto& k: features) {
             if (ebt::startswith(k, "frame-avg")) {
@@ -177,8 +114,8 @@ namespace iscrf {
                 int end_dim = -1;
                 std::tie(start_dim, end_dim) = scrf::get_dim(parts[0]);
 
-                result.features.push_back(std::make_shared<feat_func>(
-                    feat_func(alloc, order,
+                result.features.push_back(std::make_shared<feat_func_with_frame_grad>(
+                    feat_func_with_frame_grad(alloc, order,
                     std::make_shared<segfeat::frame_avg>(
                         segfeat::frame_avg { frames, start_dim, end_dim }),
                     frames)));
@@ -193,8 +130,8 @@ namespace iscrf {
                 int end_dim = -1;
                 std::tie(start_dim, end_dim) = scrf::get_dim(parts[0]);
 
-                result.features.push_back(std::make_shared<feat_func>(
-                    feat_func(alloc, order,
+                result.features.push_back(std::make_shared<feat_func_with_frame_grad>(
+                    feat_func_with_frame_grad(alloc, order,
                     std::make_shared<segfeat::frame_samples>(
                         segfeat::frame_samples { 3, start_dim, end_dim }),
                     frames)));
@@ -209,8 +146,8 @@ namespace iscrf {
                 int end_dim = -1;
                 std::tie(start_dim, end_dim) = scrf::get_dim(parts[0]);
 
-                result.features.push_back(std::make_shared<feat_func>(
-                    feat_func(alloc, order,
+                result.features.push_back(std::make_shared<feat_func_with_frame_grad>(
+                    feat_func_with_frame_grad(alloc, order,
                     std::make_shared<segfeat::left_boundary>(
                         segfeat::left_boundary { start_dim, end_dim }),
                     frames)));
@@ -225,8 +162,8 @@ namespace iscrf {
                 int end_dim = -1;
                 std::tie(start_dim, end_dim) = scrf::get_dim(parts[0]);
 
-                result.features.push_back(std::make_shared<feat_func>(
-                    feat_func(alloc, order,
+                result.features.push_back(std::make_shared<feat_func_with_frame_grad>(
+                    feat_func_with_frame_grad(alloc, order,
                     std::make_shared<segfeat::right_boundary>(
                         segfeat::right_boundary { start_dim, end_dim }),
                     frames)));
@@ -300,7 +237,10 @@ namespace iscrf {
 
     sample::sample(inference_args const& i_args)
         : graph_alloc(i_args.labels)
-    {}
+    {
+        graph_data.features = std::make_shared<std::vector<std::string>>(i_args.features);
+        graph_data.param = std::make_shared<scrf::dense_vec>(i_args.param);
+    }
 
     void make_graph(sample& s, inference_args const& i_args)
     {
@@ -384,9 +324,12 @@ namespace iscrf {
         l_args.sils.push_back(l_args.label_id.at("sil"));
     }
 
-    learning_sample::learning_sample(learning_args const& args)
-        : sample(args), gold_alloc(args.labels)
-    {}
+    learning_sample::learning_sample(learning_args const& l_args)
+        : sample(l_args), gold_alloc(l_args.labels)
+    {
+        gold_data.features = std::make_shared<std::vector<std::string>>(l_args.features);
+        gold_data.param = std::make_shared<scrf::dense_vec>(l_args.param);
+    }
 
     void make_min_cost_gold(learning_sample& s, learning_args const& l_args)
     {
@@ -415,6 +358,7 @@ namespace iscrf {
         weight.weights.push_back(std::make_shared<scrf::linear_score<ilat::fst, scrf::dense_vec>>(
             scrf::linear_score<ilat::fst, scrf::dense_vec>(i_args.param,
             std::make_shared<comp_feat>(feat_func))));
+
         data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight);
         data.feature_func = std::make_shared<comp_feat>(feat_func);
     }

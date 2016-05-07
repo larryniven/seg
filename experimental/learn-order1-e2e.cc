@@ -206,6 +206,8 @@ void learning_env::run()
 
         iscrf::make_min_cost_gold(s, l_args);
 
+        iscrf::parameterize(s, l_args);
+
         double gold_cost = 0;
 
         iscrf::iscrf_fst gold { s.gold_data };
@@ -218,8 +220,6 @@ void learning_env::run()
         std::cout << std::endl;
     
         std::cout << "gold cost: " << gold_cost << std::endl;
-
-        iscrf::parameterize(s, l_args);
 
         std::shared_ptr<scrf::loss_func_with_frame_grad<scrf::dense_vec, ilat::fst>> loss_func;
 
@@ -287,7 +287,7 @@ void learning_env::run()
                 frame_grad[i].resize(inputs[i].size());
             }
 
-            std::shared_ptr<scrf::scrf_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
+            std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
                 = iscrf::e2e::filter_feat_with_frame_grad(s.graph_data);
 
             loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
@@ -304,6 +304,23 @@ void learning_env::run()
 
             std::cout << "analytical grad: "
                 << pred_grad.softmax_weight(0, 0) << std::endl;
+
+            if (ebt::in(std::string("decay"), args)) {
+                scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
+                    l_args.decay, l_args.step_size);
+                lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                    l_args.decay, l_args.step_size);
+                rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                    l_args.decay, l_args.step_size);
+            } else {
+                scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
+                    l_args.step_size);
+                lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                    l_args.step_size);
+                rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                    l_args.step_size);
+            }
+
         }
 
         if (ell < 0) {
@@ -311,22 +328,6 @@ void learning_env::run()
         }
 
         std::cout << std::endl;
-
-        if (ebt::in(std::string("decay"), args)) {
-            scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
-                l_args.decay, l_args.step_size);
-            lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
-                l_args.decay, l_args.step_size);
-            rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                l_args.decay, l_args.step_size);
-        } else {
-            scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
-                l_args.step_size);
-            lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
-                l_args.step_size);
-            rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                l_args.step_size);
-        }
 
         if (i % save_every == 0) {
             scrf::save_vec(l_args.param, "param-last");

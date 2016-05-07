@@ -4,7 +4,7 @@
 #include "scrf/experimental/segcost.h"
 #include "scrf/experimental/scrf.h"
 
-namespace scrf {
+namespace iscrf {
 
     std::vector<std::string> load_label_seq(std::istream& is)
     {

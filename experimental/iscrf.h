@@ -10,8 +10,6 @@
 
 namespace iscrf {
 
-    struct iscrf_fst;
-
     struct iscrf_data {
         std::shared_ptr<ilat::fst> fst;
         std::shared_ptr<std::vector<int>> topo_order;
@@ -21,6 +19,8 @@ namespace iscrf {
         std::shared_ptr<scrf::dense_vec> param;
         std::shared_ptr<std::vector<std::string>> features;
     };
+
+    using iscrf_fst = scrf::scrf_fst<iscrf_data>;
 
 }
 
@@ -44,31 +44,6 @@ namespace iscrf {
     double weight(iscrf_data const& data, int e);
     void feature(iscrf_data const& data, scrf::dense_vec& f, int e);
     double cost(iscrf_data const& data, int e);
-
-    struct iscrf_fst {
-
-        using vertex = int;
-        using edge = int;
-        using symbol = int;
-
-        iscrf_data const& data;
-
-        std::vector<int> const& vertices() const;
-        std::vector<int> const& edges() const;
-        int head(int e) const;
-        int tail(int e) const;
-        std::vector<int> const& in_edges(int v) const;
-        std::vector<int> const& out_edges(int v) const;
-        double weight(int e) const;
-        int const& input(int e) const;
-        int const& output(int e) const;
-        std::vector<int> const& initials() const;
-        std::vector<int> const& finals() const;
-
-        long time(int v) const;
-        std::vector<int> const& topo_order() const;
-
-    };
 
     std::shared_ptr<ilat::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,

@@ -21,6 +21,9 @@ namespace iscrf {
 
         };
 
+        void parse_nn_inference_args(nn_inference_args& i_args,
+            std::unordered_map<std::string, std::string> const& args);
+
         void parse_inference_args(inference_args& i_args,
             std::unordered_map<std::string, std::string> const& args);
 
@@ -28,14 +31,8 @@ namespace iscrf {
             : public ::iscrf::learning_args
             , public nn_inference_args {
 
-            scrf::dense_vec opt_data;
             lstm::dblstm_feat_param_t nn_opt_data;
             rnn::pred_param_t pred_opt_data;
-            double step_size;
-            double momentum;
-            double decay;
-            std::vector<int> sils;
-            double cost_scale;
             int rnndrop_seed;
         };
 
@@ -49,7 +46,7 @@ namespace iscrf {
             rnn::pred_param_t const& pred_param,
             std::string filename);
 
-        std::shared_ptr<scrf::scrf_feature_with_frame_grad<ilat::fst, scrf::dense_vec>>
+        std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>>
         filter_feat_with_frame_grad(iscrf_data const& data);
 
     }

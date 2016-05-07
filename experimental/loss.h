@@ -32,7 +32,7 @@ namespace scrf {
 namespace scrf {
 
     template <class scrf_data>
-    hinge_loss<scrf_data>::hinge_loss(scrf_data const& gold, scrf_data const& graph)
+    hinge_loss<scrf_data>::hinge_loss(scrf_data const& gold_path, scrf_data const& graph)
         : gold_path(gold_path), graph_path(graph)
     {
         graph_path.fst = shortest_path(graph);

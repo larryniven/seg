@@ -142,6 +142,32 @@ namespace scrf {
     struct scrf_data_trait;
 
     template <class scrf_data>
+    struct scrf_fst {
+
+        using vertex = typename scrf_data_trait<scrf_data>::vertex;
+        using edge = typename scrf_data_trait<scrf_data>::edge;
+        using symbol = typename scrf_data_trait<scrf_data>::symbol;
+
+        scrf_data const& data;
+
+        std::vector<vertex> const& vertices() const;
+        std::vector<edge> const& edges() const;
+        vertex head(edge e) const;
+        vertex tail(edge e) const;
+        std::vector<edge> const& in_edges(vertex v) const;
+        std::vector<edge> const& out_edges(vertex v) const;
+        double weight(edge e) const;
+        symbol const& input(edge e) const;
+        symbol const& output(edge e) const;
+        std::vector<vertex> const& initials() const;
+        std::vector<vertex> const& finals() const;
+
+        long time(vertex v) const;
+        std::vector<vertex> const& topo_order() const;
+
+    };
+
+    template <class scrf_data>
     std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst> shortest_path(scrf_data const& data);
 
 }
@@ -149,7 +175,97 @@ namespace scrf {
 namespace scrf {
 
     template <class scrf_data>
-    std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst> shortest_path(scrf_data const& data)
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::vertices() const
+    {
+        return data.fst->vertices();
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::edge> const&
+    scrf_fst<scrf_data>::edges() const
+    {
+        return data.fst->edges();
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::vertex
+    scrf_fst<scrf_data>::head(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->head(e);
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::vertex
+    scrf_fst<scrf_data>::tail(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->tail(e);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::edge> const&
+    scrf_fst<scrf_data>::in_edges(typename scrf_data_trait<scrf_data>::vertex v) const
+    {
+        return data.fst->in_edges(v);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::edge> const&
+    scrf_fst<scrf_data>::out_edges(typename scrf_data_trait<scrf_data>::vertex v) const
+    {
+        return data.fst->out_edges(v);
+    }
+
+    template <class scrf_data>
+    double scrf_fst<scrf_data>::weight(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return (*data.weight_func)(*data.fst, e);
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::symbol const&
+    scrf_fst<scrf_data>::input(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->input(e);
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::symbol const&
+    scrf_fst<scrf_data>::output(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->output(e);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::initials() const
+    {
+        return data.fst->initials();
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::finals() const
+    {
+        return data.fst->finals();
+    }
+
+    template <class scrf_data>
+    long scrf_fst<scrf_data>::time(typename scrf_data_trait<scrf_data>::vertex v) const
+    {
+        return data.fst->time(v);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::topo_order() const
+    {
+        return *data.topo_order;
+    }
+
+    template <class scrf_data>
+    std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst>
+    shortest_path(scrf_data const& data)
     {
         typename scrf_data_trait<scrf_data>::fst f { data };
         fst::forward_one_best<typename scrf_data_trait<scrf_data>::fst> one_best;
