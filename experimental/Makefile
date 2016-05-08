@@ -17,7 +17,7 @@ learn-order1: learn-order1.o $(obj)
 predict-order1: predict-order1.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-latent-order1: learn-latent-order1.o align.o $(obj)
+learn-latent-order1: learn-latent-order1.o align.o pair_scrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-order2: learn-order2.o $(obj) 

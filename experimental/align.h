@@ -5,7 +5,7 @@
 #include "scrf/experimental/iscrf.h"
 #include "scrf/experimental/pair_scrf.h"
 
-namespace scrf {
+namespace iscrf {
 
     std::vector<std::string> load_label_seq(std::istream& is);
 
@@ -14,7 +14,7 @@ namespace scrf {
         std::vector<std::string> const& id_label);
 
     void make_alignment_gold(
-        dense_vec const& ali_param,
+        scrf::dense_vec const& ali_param,
         std::vector<std::string> const& label_seq,
         learning_sample& s,
         learning_args const& i_args);

@@ -24,6 +24,9 @@ namespace iscrf {
 
         };
 
+        template <class vector>
+        using pair_scrf_fst = scrf::scrf_fst<iscrf::second_order::pair_scrf_data<vector>>;
+
     }
 
 }

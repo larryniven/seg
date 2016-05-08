@@ -57,7 +57,7 @@ namespace iscrf {
                 lat_with_loops.data = std::make_shared<ilat::fst_data>(*lat.data);
                 add_eps_loops(lat_with_loops);
 
-                s.graph_data.fst = std::make_shared<ilat::lazy_pair>(ilat::lazy_pair { lat_with_loops, i_args.lm });
+                s.graph_data.fst = std::make_shared<ilat::lazy_pair_mode1>(ilat::lazy_pair_mode1 { lat_with_loops, i_args.lm });
 
                 auto lat_order = fst::topo_order(lat);
                 for (auto& v: lat_order) {

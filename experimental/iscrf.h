@@ -33,7 +33,7 @@ namespace scrf {
         using edge = int;
         using vertex = int;
         using symbol = int;
-        using fst = iscrf::iscrf_fst;
+        using fst = scrf_fst<iscrf::iscrf_data>;
         using vector = dense_vec;
     };
 

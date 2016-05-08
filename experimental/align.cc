@@ -48,7 +48,7 @@ namespace iscrf {
     }
 
     void make_alignment_gold(
-        dense_vec const& ali_param,
+        scrf::dense_vec const& ali_param,
         std::vector<std::string> const& label_seq,
         learning_sample& s,
         learning_args const& i_args)
@@ -56,44 +56,45 @@ namespace iscrf {
         ilat::fst label_seq_fst = make_label_seq_fst(label_seq,
             i_args.label_id, i_args.id_label);
 
-        ilat::lazy_pair pair_fst { *s.graph_data.fst, label_seq_fst};
+        ilat::lazy_pair_mode2 pair_fst { *s.graph_data.fst, label_seq_fst};
 
-        second_order::pair_scrf<dense_vec> ali_scrf;
+        second_order::pair_scrf_data<scrf::dense_vec> ali_scrf_data;
 
-        ali_scrf.fst = std::make_shared<ilat::lazy_pair>(pair_fst);
-        ali_scrf.topo_order_cache = fst::topo_order(pair_fst);
+        ali_scrf_data.fst = std::make_shared<ilat::lazy_pair_mode2>(pair_fst);
+        ali_scrf_data.topo_order = std::make_shared<std::vector<std::tuple<int, int>>>(fst::topo_order(pair_fst));
 
-        feat_dim_alloc alloc { i_args.labels };
+        scrf::feat_dim_alloc alloc { i_args.labels };
 
-        composite_feature<ilat::pair_fst, dense_vec> feat_func
-            = second_order::make_feat<dense_vec, second_order::dense::pair_fst_lexicalizer>(
+        scrf::composite_feature<ilat::pair_fst, scrf::dense_vec> feat_func
+            = second_order::make_feat<scrf::dense_vec, second_order::dense::pair_fst_lexicalizer>(
                 alloc, i_args.features, s.frames, i_args.args);
 
-        ali_scrf.feature_func = std::make_shared<composite_feature<ilat::pair_fst, dense_vec>>(feat_func);
+        ali_scrf_data.feature_func = std::make_shared<scrf::composite_feature<ilat::pair_fst, scrf::dense_vec>>(feat_func);
 
-        composite_weight<ilat::pair_fst> weight_func;
+        scrf::composite_weight<ilat::pair_fst> weight_func;
 
         weight_func.weights.push_back(
-            std::make_shared<linear_score<ilat::pair_fst, dense_vec>>(
-                linear_score<ilat::pair_fst, dense_vec> {
-                    ali_param, ali_scrf.feature_func }));
+            std::make_shared<scrf::linear_score<ilat::pair_fst, scrf::dense_vec>>(
+                scrf::linear_score<ilat::pair_fst, scrf::dense_vec> {
+                    ali_param, ali_scrf_data.feature_func }));
 
-        ali_scrf.weight_func = std::make_shared<composite_weight<ilat::pair_fst>>(weight_func);
+        ali_scrf_data.weight_func = std::make_shared<scrf::composite_weight<ilat::pair_fst>>(weight_func);
 
-        std::shared_ptr<second_order::pair_scrf<dense_vec>> path
-            = fst::shortest_path<second_order::pair_scrf<dense_vec>,
-                second_order::pair_scrf_path_maker<dense_vec>>(ali_scrf);
+        std::shared_ptr<ilat::pair_fst> path = scrf::shortest_path(ali_scrf_data);
+
+        iscrf::iscrf_fst graph { s.graph_data };
+        iscrf::second_order::pair_scrf_fst<scrf::dense_vec> ali_scrf { ali_scrf_data };
 
         std::vector<int> edges;
 
         for (auto& e: path->edges()) {
             edges.push_back(std::get<0>(e));
 
-            s.gold_segs.push_back(segcost::segment<int> { s.graph.time(s.graph.tail(std::get<0>(e))),
-                s.graph.time(s.graph.head(std::get<0>(e))), ali_scrf.output(e) });
+            s.gold_segs.push_back(segcost::segment<int> { graph.time(graph.tail(std::get<0>(e))),
+                graph.time(graph.head(std::get<0>(e))), ali_scrf.output(e) });
         }
 
-        s.gold = iscrf_path_maker()(edges, s.graph);
+        s.gold_data.fst = ilat::ilat_path_maker()(edges, *s.graph_data.fst);
     }
 
 }
