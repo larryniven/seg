@@ -37,7 +37,8 @@ int main(int argc, char *argv[])
             {"label", "", true},
             {"rnndrop-prob", "", false},
             {"subsample-freq", "", false},
-            {"subsample-shift", "", false}
+            {"subsample-shift", "", false},
+            {"frame-softmax", "", false}
         }
     };
 
@@ -109,14 +110,24 @@ void prediction_env::run()
             lstm::apply_mask(nn, i_args.nn_param, i_args.rnndrop_prob);
         }
 
-        rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
+        rnn::pred_nn_t pred_nn;
+
+        std::vector<std::shared_ptr<autodiff::op_t>> output;
+
+        if (ebt::in(std::string("frame-softmax"), args)) {
+            pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
+
+            output = pred_nn.logprob;
+        } else {
+            output = nn.layer.back().output;
+        }
 
         std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
         if (i_args.subsample_freq > 1) {
-             upsampled_output = rnn::upsample_output(pred_nn.logprob,
+             upsampled_output = rnn::upsample_output(output,
                  i_args.subsample_freq, i_args.subsample_shift, frames.size());
         } else {
-             upsampled_output = pred_nn.logprob;
+             upsampled_output = output;
         }
 
         auto order = autodiff::topo_order(upsampled_output);

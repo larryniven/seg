@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
             {"rnndrop-seed", "", false},
             {"subsample-freq", "", false},
             {"subsample-shift", "", false},
+            {"frame-softmax", "", false}
         }
     };
 
@@ -169,15 +170,25 @@ void learning_env::run()
             lstm::apply_random_mask(nn, l_args.nn_param, gen, l_args.rnndrop_prob);
         }
 
-        rnn::pred_nn_t pred_nn = rnn::make_pred_nn(comp_graph,
-            l_args.pred_param, nn.layer.back().output);
+        rnn::pred_nn_t pred_nn;
+
+        std::vector<std::shared_ptr<autodiff::op_t>> output;
+
+        if (ebt::in(std::string("frame-softmax"), args)) {
+            pred_nn = rnn::make_pred_nn(comp_graph,
+                l_args.pred_param, nn.layer.back().output);
+
+            output = pred_nn.logprob;
+        } else {
+            output = nn.layer.back().output;
+        }
 
         std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
         if (l_args.subsample_freq > 1) {
-             upsampled_output = rnn::upsample_output(pred_nn.logprob,
+             upsampled_output = rnn::upsample_output(output,
                  l_args.subsample_freq, l_args.subsample_shift, frames.size());
         } else {
-             upsampled_output = pred_nn.logprob;
+             upsampled_output = output;
         }
 
         auto order = autodiff::topo_order(upsampled_output);
@@ -300,25 +311,34 @@ void learning_env::run()
             autodiff::grad(order, autodiff::grad_funcs);
 
             nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
-            pred_grad = rnn::copy_grad(pred_nn);
 
-            std::cout << "analytical grad: "
-                << pred_grad.softmax_weight(0, 0) << std::endl;
+            if (ebt::in(std::string("frame-softmax"), args)) {
+                pred_grad = rnn::copy_grad(pred_nn);
+
+                std::cout << "analytical grad: "
+                    << pred_grad.softmax_weight(0, 0) << std::endl;
+            }
 
             if (ebt::in(std::string("decay"), args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
                 lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                     l_args.decay, l_args.step_size);
-                rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                    l_args.decay, l_args.step_size);
+
+                if (ebt::in(std::string("frame-softmax"), args)) {
+                    rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        l_args.decay, l_args.step_size);
+                }
             } else {
                 scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.step_size);
                 lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                     l_args.step_size);
-                rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                    l_args.step_size);
+
+                if (ebt::in(std::string("frame-softmax"), args)) {
+                    rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        l_args.step_size);
+                }
             }
 
         }
