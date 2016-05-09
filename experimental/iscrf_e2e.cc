@@ -5,25 +5,33 @@ namespace iscrf {
 
     namespace e2e {
 
-        void parse_nn_inference_args(nn_inference_args& i_args,
+        void parse_nn_inference_args(nn_inference_args& nn_args,
             std::unordered_map<std::string, std::string> const& args)
         {
-            std::tie(i_args.nn_param, i_args.pred_param) = load_lstm_param(args.at("nn-param"));
+            std::tie(nn_args.nn_param, nn_args.pred_param) = load_lstm_param(args.at("nn-param"));
 
-            i_args.rnndrop_prob = 1;
+            nn_args.rnndrop_prob = 1;
+            nn_args.rnndrop = false;
             if (ebt::in(std::string("rnndrop-prob"), args)) {
-                i_args.rnndrop_prob = std::stod(args.at("rnndrop-prob"));
-                assert(0 <= i_args.rnndrop_prob && i_args.rnndrop_prob <= 1);
+                nn_args.rnndrop_prob = std::stod(args.at("rnndrop-prob"));
+                assert(0 <= nn_args.rnndrop_prob && nn_args.rnndrop_prob <= 1);
+
+                nn_args.rnndrop = true;
             }
 
-            i_args.subsample_freq = 1;
+            nn_args.subsample_freq = 1;
             if (ebt::in(std::string("subsample-freq"), args)) {
-                i_args.subsample_freq = std::stoi(args.at("subsample-freq"));
+                nn_args.subsample_freq = std::stoi(args.at("subsample-freq"));
             }
 
-            i_args.subsample_shift = 0;
+            nn_args.subsample_shift = 0;
             if (ebt::in(std::string("subsample-shift"), args)) {
-                i_args.subsample_shift = std::stoi(args.at("subsample-shift"));
+                nn_args.subsample_shift = std::stoi(args.at("subsample-shift"));
+            }
+
+            nn_args.frame_softmax = false;
+            if (ebt::in(std::string("frame-softmax"), args)) {
+                nn_args.frame_softmax = true;
             }
         }
 
@@ -106,6 +114,55 @@ namespace iscrf {
                 scrf::dense_vec>>(result);
         }
 
+        std::vector<std::shared_ptr<autodiff::op_t>>
+        make_input(autodiff::computation_graph& comp_graph,
+            lstm::dblstm_feat_nn_t& nn,
+            rnn::pred_nn_t& pred_nn,
+            std::vector<std::vector<double>> const& frames,
+            std::default_random_engine& gen,
+            nn_inference_args& nn_args)
+        {
+            std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
+            for (auto& f: frames) {
+                frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
+            }
+
+            std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input;
+            if (nn_args.subsample_freq > 1) {
+                subsampled_input = rnn::subsample_input(frame_ops,
+                    nn_args.subsample_freq, nn_args.subsample_shift);
+            } else {
+                subsampled_input = frame_ops;
+            }
+
+            nn = lstm::make_dblstm_feat_nn(
+                comp_graph, nn_args.nn_param, subsampled_input);
+
+            if (nn_args.frame_softmax) {
+                lstm::apply_random_mask(nn, nn_args.nn_param, gen, nn_args.rnndrop_prob);
+            }
+
+            std::vector<std::shared_ptr<autodiff::op_t>> output;
+
+            if (nn_args.rnndrop) {
+                pred_nn = rnn::make_pred_nn(comp_graph,
+                    nn_args.pred_param, nn.layer.back().output);
+
+                output = pred_nn.logprob;
+            } else {
+                output = nn.layer.back().output;
+            }
+
+            std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
+            if (nn_args.subsample_freq > 1) {
+                 upsampled_output = rnn::upsample_output(output,
+                     nn_args.subsample_freq, nn_args.subsample_shift, frames.size());
+            } else {
+                 upsampled_output = output;
+            }
+
+            return upsampled_output;
+        }
     }
 
 }

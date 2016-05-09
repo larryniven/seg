@@ -13,6 +13,9 @@ namespace iscrf {
             int subsample_freq;
             int subsample_shift;
             double rnndrop_prob;
+
+            bool rnndrop;
+            bool frame_softmax;
         };
 
         struct inference_args
@@ -49,6 +52,13 @@ namespace iscrf {
         std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>>
         filter_feat_with_frame_grad(iscrf_data const& data);
 
+        std::vector<std::shared_ptr<autodiff::op_t>>
+        make_input(autodiff::computation_graph& comp_graph,
+            lstm::dblstm_feat_nn_t& nn,
+            rnn::pred_nn_t& pred_nn,
+            std::vector<std::vector<double>> const& frames,
+            std::default_random_engine& gen,
+            nn_inference_args& nn_args);
     }
 
 }

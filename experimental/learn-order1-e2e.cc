@@ -149,47 +149,11 @@ void learning_env::run()
         }
 
         autodiff::computation_graph comp_graph;
-
-        std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
-        for (auto& f: frames) {
-            frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
-        }
-
-        std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input;
-        if (l_args.subsample_freq > 1) {
-            subsampled_input = rnn::subsample_input(frame_ops,
-                l_args.subsample_freq, l_args.subsample_shift);
-        } else {
-            subsampled_input = frame_ops;
-        }
-
-        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(
-            comp_graph, l_args.nn_param, subsampled_input);
-
-        if (ebt::in(std::string("rnndrop-prob"), args)) {
-            lstm::apply_random_mask(nn, l_args.nn_param, gen, l_args.rnndrop_prob);
-        }
-
+        lstm::dblstm_feat_nn_t nn;
         rnn::pred_nn_t pred_nn;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> output;
-
-        if (ebt::in(std::string("frame-softmax"), args)) {
-            pred_nn = rnn::make_pred_nn(comp_graph,
-                l_args.pred_param, nn.layer.back().output);
-
-            output = pred_nn.logprob;
-        } else {
-            output = nn.layer.back().output;
-        }
-
-        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
-        if (l_args.subsample_freq > 1) {
-             upsampled_output = rnn::upsample_output(output,
-                 l_args.subsample_freq, l_args.subsample_shift, frames.size());
-        } else {
-             upsampled_output = output;
-        }
+        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output
+            = iscrf::e2e::make_input(comp_graph, nn, pred_nn, frames, gen, l_args);
 
         auto order = autodiff::topo_order(upsampled_output);
         autodiff::eval(order, autodiff::eval_funcs);
