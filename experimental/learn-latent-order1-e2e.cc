@@ -156,6 +156,12 @@ void learning_env::run()
 
         std::vector<std::vector<double>> frames = speech::load_frame_batch(frame_batch);
 
+        std::vector<std::string> label_seq = iscrf::load_label_seq(label_batch);
+
+        if (!label_batch || !frame_batch) {
+            break;
+        }
+
         autodiff::computation_graph comp_graph;
         lstm::dblstm_feat_nn_t nn;
         rnn::pred_nn_t pred_nn;
@@ -173,12 +179,6 @@ void learning_env::run()
         }
 
         s.frames = inputs;
-
-        std::vector<std::string> label_seq = iscrf::load_label_seq(label_batch);
-
-        if (!label_batch) {
-            break;
-        }
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
