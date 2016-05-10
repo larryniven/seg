@@ -1,6 +1,6 @@
 CXXFLAGS += -std=c++11 -I ../../ -L ../../speech -L ../../nn -L ../../autodiff -L ../../opt -L ../../la -L ../../ebt
 
-bin = learn-order1 predict-order1 learn-latent-order1 learn-order2 learn-order1-e2e predict-order1-e2e
+bin = learn-order1 predict-order1 learn-latent-order1 learn-latent-order1-e2e learn-order1-e2e predict-order1-e2e
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o
 
 .PHONY: all clean
@@ -24,6 +24,9 @@ learn-order2: learn-order2.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-order1-e2e: learn-order1-e2e.o iscrf_e2e.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+learn-latent-order1-e2e: learn-latent-order1-e2e.o iscrf_e2e.o align.o pair_scrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 predict-order1-e2e: predict-order1-e2e.o iscrf_e2e.o $(obj)

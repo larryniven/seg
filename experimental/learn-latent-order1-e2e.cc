@@ -1,19 +1,24 @@
 #include "scrf/experimental/iscrf_e2e.h"
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
-#include "autodiff/autodiff.h"
+#include "scrf/experimental/align.h"
 #include "nn/lstm.h"
-#include <fstream>
 #include <random>
+#include <fstream>
 
 struct learning_env {
 
     std::ifstream frame_batch;
-    std::ifstream gold_batch;
+    std::ifstream label_batch;
 
     std::ifstream lattice_batch;
 
+    scrf::dense_vec align_param;
+    lstm::dblstm_feat_param_t align_nn_param;
+    rnn::pred_param_t align_pred_param;
+
     int save_every;
+    int update_align_every;
 
     std::string output_param;
     std::string output_opt_data;
@@ -38,18 +43,21 @@ int main(int argc, char *argv[])
         "Learn segmental CRF",
         {
             {"frame-batch", "", true},
-            {"gold-batch", "", true},
+            {"label-batch", "", true},
             {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
             {"param", "", true},
             {"opt-data", "", true},
-            {"step-size", "", true},
             {"nn-param", "", true},
             {"nn-opt-data", "", true},
+            {"align-param", "", true},
+            {"align-nn-param", "", true},
+            {"step-size", "", true},
             {"decay", "", false},
             {"features", "", true},
             {"save-every", "", false},
+            {"update-align-every", "", false},
             {"output-param", "", false},
             {"output-opt-data", "", false},
             {"output-nn-param", "", false},
@@ -91,7 +99,7 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         frame_batch.open(args.at("frame-batch"));
     }
 
-    gold_batch.open(args.at("gold-batch"));
+    label_batch.open(args.at("label-batch"));
 
     if (ebt::in(std::string("lattice-batch"), args)) {
         lattice_batch.open(args.at("lattice-batch"));
@@ -100,6 +108,11 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     save_every = std::numeric_limits<int>::max();
     if (ebt::in(std::string("save-every"), args)) {
         save_every = std::stoi(args.at("save-every"));
+    }
+
+    update_align_every = std::numeric_limits<int>::max();
+    if (ebt::in(std::string("update-align-every"), args)) {
+        update_align_every = std::stoi(args.at("update-align-every"));
     }
 
     output_param = "param-last";
@@ -123,10 +136,15 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     }
 
     iscrf::e2e::parse_learning_args(l_args, args);
+
+    align_param = scrf::load_dense_vec(args.at("align-param"));
+    std::tie(align_nn_param, align_pred_param) = iscrf::e2e::load_lstm_param(args.at("align-nn-param"));
 }
 
 void learning_env::run()
 {
+    ebt::Timer timer;
+
     int i = 1;
 
     std::default_random_engine gen { l_args.rnndrop_seed };
@@ -136,16 +154,6 @@ void learning_env::run()
         iscrf::learning_sample s { l_args };
 
         std::vector<std::vector<double>> frames = speech::load_frame_batch(frame_batch);
-
-        if (!frame_batch) {
-            break;
-        }
-
-        s.gold_segs = iscrf::load_segments(gold_batch, l_args.label_id);
-
-        if (!gold_batch) {
-            break;
-        }
 
         autodiff::computation_graph comp_graph;
         lstm::dblstm_feat_nn_t nn;
@@ -165,6 +173,12 @@ void learning_env::run()
 
         s.frames = inputs;
 
+        std::vector<std::string> label_seq = iscrf::load_label_seq(label_batch);
+
+        if (!label_batch) {
+            break;
+        }
+
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
 
@@ -178,23 +192,19 @@ void learning_env::run()
             iscrf::make_graph(s, l_args);
         }
 
-        iscrf::make_min_cost_gold(s, l_args);
+        iscrf::make_alignment_gold(align_param, label_seq, s, l_args);
 
-        iscrf::parameterize(s, l_args);
-
-        double gold_cost = 0;
+        parameterize(s, l_args);
 
         iscrf::iscrf_fst gold { s.gold_data };
-    
+
         std::cout << "gold path: ";
         for (auto& e: gold.edges()) {
-            std::cout << l_args.id_label[gold.output(e)] << " ";
-            gold_cost += cost(s.gold_data, e);
+            std::cout << l_args.id_label[gold.output(e)] << " ("
+                << gold.time(gold.head(e)) << ") ";
         }
         std::cout << std::endl;
     
-        std::cout << "gold cost: " << gold_cost << std::endl;
-
         std::shared_ptr<scrf::loss_func_with_frame_grad<scrf::dense_vec, ilat::fst>> loss_func;
 
         if (args.at("loss") == "hinge-loss") {
@@ -205,15 +215,11 @@ void learning_env::run()
 
             using hinge_loss = scrf::hinge_loss<iscrf::iscrf_data>;
 
-            loss_func = std::make_shared<hinge_loss>(
-                hinge_loss { s.gold_data, s.graph_data });
+            loss_func = std::make_shared<hinge_loss>(hinge_loss { s.gold_data, s.graph_data });
 
-            hinge_loss const& loss
-                = *dynamic_cast<hinge_loss*>(loss_func.get());
+            hinge_loss const& loss = *dynamic_cast<hinge_loss*>(loss_func.get());
 
             double gold_weight = 0;
-
-            iscrf::iscrf_fst gold { s.gold_data };
 
             std::cout << "gold: ";
             for (auto& e: gold.edges()) {
@@ -304,6 +310,20 @@ void learning_env::run()
                 }
             }
 
+
+            if (i % save_every == 0) {
+                scrf::save_vec(l_args.param, "param-last");
+                scrf::save_vec(l_args.opt_data, "opt-data-last");
+                scrf::save_vec(align_param, "align-param-last");
+            }
+
+            if (i % update_align_every == 0) {
+                align_param = l_args.param;
+
+                std::cout << std::endl;
+                std::cout << "update align param" << std::endl;
+            }
+
         }
 
         if (ell < 0) {
@@ -311,13 +331,6 @@ void learning_env::run()
         }
 
         std::cout << std::endl;
-
-        if (i % save_every == 0) {
-            scrf::save_vec(l_args.param, "param-last");
-            scrf::save_vec(l_args.opt_data, "opt-data-last");
-            iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, "nn-param-last");
-            iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, "nn-opt-data-last");
-        }
 
 #if DEBUG_TOP
         if (i == DEBUG_TOP) {
@@ -330,8 +343,6 @@ void learning_env::run()
 
     scrf::save_vec(l_args.param, output_param);
     scrf::save_vec(l_args.opt_data, output_opt_data);
-    iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, output_nn_param);
-    iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, output_nn_opt_data);
 
 }
 
