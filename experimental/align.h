@@ -19,6 +19,11 @@ namespace iscrf {
         learning_sample& s,
         learning_args const& i_args);
 
+    void make_even_gold(
+        std::vector<std::string> const& label_seq,
+        learning_sample& s,
+        learning_args const& l_args);
+
 }
 
 #endif

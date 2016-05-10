@@ -69,7 +69,8 @@ int main(int argc, char *argv[])
             {"rnndrop-seed", "", false},
             {"subsample-freq", "", false},
             {"subsample-shift", "", false},
-            {"frame-softmax", "", false}
+            {"frame-softmax", "", false},
+            {"even-init", "", false}
         }
     };
 
@@ -192,7 +193,11 @@ void learning_env::run()
             iscrf::make_graph(s, l_args);
         }
 
-        iscrf::make_alignment_gold(align_param, label_seq, s, l_args);
+        if (ebt::in(std::string("even-init"), args) && i <= update_align_every) {
+            iscrf::make_even_gold(label_seq, s, l_args);
+        } else {
+            iscrf::make_alignment_gold(align_param, label_seq, s, l_args);
+        }
 
         parameterize(s, l_args);
 

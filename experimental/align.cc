@@ -51,23 +51,23 @@ namespace iscrf {
         scrf::dense_vec const& ali_param,
         std::vector<std::string> const& label_seq,
         learning_sample& s,
-        learning_args const& i_args)
+        learning_args const& l_args)
     {
         ilat::fst label_seq_fst = make_label_seq_fst(label_seq,
-            i_args.label_id, i_args.id_label);
+            l_args.label_id, l_args.id_label);
 
-        ilat::lazy_pair_mode2 pair_fst { *s.graph_data.fst, label_seq_fst};
+        ilat::lazy_pair_mode2 pair_fst { *s.graph_data.fst, label_seq_fst };
 
         second_order::pair_scrf_data<scrf::dense_vec> ali_scrf_data;
 
         ali_scrf_data.fst = std::make_shared<ilat::lazy_pair_mode2>(pair_fst);
         ali_scrf_data.topo_order = std::make_shared<std::vector<std::tuple<int, int>>>(fst::topo_order(pair_fst));
 
-        scrf::feat_dim_alloc alloc { i_args.labels };
+        scrf::feat_dim_alloc alloc { l_args.labels };
 
         scrf::composite_feature<ilat::pair_fst, scrf::dense_vec> feat_func
             = second_order::make_feat<scrf::dense_vec, second_order::dense::pair_fst_lexicalizer>(
-                alloc, i_args.features, s.frames, i_args.args);
+                alloc, l_args.features, s.frames, l_args.args);
 
         ali_scrf_data.feature_func = std::make_shared<scrf::composite_feature<ilat::pair_fst, scrf::dense_vec>>(feat_func);
 
@@ -95,6 +95,29 @@ namespace iscrf {
         }
 
         s.gold_data.fst = ilat::ilat_path_maker()(edges, *s.graph_data.fst);
+    }
+
+    void make_even_gold(
+        std::vector<std::string> const& label_seq,
+        learning_sample& s,
+        learning_args const& l_args)
+    {
+        int avg_dur = int(s.frames.size() / label_seq.size());
+
+        int d = 0;
+        for (int i = 0; i < label_seq.size(); ++i) {
+            if (i != label_seq.size() - 1) {
+                s.gold_segs.push_back(segcost::segment<int> {
+                    d, d + avg_dur, l_args.label_id.at(label_seq.at(i)) });
+
+                d += avg_dur;
+            } else {
+                s.gold_segs.push_back(segcost::segment<int> {
+                    d, int(s.frames.size()), l_args.label_id.at(label_seq.at(i)) });
+            }
+        }
+
+        iscrf::make_min_cost_gold(s, l_args);
     }
 
 }
