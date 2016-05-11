@@ -319,7 +319,8 @@ void learning_env::run()
             if (i % save_every == 0) {
                 scrf::save_vec(l_args.param, "param-last");
                 scrf::save_vec(l_args.opt_data, "opt-data-last");
-                scrf::save_vec(align_param, "align-param-last");
+                iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, "nn-param-last");
+                iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, "nn-opt-data-last");
             }
 
             if (i % update_align_every == 0) {
@@ -348,6 +349,8 @@ void learning_env::run()
 
     scrf::save_vec(l_args.param, output_param);
     scrf::save_vec(l_args.opt_data, output_opt_data);
+    iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, output_nn_param);
+    iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, output_nn_opt_data);
 
 }
 
