@@ -138,13 +138,13 @@ namespace iscrf {
             nn = lstm::make_dblstm_feat_nn(
                 comp_graph, nn_args.nn_param, subsampled_input);
 
-            if (nn_args.frame_softmax) {
+            if (nn_args.rnndrop) {
                 lstm::apply_random_mask(nn, nn_args.nn_param, gen, nn_args.rnndrop_prob);
             }
 
             std::vector<std::shared_ptr<autodiff::op_t>> output;
 
-            if (nn_args.rnndrop) {
+            if (nn_args.frame_softmax) {
                 pred_nn = rnn::make_pred_nn(comp_graph,
                     nn_args.pred_param, nn.layer.back().output);
 
