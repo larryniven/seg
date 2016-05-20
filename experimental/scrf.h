@@ -15,31 +15,6 @@
 
 namespace scrf {
 
-    template <class edge, class vector>
-    struct with_feature {
-        virtual void feature(vector& f, edge e) const = 0;
-    };
-
-    template <class edge>
-    struct with_cost {
-        virtual double cost(edge e) const = 0;
-    };
-
-    template <class edge, class vector>
-    struct with_frame_grad {
-        virtual void frame_grad(std::vector<std::vector<double>>& f,
-            vector const& param, edge e) const = 0;
-    };
-
-    template <class vertex, class edge, class symbol, class vector>
-    struct scrf
-        : public fst::fst<vertex, edge, symbol>
-        , public fst::timed<vertex>
-        , public fst::with_topo_order<vertex>
-        , public with_feature<edge, vector>
-        , public with_cost<edge> {
-    };
-
     template <class fst, class vector>
     struct scrf_feature {
 
@@ -48,6 +23,15 @@ namespace scrf {
 
         virtual void operator()(vector& f, fst const& a,
             typename fst::edge e) const = 0;
+
+    };
+
+    template <class fst, class vector>
+    struct scrf_feature_with_grad
+        : public scrf_feature<fst, vector> {
+
+        virtual void grad(vector const& g, fst const& a,
+            typename fst::edge e) = 0;
 
     };
 

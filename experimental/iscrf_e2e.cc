@@ -71,25 +71,25 @@ namespace iscrf {
             l_args.sils.push_back(l_args.label_id.at("sil"));
         }
 
-        std::tuple<lstm::dblstm_feat_param_t, rnn::pred_param_t>
+        std::tuple<lstm::dblstm_feat_param_t, nn::pred_param_t>
         load_lstm_param(std::string filename)
         {
             std::ifstream ifs { filename };
 
             lstm::dblstm_feat_param_t nn_param = lstm::load_dblstm_feat_param(ifs);
-            rnn::pred_param_t pred_param = rnn::load_pred_param(ifs);
+            nn::pred_param_t pred_param = nn::load_pred_param(ifs);
 
             return std::make_tuple(nn_param, pred_param);
         }
 
         void save_lstm_param(lstm::dblstm_feat_param_t const& nn_param,
-            rnn::pred_param_t const& pred_param,
+            nn::pred_param_t const& pred_param,
             std::string filename)
         {
             std::ofstream ofs { filename };
 
             lstm::save_dblstm_feat_param(nn_param, ofs);
-            rnn::save_pred_param(pred_param, ofs);
+            nn::save_pred_param(pred_param, ofs);
         }
 
         std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>>

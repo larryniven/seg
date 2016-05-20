@@ -48,6 +48,29 @@ namespace scrf {
     };
 
     template <class fst, class vector, class lexicalizer>
+    struct segment_feature_with_grad
+        : public scrf_feature_with_grad<fst, vector> {
+
+        segment_feature_with_grad(
+            feat_dim_alloc& alloc,
+            int order,
+            std::shared_ptr<segfeat::feature_with_grad> raw_feat_func,
+            std::vector<std::vector<double>> const& frames);
+
+        feat_dim_alloc& alloc;
+        int dim;
+        int order;
+        std::shared_ptr<segfeat::feature_with_grad> feat_func;
+        std::vector<std::vector<double>> const& frames;
+
+        virtual void operator()(vector& f, fst const& g,
+            typename fst::edge e) const override;
+
+        virtual void grad(vector const& g,
+            fst const& a, typename fst::edge e) override;
+    };
+
+    template <class fst, class vector, class lexicalizer>
     struct segment_feature_with_frame_grad
         : public scrf_feature_with_frame_grad<fst, vector> {
 
@@ -126,6 +149,35 @@ namespace scrf {
         double *g = lexicalizer().lex(alloc, order, f, a, e);
 
         (*feat_func)(g + dim, frames, a.time(a.tail(e)), a.time(a.head(e)));
+    }
+
+    template <class fst, class vector, class lexicalizer>
+    segment_feature_with_grad<fst, vector, lexicalizer>::segment_feature_with_grad(
+        feat_dim_alloc& alloc,
+        int order,
+        std::shared_ptr<segfeat::feature_with_grad> feat_func,
+        std::vector<std::vector<double>> const& frames)
+        : alloc(alloc), order(order), feat_func(feat_func), frames(frames)
+    {
+        dim = alloc.alloc(order, feat_func->dim(frames.front().size()));
+    }
+
+    template <class fst, class vector, class lexicalizer>
+    void segment_feature_with_grad<fst, vector, lexicalizer>::operator()(
+        vector& f, fst const& a, typename fst::edge e) const
+    {
+        double *g = lexicalizer().lex(alloc, order, f, a, e);
+
+        (*feat_func)(g + dim, frames, a.time(a.tail(e)), a.time(a.head(e)));
+    }
+
+    template <class fst, class vector, class lexicalizer>
+    void segment_feature_with_grad<fst, vector, lexicalizer>::grad(
+        vector const& g, fst const& a, typename fst::edge e)
+    {
+        double *v = lexicalizer().lex(alloc, order, g, a, e);
+
+        feat_func->grad(v + dim, frames, a.time(a.tail(e)), a.time(a.head(e)));
     }
 
     template <class fst, class vector, class lexicalizer>

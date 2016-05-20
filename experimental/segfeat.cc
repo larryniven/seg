@@ -6,6 +6,29 @@ namespace segfeat {
     feature::~feature()
     {}
 
+    int composite_feat::dim(int frame_dim) const
+    {
+        int sum = 0;
+
+        for (auto& f: features) {
+            sum += f->dim(frame_dim);
+        }
+
+        return sum;
+    }
+
+    void composite_feat::operator()(double *feat,
+        std::vector<std::vector<double>> const& frames,
+        int start_time, int end_time) const
+    {
+        int d = 0;
+
+        for (auto& f: features) {
+            (*f)(feat + d, frames, start_time, end_time);
+            d += f->dim(frames.front().size());
+        }
+    }
+
     void bias::operator()(double *feat,
         std::vector<std::vector<double>> const& frames,
         int start_time, int end_time) const

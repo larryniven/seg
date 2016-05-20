@@ -1,6 +1,15 @@
 CXXFLAGS += -std=c++11 -I ../../ -L ../../speech -L ../../nn -L ../../autodiff -L ../../opt -L ../../la -L ../../ebt
 
-bin = learn-order1 predict-order1 learn-latent-order1 learn-latent-order1-e2e learn-order1-e2e predict-order1-e2e
+bin = \
+    learn-order1 \
+    predict-order1 \
+    learn-latent-order1 \
+    learn-latent-order1-e2e \
+    learn-order1-e2e \
+    predict-order1-e2e \
+    learn-order1-segnn \
+    predict-order1-segnn
+
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o
 
 .PHONY: all clean
@@ -32,3 +41,11 @@ learn-latent-order1-e2e: learn-latent-order1-e2e.o iscrf_e2e.o align.o pair_scrf
 predict-order1-e2e: predict-order1-e2e.o iscrf_e2e.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
+learn-order1-segnn: learn-order1-segnn.o segnn.o iscrf_segnn.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+predict-order1-segnn: predict-order1-segnn.o segnn.o iscrf_segnn.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+segnn.o: segnn.h
+iscrf_segnn.o: iscrf_segnn.h

@@ -20,6 +20,15 @@ namespace segfeat {
 
     };
 
+    struct with_grad {
+
+        virtual void grad(
+            double const* g,
+            std::vector<std::vector<double>> const& frames,
+            int start_time, int end_time) = 0;
+
+    };
+
     struct with_frame_grad {
 
         virtual void frame_grad(
@@ -30,10 +39,27 @@ namespace segfeat {
 
     };
 
+    struct feature_with_grad
+        : public feature
+        , public with_grad {
+    };
+
     struct feature_with_frame_grad
         : public feature
         , public with_frame_grad {
 
+    };
+
+    struct composite_feat
+        : public feature {
+
+        std::vector<std::shared_ptr<feature>> features;
+
+        virtual int dim(int frame_dim) const override;
+
+        virtual void operator()(double *feat,
+            std::vector<std::vector<double>> const& frames,
+            int start_time, int end_time) const override;
     };
 
     struct bias

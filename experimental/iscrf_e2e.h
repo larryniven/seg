@@ -9,7 +9,7 @@ namespace iscrf {
 
         struct nn_inference_args {
             lstm::dblstm_feat_param_t nn_param;
-            rnn::pred_param_t pred_param;
+            nn::pred_param_t pred_param;
             int subsample_freq;
             int subsample_shift;
             double rnndrop_prob;
@@ -35,18 +35,18 @@ namespace iscrf {
             , public nn_inference_args {
 
             lstm::dblstm_feat_param_t nn_opt_data;
-            rnn::pred_param_t pred_opt_data;
+            nn::pred_param_t pred_opt_data;
             int rnndrop_seed;
         };
 
         void parse_learning_args(learning_args& l_args,
             std::unordered_map<std::string, std::string> const& args);
 
-        std::tuple<lstm::dblstm_feat_param_t, rnn::pred_param_t>
+        std::tuple<lstm::dblstm_feat_param_t, nn::pred_param_t>
         load_lstm_param(std::string filename);
 
         void save_lstm_param(lstm::dblstm_feat_param_t const& nn_param,
-            rnn::pred_param_t const& pred_param,
+            nn::pred_param_t const& pred_param,
             std::string filename);
 
         std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>>

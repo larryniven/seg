@@ -15,7 +15,7 @@ struct learning_env {
 
     scrf::dense_vec align_param;
     lstm::dblstm_feat_param_t align_nn_param;
-    rnn::pred_param_t align_pred_param;
+    nn::pred_param_t align_pred_param;
 
     int save_every;
     int update_align_every;
@@ -261,7 +261,7 @@ void learning_env::run()
 
         scrf::dense_vec param_grad;
         lstm::dblstm_feat_param_t nn_param_grad;
-        rnn::pred_param_t pred_grad;
+        nn::pred_param_t pred_grad;
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
@@ -300,7 +300,7 @@ void learning_env::run()
                     l_args.decay, l_args.step_size);
 
                 if (ebt::in(std::string("frame-softmax"), args)) {
-                    rnn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                    nn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
                         l_args.decay, l_args.step_size);
                 }
             } else {
@@ -310,7 +310,7 @@ void learning_env::run()
                     l_args.step_size);
 
                 if (ebt::in(std::string("frame-softmax"), args)) {
-                    rnn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                    nn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
                         l_args.step_size);
                 }
             }
