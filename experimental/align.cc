@@ -85,6 +85,52 @@ namespace iscrf {
         iscrf::iscrf_fst graph { s.graph_data };
         iscrf::second_order::pair_scrf_fst<scrf::dense_vec> ali_scrf { ali_scrf_data };
 
+        {
+            fst::forward_k_best<iscrf::second_order::pair_scrf_fst<scrf::dense_vec>> k_best;
+            k_best.first_best(ali_scrf, *ali_scrf_data.topo_order);
+
+            std::tuple<int, int> argmax;
+            double max = -std::numeric_limits<double>::infinity();
+
+            for (auto& f: ali_scrf.finals()) {
+                if (std::get<2>(k_best.vertex_extra[f].deck[0]) > max) {
+                    argmax = f;
+                    max = std::get<2>(k_best.vertex_extra[f].deck[0]);
+                }
+            }
+
+            /*
+            {
+                std::vector<std::tuple<int, int>> edges = k_best.best_path(ali_scrf, argmax, 0);
+
+                double path_weight = 0;
+
+                for (auto& e: edges) {
+                    std::cout << l_args.id_label[ali_scrf.output(e)] << " (" << graph.time(graph.head(std::get<0>(e))) << ") ";
+                    path_weight += ali_scrf.weight(e);
+                }
+
+                std::cout << std::endl;
+                std::cout << "path weight: " << path_weight << std::endl;
+            }
+
+            for (int i = 1; i < 20; ++i) {
+                k_best.next_best(ali_scrf, argmax, i);
+                std::vector<std::tuple<int, int>> edges = k_best.best_path(ali_scrf, argmax, i);
+
+                double path_weight = 0;
+
+                for (auto& e: edges) {
+                    std::cout << l_args.id_label[ali_scrf.output(e)] << " (" << graph.time(graph.head(std::get<0>(e))) << ") ";
+                    path_weight += ali_scrf.weight(e);
+                }
+
+                std::cout << std::endl;
+                std::cout << "path weight: " << path_weight << std::endl;
+            }
+            */
+        }
+
         std::vector<int> edges;
 
         for (auto& e: path->edges()) {

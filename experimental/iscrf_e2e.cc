@@ -67,8 +67,6 @@ namespace iscrf {
             if (ebt::in(std::string("rnndrop-seed"), args)) {
                 l_args.rnndrop_seed = std::stoi(args.at("rnndrop-seed"));
             }
-
-            l_args.sils.push_back(l_args.label_id.at("sil"));
         }
 
         std::tuple<lstm::dblstm_feat_param_t, nn::pred_param_t>

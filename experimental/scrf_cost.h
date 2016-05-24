@@ -46,6 +46,14 @@ namespace scrf {
             segcost::overlap_cost<typename fst::symbol>{ sils }), gold_segs };
     }
 
+    template <class fst>
+    seg_cost<fst> make_hit_cost(
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs)
+    {
+        return seg_cost<fst> { std::make_shared<segcost::hit_cost<typename fst::symbol>>(
+            segcost::hit_cost<typename fst::symbol>{}), gold_segs };
+    }
+
 }
 
 #endif

@@ -1,8 +1,9 @@
 #include "scrf/experimental/iscrf_e2e.h"
+#include "scrf/experimental/iscrf_e2e_ff.h"
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "scrf/experimental/align.h"
-#include "nn/lstm.h"
+#include "nn/residual.h"
 #include <random>
 #include <fstream>
 
@@ -14,8 +15,7 @@ struct learning_env {
     std::ifstream lattice_batch;
 
     scrf::dense_vec align_param;
-    lstm::dblstm_feat_param_t align_nn_param;
-    nn::pred_param_t align_pred_param;
+    residual::nn_param_t align_nn_param;
 
     int save_every;
     int update_align_every;
@@ -26,7 +26,7 @@ struct learning_env {
     std::string output_nn_param;
     std::string output_nn_opt_data;
 
-    iscrf::e2e::learning_args l_args;
+    iscrf::e2e_ff::learning_args l_args;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -65,11 +65,6 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
-            {"rnndrop-prob", "", false},
-            {"rnndrop-seed", "", false},
-            {"subsample-freq", "", false},
-            {"subsample-shift", "", false},
-            {"frame-softmax", "", false},
             {"even-init", "", false}
         }
     };
@@ -136,10 +131,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_nn_opt_data = args.at("output-nn-opt-data");
     }
 
-    iscrf::e2e::parse_learning_args(l_args, args);
+    iscrf::e2e_ff::parse_learning_args(l_args, args);
 
     align_param = scrf::load_dense_vec(args.at("align-param"));
-    std::tie(align_nn_param, align_pred_param) = iscrf::e2e::load_lstm_param(args.at("align-nn-param"));
+    align_nn_param = residual::load_nn_param(args.at("align-nn-param"));
 }
 
 void learning_env::run()
@@ -147,8 +142,6 @@ void learning_env::run()
     ebt::Timer timer;
 
     int i = 1;
-
-    std::default_random_engine gen { l_args.rnndrop_seed };
 
     while (1) {
 
@@ -163,22 +156,9 @@ void learning_env::run()
         }
 
         autodiff::computation_graph comp_graph;
-        lstm::dblstm_feat_nn_t nn;
-        rnn::pred_nn_t pred_nn;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output
-            = iscrf::e2e::make_input(comp_graph, nn, pred_nn, frames, gen, l_args);
-
-        auto order = autodiff::topo_order(upsampled_output);
-        autodiff::eval(order, autodiff::eval_funcs);
-
-        std::vector<std::vector<double>> inputs;
-        for (auto& o: upsampled_output) {
-            auto& f = autodiff::get_output<la::vector<double>>(o);
-            inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
-        }
-
-        s.frames = inputs;
+        std::vector<residual::nn_t> nns = iscrf::e2e_ff::make_nn(comp_graph, frames, l_args.nn_param);
+        s.frames = iscrf::e2e_ff::make_input(nns);
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
@@ -228,7 +208,7 @@ void learning_env::run()
 
             std::cout << "gold: ";
             for (auto& e: gold.edges()) {
-                std::cout << l_args.id_label[gold.output(e)] << " " << gold.weight(e) << " ";
+                std::cout << l_args.id_label[gold.output(e)] << " " << gold.weight(e) << " (" << gold.time(gold.head(e)) << ") ";
                 gold_weight += gold.weight(e);
             }
             std::cout << std::endl;
@@ -241,7 +221,7 @@ void learning_env::run()
 
             std::cout << "cost aug: ";
             for (auto& e: graph_path.edges()) {
-                std::cout << l_args.id_label[graph_path.output(e)] << " " << graph_path.weight(e) << " ";
+                std::cout << l_args.id_label[graph_path.output(e)] << " " << graph_path.weight(e) << " (" << graph_path.time(graph_path.head(e)) << ") ";
                 graph_weight += graph_path.weight(e);
             }
             std::cout << std::endl;
@@ -308,16 +288,16 @@ void learning_env::run()
         std::cout << "loss: " << ell << std::endl;
 
         scrf::dense_vec param_grad;
-        lstm::dblstm_feat_param_t nn_param_grad;
-        nn::pred_param_t pred_grad;
+        residual::nn_param_t nn_param_grad;
+        residual::resize_as(nn_param_grad, l_args.nn_param);
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
 
             std::vector<std::vector<double>> frame_grad;
-            frame_grad.resize(inputs.size());
-            for (int i = 0; i < inputs.size(); ++i) {
-                frame_grad[i].resize(inputs[i].size());
+            frame_grad.resize(s.frames.size());
+            for (int i = 0; i < s.frames.size(); ++i) {
+                frame_grad[i].resize(s.frames[i].size());
             }
 
             std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
@@ -326,57 +306,35 @@ void learning_env::run()
             loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
 
             for (int i = 0; i < frame_grad.size(); ++i) {
-                upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
+                nns[i].layer.back().output->grad = std::make_shared<la::vector<double>>(
                     frame_grad[i]);
+                autodiff::grad(nns[i].layer.back().output, autodiff::grad_funcs);
+                residual::nn_param_t nn_i_grad = residual::copy_nn_grad(nns[i]);
+                residual::iadd(nn_param_grad, nn_i_grad);
             }
 
-            autodiff::grad(order, autodiff::grad_funcs);
-
-            nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
-
-            if (ebt::in(std::string("frame-softmax"), args)) {
-                pred_grad = rnn::copy_grad(pred_nn);
-
-                std::cout << "analytical grad: "
-                    << pred_grad.softmax_weight(0, 0) << std::endl;
-            }
-
-            std::cout << "analytical grad: " << nn_param_grad.layer.back().forward_output_weight(0, 0) << std::endl;
-
-            if (ebt::in(std::string("decay"), args)) {
+            if (ebt::in(std::string("decay"), l_args.args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
-                lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                residual::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                     l_args.decay, l_args.step_size);
-
-                if (ebt::in(std::string("frame-softmax"), args)) {
-                    nn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                        l_args.decay, l_args.step_size);
-                }
             } else {
                 scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.step_size);
-                lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                residual::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                     l_args.step_size);
-
-                if (ebt::in(std::string("frame-softmax"), args)) {
-                    nn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                        l_args.step_size);
-                }
             }
-
 
             if (i % save_every == 0) {
                 scrf::save_vec(l_args.param, "param-last");
                 scrf::save_vec(l_args.opt_data, "opt-data-last");
-                iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, "nn-param-last");
-                iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, "nn-opt-data-last");
+                residual::save_nn_param(l_args.nn_param, "nn-param-last");
+                residual::save_nn_param(l_args.nn_opt_data, "nn-opt-data-last");
             }
 
             if (i % update_align_every == 0) {
                 align_param = l_args.param;
                 align_nn_param = l_args.nn_param;
-                align_pred_param = l_args.pred_param;
 
                 std::cout << std::endl;
                 std::cout << "update align param" << std::endl;
@@ -401,8 +359,8 @@ void learning_env::run()
 
     scrf::save_vec(l_args.param, output_param);
     scrf::save_vec(l_args.opt_data, output_opt_data);
-    iscrf::e2e::save_lstm_param(l_args.nn_param, l_args.pred_param, output_nn_param);
-    iscrf::e2e::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, output_nn_opt_data);
+    residual::save_nn_param(l_args.nn_param, output_nn_param);
+    residual::save_nn_param(l_args.nn_opt_data, output_nn_opt_data);
 
 }
 

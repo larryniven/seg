@@ -118,6 +118,34 @@ namespace fst {
     std::shared_ptr<fst> shortest_path(fst const& f);
 
     template <class fst>
+    struct forward_k_best {
+
+        using vertex = typename fst::vertex;
+        using edge = typename fst::edge;
+
+        struct vertex_data {
+            std::vector<std::tuple<edge, int, double>> deck;
+            bool bottom_out;
+        };
+
+        struct edge_data {
+            int top;
+        };
+
+        std::unordered_map<edge, edge_data> edge_extra;
+        std::unordered_map<vertex, vertex_data> vertex_extra;
+
+        void first_best(fst const& f, std::vector<vertex> const& order);
+        void next_best(fst const& f, vertex const& final, int k);
+        std::vector<edge> best_path(fst const& f, vertex const& final, int k);
+
+    };
+
+}
+
+namespace fst {
+
+    template <class fst>
     std::vector<typename fst::vertex> topo_order(fst const& f)
     {
         enum class action_t {
@@ -262,6 +290,149 @@ namespace fst {
         return path_maker()(edges, f);
     }
 
+    template <class fst>
+    void forward_k_best<fst>::first_best(fst const& f, std::vector<typename fst::vertex> const& order)
+    {
+        // After running 1-best, each edge has exactly one card,
+        // and top is pointing at that card.
+        // 
+        // When extra[v].deck.size() == 0, v is a deadend.
+
+        for (auto& v: f.initials()) {
+            vertex_extra[v].deck.push_back({ edge_trait<typename fst::edge>::null, -1, 0 });
+            vertex_extra[v].bottom_out = true;
+        }
+
+        for (auto& v: order) {
+            auto& in_edges = f.in_edges(v);
+
+            typename fst::edge argmax = edge_trait<typename fst::edge>::null;
+            double max = -std::numeric_limits<double>::infinity();
+
+            for (auto& e: in_edges) {
+                if (vertex_extra[f.tail(e)].deck.size() == 0) {
+                    continue;
+                }
+
+                double value = f.weight(e) + std::get<2>(vertex_extra[f.tail(e)].deck[0]);
+
+                if (value > max) {
+                    max = value;
+                    argmax = e;
+                }
+            }
+
+            if (argmax == edge_trait<typename fst::edge>::null) {
+                vertex_extra[v].bottom_out = true;
+            } else {
+                vertex_extra[v].deck.push_back(std::make_tuple(argmax, 0, max));
+                edge_extra[argmax].top = 0;
+            }
+        }
+    }
+
+    template <class fst>
+    void forward_k_best<fst>::next_best(fst const& f, typename fst::vertex const& final, int k)
+    {
+        std::vector<typename fst::vertex> stack;
+
+        typename fst::vertex v = final;
+        int m = k;
+
+        if (k > vertex_extra[v].deck.size()) {
+            std::cout << "unable to find " << k << "-th path" << std::endl;
+            exit(1);
+        } else if (k < vertex_extra[v].deck.size()) {
+            return;
+        }
+
+        while (1) {
+            typename fst::edge e = std::get<0>(vertex_extra[v].deck[m - 1]);
+            int i = std::get<1>(vertex_extra[v].deck[m - 1]);
+            typename fst::vertex tail = f.tail(e);
+
+            if (e == edge_trait<typename fst::edge>::null) {
+                break;
+            } else if (vertex_extra[tail].deck.size() == 0) {
+                break;
+            } else if (i == vertex_extra[tail].deck.size() - 1 && vertex_extra[tail].bottom_out) {
+                break;
+            } else if (i == vertex_extra[tail].deck.size() - 1) {
+                stack.push_back(v);
+                v = tail;
+                m = i + 1;
+            } else if (i < vertex_extra[tail].deck.size() - 1) {
+                break;
+            }
+        }
+
+        auto get_top = [&](typename fst::edge const& e) {
+            if (ebt::in(e, edge_extra)) {
+                return edge_extra.at(e).top;
+            } else {
+                return -1;
+            }
+        };
+
+        while (stack.size() > 0) {
+            v = stack.back();
+            stack.pop_back();
+
+            typename fst::edge argmax = edge_trait<typename fst::edge>::null;
+            double max = -std::numeric_limits<double>::infinity();
+
+            for (auto& e: f.in_edges(v)) {
+
+                if (vertex_extra[f.tail(e)].deck.size() == 0) {
+                    continue;
+                }
+
+                if (get_top(e) + 1 >= vertex_extra[f.tail(e)].deck.size()) {
+                    continue;
+                }
+
+                double value = f.weight(e) + std::get<2>(vertex_extra[f.tail(e)].deck[get_top(e) + 1]);
+
+                if (value > max) {
+                    max = value;
+                    argmax = e;
+                }
+
+            }
+
+            if (argmax == edge_trait<typename fst::edge>::null) {
+                vertex_extra[v].bottom_out = true;
+            } else {
+                int top = get_top(argmax) + 1;
+                edge_extra[argmax].top = top;
+                vertex_extra[v].deck.push_back(std::make_tuple(argmax, top, max));
+            }
+        }
+    }
+
+    template <class fst>
+    std::vector<typename fst::edge> forward_k_best<fst>::best_path(
+        fst const& f, typename fst::vertex const& final, int k)
+    {
+        std::vector<typename fst::edge> result;
+
+        vertex u = final;
+        int i = k;
+
+        std::vector<typename fst::vertex> const& initials = f.initials();
+        std::unordered_set<typename fst::vertex> initial_set { initials.begin(), initials.end() };
+
+        while (!ebt::in(u, initial_set)) {
+            edge e = std::get<0>(vertex_extra.at(u).deck[i]);
+            i = std::get<1>(vertex_extra.at(u).deck[i]);
+            result.push_back(e);
+            u = f.tail(e);
+        }
+
+        std::reverse(result.begin(), result.end());
+
+        return result;
+    }
 
 }
 

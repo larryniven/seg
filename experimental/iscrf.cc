@@ -371,6 +371,12 @@ namespace iscrf {
             std::make_shared<scrf::seg_cost<ilat::fst>>(
                 scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
             l_args.cost_scale));
+        /*
+        s.graph_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
+            std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_hit_cost<ilat::fst>(s.gold_segs)),
+            l_args.cost_scale));
+        */
 
         parameterize(s.gold_data, s.gold_alloc, s.frames, l_args);
 
@@ -378,6 +384,12 @@ namespace iscrf {
             std::make_shared<scrf::seg_cost<ilat::fst>>(
                 scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
             l_args.cost_scale));
+        /*
+        s.gold_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
+            std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_hit_cost<ilat::fst>(s.gold_segs)),
+            l_args.cost_scale));
+        */
     }
 
 }
