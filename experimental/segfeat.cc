@@ -156,9 +156,11 @@ namespace segfeat {
         auto& u = accu[end_time];
         auto& v = accu[start_time];
 
-        for (int t = start_time; t < end_time; ++t) {
-            for (int d = 0; d < frames.front().size(); ++d) {
-                grad[t][d] += feat_grad[d] / duration;
+        for (int d = 0; d < frames.front().size(); ++d) {
+            double g = feat_grad[d] / duration;
+
+            for (int t = start_time; t < end_time; ++t) {
+                grad[t][d] += g;
             }
         }
     }

@@ -11,7 +11,9 @@ bin = \
     predict-order1-segnn \
     learn-order1-e2e-ff \
     learn-latent-order1-e2e-ff \
-    predict-order1-e2e-ff
+    predict-order1-e2e-ff \
+    learn-latent-order1-e2e-lstm2d \
+    predict-order1-e2e-lstm2d
 
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o
 
@@ -57,6 +59,12 @@ learn-latent-order1-e2e-ff: learn-latent-order1-e2e-ff.o iscrf_e2e_ff.o iscrf_e2
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 predict-order1-e2e-ff: predict-order1-e2e-ff.o iscrf_e2e_ff.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+learn-latent-order1-e2e-lstm2d: learn-latent-order1-e2e-lstm2d.o iscrf_e2e_lstm2d.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+predict-order1-e2e-lstm2d: predict-order1-e2e-lstm2d.o iscrf_e2e_lstm2d.o iscrf_e2e.o align.o pair_scrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 segnn.o: segnn.h

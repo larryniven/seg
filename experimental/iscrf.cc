@@ -22,26 +22,42 @@ namespace iscrf {
     std::shared_ptr<ilat::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
-        int min_seg_len, int max_seg_len)
+        int min_seg_len, int max_seg_len, int stride)
     {
+        assert(stride >= 1);
+        assert(min_seg_len >= 1);
+        assert(max_seg_len >= min_seg_len);
+
         ilat::fst_data data;
 
         data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
         data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
 
-        for (int i = 0; i < frames + 1; ++i) {
-            ilat::add_vertex(data, i, ilat::vertex_data { i });
+        int i = 0;
+        int v = -1;
+        for (i = 0; i < frames + 1; i += stride) {
+            ++v;
+            ilat::add_vertex(data, v, ilat::vertex_data { i });
         }
 
-        assert(min_seg_len >= 1);
+        if (frames % stride != 0) {
+            ++v;
+            ilat::add_vertex(data, v, ilat::vertex_data { frames });
+        }
 
-        for (int i = 0; i < frames + 1; ++i) {
-            for (int j = min_seg_len; j <= max_seg_len; ++j) {
-                int tail = i;
-                int head = i + j;
+        data.initials.push_back(0);
+        data.finals.push_back(v);
 
-                if (head > frames) {
+        for (int u = 0; u < data.vertices.size(); ++u) {
+            for (int v = u + 1; v < data.vertices.size(); ++v) {
+                int duration = data.vertices[v].time - data.vertices[u].time;
+
+                if (duration < min_seg_len) {
                     continue;
+                }
+
+                if (duration > max_seg_len) {
+                    break;
                 }
 
                 for (auto& p: label_id) {
@@ -50,13 +66,10 @@ namespace iscrf {
                     }
 
                     ilat::add_edge(data, data.edges.size(),
-                        ilat::edge_data { tail, head, 0, p.second, p.second });
+                        ilat::edge_data { u, v, 0, p.second, p.second });
                 }
             }
         }
-
-        data.initials.push_back(0);
-        data.finals.push_back(frames);
 
         ilat::fst result;
         result.data = std::make_shared<ilat::fst_data>(std::move(data));
@@ -222,6 +235,11 @@ namespace iscrf {
             i_args.max_seg = std::stoi(args.at("max-seg"));
         }
 
+        i_args.stride = 1;
+        if (ebt::in(std::string("stride"), args)) {
+            i_args.stride = std::stoi(args.at("stride"));
+        }
+
         i_args.param = scrf::load_dense_vec(args.at("param"));
 
         i_args.features = ebt::split(args.at("features"), ",");
@@ -245,7 +263,7 @@ namespace iscrf {
     void make_graph(sample& s, inference_args const& i_args)
     {
         s.graph_data.fst = make_graph(s.frames.size(),
-            i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg);
+            i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride);
         s.graph_data.topo_order = std::make_shared<std::vector<int>>(::fst::topo_order(*s.graph_data.fst));
     }
 
@@ -315,13 +333,21 @@ namespace iscrf {
             assert(0 <= l_args.momentum && l_args.momentum <= 1);
         }
 
+        l_args.decay = -1;
+        if (ebt::in(std::string("decay"), args)) {
+            l_args.decay = std::stod(args.at("decay"));
+            assert(0 <= l_args.decay && l_args.decay <= 1);
+        }
+
         l_args.cost_scale = 1;
         if (ebt::in(std::string("cost-scale"), args)) {
             l_args.cost_scale = std::stod(args.at("cost-scale"));
             assert(l_args.cost_scale >= 0);
         }
 
-        l_args.sils.push_back(l_args.label_id.at("sil"));
+        if (ebt::in(std::string("sil"), l_args.label_id)) {
+            l_args.sils.push_back(l_args.label_id.at("sil"));
+        }
     }
 
     learning_sample::learning_sample(learning_args const& l_args)

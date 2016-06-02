@@ -65,7 +65,7 @@ namespace segcost {
         int left = 0;
         int right = gold_segs.size() - 1;
 
-        while (left + 1 != right) {
+        while (left + 1 < right) {
             int mid = int((left + right) / 2);
 
             if (e.start_time == gold_segs[mid].start_time) {
@@ -83,7 +83,7 @@ namespace segcost {
         left = 0;
         right = gold_segs.size() - 1;
 
-        while (left + 1 != right) {
+        while (left + 1 < right) {
             int mid = int((left + right) / 2);
 
             if (e.end_time == gold_segs[mid].end_time) {
@@ -132,7 +132,7 @@ namespace segcost {
         int left = 0;
         int right = gold_segs.size() - 1;
 
-        while (left + 1 != right) {
+        while (left + 1 < right) {
             int mid = int((left + right) / 2);
 
             if (e.start_time == gold_segs[mid].start_time) {
@@ -150,7 +150,7 @@ namespace segcost {
         left = 0;
         right = gold_segs.size() - 1;
 
-        while (left + 1 != right) {
+        while (left + 1 < right) {
             int mid = int((left + right) / 2);
 
             if (e.end_time == gold_segs[mid].end_time) {

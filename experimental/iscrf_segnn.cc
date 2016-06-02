@@ -9,7 +9,7 @@ namespace iscrf {
             std::unordered_map<std::string, std::string> const& args)
         {
             std::ifstream ifs { args.at("nn-param") };
-            i_args.nn_param = residual::load_nn_param(ifs);
+            i_args.nn_param = ::segnn::load_nn_param(ifs);
         }
 
         void parse_inference_args(inference_args& i_args,
@@ -26,11 +26,10 @@ namespace iscrf {
             parse_nn_inference_args(l_args, args);
 
             std::ifstream ifs { args.at("nn-opt-data") };
-            l_args.nn_opt_data = residual::load_nn_param(ifs);
+            l_args.nn_opt_data = ::segnn::load_nn_param(ifs);
         }
 
         ::segnn::segnn_feat make_segnn_feat(
-            scrf::feat_dim_alloc& alloc,
             std::vector<std::string> features,
             std::vector<std::vector<double>> const& frames,
             nn_inference_args const& i_args,
@@ -60,7 +59,7 @@ namespace iscrf {
                 }
             }
 
-            return ::segnn::segnn_feat(alloc, frames, std::make_shared<segfeat::composite_feat>(segfeats),
+            return ::segnn::segnn_feat(frames, std::make_shared<segfeat::composite_feat>(segfeats),
                 i_args.nn_param, i_args.nn);
         }
 
@@ -85,9 +84,9 @@ namespace iscrf {
         void parameterize(learning_sample& s, learning_args const& l_args)
         {
             ::segnn::segnn_feat gold_segnn_feat = make_segnn_feat(
-                s.gold_alloc, l_args.features, s.frames, l_args, l_args.args);
+                l_args.features, s.frames, l_args, l_args.args);
             ::segnn::segnn_feat graph_segnn_feat = make_segnn_feat(
-                s.graph_alloc, l_args.features, s.frames, l_args, l_args.args);
+                l_args.features, s.frames, l_args, l_args.args);
 
             ::iscrf::segnn::parameterize(s.graph_data, graph_segnn_feat, l_args);
 

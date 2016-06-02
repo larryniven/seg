@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
             {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
+            {"stride", "", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"step-size", "", true},
@@ -155,7 +156,7 @@ void learning_env::run()
         }
 
         autodiff::computation_graph comp_graph;
-        l_args.nn = residual::make_nn(comp_graph, l_args.nn_param);
+        l_args.nn = segnn::make_nn(comp_graph, l_args.nn_param);
 
         iscrf::make_min_cost_gold(s, l_args);
 
@@ -221,105 +222,6 @@ void learning_env::run()
             exit(1);
         }
 
-#if 0
-        {
-            double ell1 = loss_func->loss();
-
-            iscrf::segnn::learning_args l_args2;
-            ::iscrf::parse_learning_args(l_args2, args);
-            
-            l_args2.nn_param = l_args.nn_param;
-            l_args2.param = l_args.param;
-            l_args2.nn_param.input_bias(0) += 1e-8;
-
-            autodiff::computation_graph comp_graph2;
-            l_args2.nn = residual::make_nn(comp_graph2, l_args2.nn_param);
-
-            iscrf::learning_sample s2 { l_args2 };
-            s2.gold_segs = s.gold_segs;
-            s2.frames = s.frames;
-            iscrf::make_graph(s2, l_args2);
-            iscrf::make_min_cost_gold(s2, l_args2);
-            iscrf::segnn::parameterize(s2, l_args2);
-
-            scrf::composite_weight<ilat::fst> weight_func_with_cost;
-            weight_func_with_cost.weights.push_back(s2.graph_data.weight_func);
-            weight_func_with_cost.weights.push_back(s2.graph_data.cost_func);
-            s2.graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func_with_cost);
-
-            using hinge_loss = scrf::hinge_loss<iscrf::iscrf_data>;
-
-            hinge_loss loss_func2 { s2.gold_data, s2.graph_data };
-
-            /*
-            iscrf::iscrf_fst gold { s2.gold_data };
-
-            double gold_weight = 0;
-
-            std::cout << "gold: ";
-            for (auto& e: gold.edges()) {
-                std::cout << e << " " << l_args2.id_label[gold.output(e)] << " " << gold.weight(e) << std::endl;
-                gold_weight += gold.weight(e);
-
-                scrf::dense_vec f;
-                (*s2.gold_data.feature_func)(f, *s2.gold_data.fst, e);
-                auto& v = f.class_vec[0];
-                std::cout << std::vector<double> { v.data(), v.data() + v.size() }  << std::endl;
-
-                auto ch0 = autodiff::get_child(autodiff::get_child(l_args2.nn.layer[0].cell, 0), 0);
-                auto& v_ch0 = autodiff::get_output<la::matrix<double>>(ch0);
-
-                std::cout << ch0->name << std::endl;
-                std::cout << v_ch0.cols() << std::endl;
-
-                for (int i = 0; i < v_ch0.cols(); ++i) {
-                    std::cout << v_ch0(0, i) << " ";
-                }
-                std::cout << std::endl;
-
-                {
-                    scrf::dense_vec f;
-                    (*s.gold_data.feature_func)(f, *s.gold_data.fst, e);
-                    auto& v = f.class_vec[0];
-                    std::cout << std::vector<double> { v.data(), v.data() + v.size() }  << std::endl;
-
-                    auto ch0 = autodiff::get_child(autodiff::get_child(l_args.nn.layer[0].cell, 0), 0);
-                    auto& v_ch0 = autodiff::get_output<la::matrix<double>>(ch0);
-
-                    std::cout << ch0->name << std::endl;
-                    std::cout << v_ch0.cols() << std::endl;
-
-                    for (int i = 0; i < v_ch0.cols(); ++i) {
-                        std::cout << v_ch0(0, i) << " ";
-                    }
-                    std::cout << std::endl;
-                }
-            }
-            std::cout << std::endl;
-
-            std::cout << "gold score: " << gold_weight << std::endl;
-
-            double graph_weight = 0;
-
-            iscrf::iscrf_fst graph_path { loss_func2.graph_path };
-
-            std::cout << "cost aug: ";
-            for (auto& e: graph_path.edges()) {
-                std::cout << l_args2.id_label[graph_path.output(e)] << " ";
-                graph_weight += graph_path.weight(e);
-            }
-            std::cout << std::endl;
-
-            std::cout << "cost aug score: " << graph_weight << std::endl;
-            */
-
-            double ell2 = loss_func2.loss();
-
-            std::cout << "loss1: " << ell1 << " loss2: " << ell2 << std::endl;
-            std::cout << "num grad: " << (ell2 - ell1) / 1e-8 << std::endl;
-        }
-#endif
-
         std::cout << "gold segs: " << s.gold_data.fst->edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
@@ -328,9 +230,11 @@ void learning_env::run()
         std::cout << "loss: " << ell << std::endl;
 
         scrf::dense_vec param_grad;
-        residual::nn_param_t nn_param_grad;
+        segnn::param_t nn_param_grad;
+        segnn::param_t zero;
 
-        residual::resize_as(nn_param_grad, l_args.nn_param);
+        segnn::resize_as(nn_param_grad, l_args.nn_param);
+        segnn::resize_as(zero, l_args.nn_param);
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
@@ -350,15 +254,12 @@ void learning_env::run()
             std::shared_ptr<segnn::segnn_feat> segnn_feat = std::dynamic_pointer_cast<segnn::segnn_feat>(
                 s.gold_data.feature_func->features[0]);
 
-            residual::nn_param_t zero;
-            residual::resize_as(zero, l_args.nn_param);
-
             for (auto& e: gold.edges()) {
                 segnn_feat->gradient = zero;
 
                 segnn_feat->grad(neg_param, *s.gold_data.fst, e);
 
-                residual::iadd(nn_param_grad, segnn_feat->gradient);
+                segnn::iadd(nn_param_grad, segnn_feat->gradient);
             }
 
             segnn_feat = std::dynamic_pointer_cast<segnn::segnn_feat>(
@@ -371,14 +272,12 @@ void learning_env::run()
 
                 segnn_feat->grad(l_args.param, *s.graph_data.fst, e);
 
-                residual::iadd(nn_param_grad, segnn_feat->gradient);
+                segnn::iadd(nn_param_grad, segnn_feat->gradient);
             }
-
-            std::cout << "analytical grad: " << nn_param_grad.input_bias(0) << std::endl;
 
             scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                 l_args.step_size);
-            residual::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+            segnn::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                 l_args.step_size);
 
         }
@@ -392,8 +291,8 @@ void learning_env::run()
         if (i % save_every == 0) {
             scrf::save_vec(l_args.param, "param-last");
             scrf::save_vec(l_args.opt_data, "opt-data-last");
-            residual::save_nn_param(l_args.nn_param, "nn-param-last");
-            residual::save_nn_param(l_args.nn_opt_data, "nn-opt-data-last");
+            segnn::save_nn_param(l_args.nn_param, "nn-param-last");
+            segnn::save_nn_param(l_args.nn_opt_data, "nn-opt-data-last");
         }
 
 #if DEBUG_TOP
@@ -407,8 +306,8 @@ void learning_env::run()
 
     scrf::save_vec(l_args.param, output_param);
     scrf::save_vec(l_args.opt_data, output_opt_data);
-    residual::save_nn_param(l_args.nn_param, output_nn_param);
-    residual::save_nn_param(l_args.nn_opt_data, output_nn_opt_data);
+    segnn::save_nn_param(l_args.nn_param, output_nn_param);
+    segnn::save_nn_param(l_args.nn_opt_data, output_nn_opt_data);
 
 }
 

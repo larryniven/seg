@@ -48,7 +48,7 @@ namespace iscrf {
     std::shared_ptr<ilat::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
-        int min_seg_len, int max_seg_len);
+        int min_seg_len, int max_seg_len, int stride);
 
     struct ilat_lexicalizer
         : public scrf::lexicalizer<ilat::fst, scrf::dense_vec> {
@@ -66,6 +66,7 @@ namespace iscrf {
     struct inference_args {
         int min_seg;
         int max_seg;
+        int stride;
         scrf::dense_vec param;
         std::unordered_map<std::string, int> label_id;
         std::vector<std::string> id_label;
