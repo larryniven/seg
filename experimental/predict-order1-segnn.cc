@@ -2,7 +2,6 @@
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "autodiff/autodiff.h"
-#include "nn/lstm.h"
 #include <fstream>
 
 struct prediction_env {
@@ -86,7 +85,7 @@ void prediction_env::run()
         }
 
         autodiff::computation_graph comp_graph;
-        i_args.nn = residual::make_nn(comp_graph, i_args.nn_param);
+        i_args.nn = segnn::make_nn(comp_graph, i_args.nn_param);
 
         s.frames = frames;
 
@@ -104,7 +103,7 @@ void prediction_env::run()
         }
 
         segnn::segnn_feat segnn_feat = make_segnn_feat(
-            s.graph_alloc, i_args.features, s.frames, i_args, i_args.args);
+            i_args.features, s.frames, i_args, i_args.args);
         iscrf::segnn::parameterize(s.graph_data, segnn_feat, i_args);
 
         std::shared_ptr<ilat::fst> graph_path = scrf::shortest_path<iscrf::iscrf_data>(s.graph_data);
