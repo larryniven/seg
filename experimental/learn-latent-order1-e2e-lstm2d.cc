@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
             {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
+            {"stride", "", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"nn-param", "", true},

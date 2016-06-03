@@ -9,10 +9,16 @@
 namespace segnn {
 
     struct param_t {
+        la::matrix<double> label_embedding;
+        la::matrix<double> duration_embedding;
+
         la::matrix<double> feat_weight;
         la::matrix<double> label_weight;
         la::matrix<double> duration_weight;
         la::vector<double> bias;
+
+        std::vector<la::matrix<double>> layer_weight;
+        std::vector<la::vector<double>> layer_bias;
     };
 
     void resize_as(param_t& p1, param_t const& p2);
@@ -37,6 +43,11 @@ namespace segnn {
         std::shared_ptr<autodiff::op_t> feat_embedding;
         std::shared_ptr<autodiff::op_t> label_embedding;
         std::shared_ptr<autodiff::op_t> duration_embedding;
+
+        std::vector<std::shared_ptr<autodiff::op_t>> layer_weight;
+        std::vector<std::shared_ptr<autodiff::op_t>> layer_bias;
+
+        std::vector<std::shared_ptr<autodiff::op_t>> layer;
 
         std::shared_ptr<autodiff::op_t> output;
     };

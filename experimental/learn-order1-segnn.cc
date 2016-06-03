@@ -222,6 +222,32 @@ void learning_env::run()
             exit(1);
         }
 
+#if 0
+        {
+            iscrf::segnn::learning_args l_args2 = l_args;
+            l_args2.nn_param.label_embedding(l_args2.label_id.at("sil"), 0) += 1e-8;
+            iscrf::learning_sample s2 { l_args2 };
+            s2.frames = frames;
+            s2.gold_segs = s.gold_segs;
+            iscrf::make_graph(s2, l_args2);
+            autodiff::computation_graph comp_graph2;
+            l_args2.nn = segnn::make_nn(comp_graph2, l_args2.nn_param);
+            iscrf::make_min_cost_gold(s2, l_args2);
+            iscrf::segnn::parameterize(s2, l_args2);
+
+            scrf::composite_weight<ilat::fst> weight_func_with_cost;
+            weight_func_with_cost.weights.push_back(s2.graph_data.weight_func);
+            weight_func_with_cost.weights.push_back(s2.graph_data.cost_func);
+            s2.graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(
+                weight_func_with_cost);
+
+            using hinge_loss = scrf::hinge_loss<iscrf::iscrf_data>;
+            hinge_loss loss2 { s2.gold_data, s2.graph_data };
+
+            std::cout << "numeric grad: " << (loss2.loss() - loss_func->loss()) / 1e-8 << std::endl;
+        }
+#endif
+
         std::cout << "gold segs: " << s.gold_data.fst->edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
@@ -231,10 +257,8 @@ void learning_env::run()
 
         scrf::dense_vec param_grad;
         segnn::param_t nn_param_grad;
-        segnn::param_t zero;
 
         segnn::resize_as(nn_param_grad, l_args.nn_param);
-        segnn::resize_as(zero, l_args.nn_param);
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
@@ -255,8 +279,6 @@ void learning_env::run()
                 s.gold_data.feature_func->features[0]);
 
             for (auto& e: gold.edges()) {
-                segnn_feat->gradient = zero;
-
                 segnn_feat->grad(neg_param, *s.gold_data.fst, e);
 
                 segnn::iadd(nn_param_grad, segnn_feat->gradient);
@@ -268,12 +290,13 @@ void learning_env::run()
             iscrf::iscrf_fst graph_path { loss.graph_path };
 
             for (auto& e: graph_path.edges()) {
-                segnn_feat->gradient = zero;
-
                 segnn_feat->grad(l_args.param, *s.graph_data.fst, e);
 
                 segnn::iadd(nn_param_grad, segnn_feat->gradient);
             }
+
+            // std::cout << "sil id: " << l_args.label_id.at("sil") << std::endl;
+            // std::cout << "analytic grad: " << nn_param_grad.label_embedding(l_args.label_id.at("sil"), 0) << std::endl;
 
             scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                 l_args.step_size);
