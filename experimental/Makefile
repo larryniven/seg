@@ -13,7 +13,9 @@ bin = \
     learn-latent-order1-e2e-ff \
     predict-order1-e2e-ff \
     learn-latent-order1-e2e-lstm2d \
-    predict-order1-e2e-lstm2d
+    predict-order1-e2e-lstm2d \
+    learn-fw-order1 \
+    fw-duality-gap
 
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o
 
@@ -32,6 +34,12 @@ predict-order1: predict-order1.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-latent-order1: learn-latent-order1.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+learn-fw-order1: learn-fw-order1.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+fw-duality-gap: fw-duality-gap.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-order2: learn-order2.o $(obj) 

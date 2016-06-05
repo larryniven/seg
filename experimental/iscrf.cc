@@ -323,9 +323,14 @@ namespace iscrf {
     {
         parse_inference_args(l_args, args);
 
-        l_args.opt_data = scrf::load_dense_vec(args.at("opt-data"));
+        if (ebt::in(std::string("opt-data"), args)) {
+            l_args.opt_data = scrf::load_dense_vec(args.at("opt-data"));
+        }
 
-        l_args.step_size = std::stod(args.at("step-size"));
+        l_args.step_size = 0;
+        if (ebt::in(std::string("step-size"), args)) {
+            l_args.step_size = std::stod(args.at("step-size"));
+        }
 
         l_args.momentum = -1;
         if (ebt::in(std::string("momentum"), args)) {
@@ -393,16 +398,24 @@ namespace iscrf {
     {
         parameterize(s.graph_data, s.graph_alloc, s.frames, l_args);
 
+        if (!ebt::in(std::string("use-gold-segs"), l_args.args)) {
+            std::vector<segcost::segment<int>> min_cost_segs;
+
+            for (auto& e: s.gold_data.fst->edges()) {
+                min_cost_segs.push_back(segcost::segment<int> {
+                    s.gold_data.fst->time(s.gold_data.fst->tail(e)),
+                    s.gold_data.fst->time(s.gold_data.fst->head(e)),
+                    s.gold_data.fst->output(e)
+                });
+            }
+
+            s.gold_segs = min_cost_segs;
+        }
+
         s.graph_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
             std::make_shared<scrf::seg_cost<ilat::fst>>(
                 scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
             l_args.cost_scale));
-        /*
-        s.graph_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
-            std::make_shared<scrf::seg_cost<ilat::fst>>(
-                scrf::make_hit_cost<ilat::fst>(s.gold_segs)),
-            l_args.cost_scale));
-        */
 
         parameterize(s.gold_data, s.gold_alloc, s.frames, l_args);
 
@@ -410,12 +423,6 @@ namespace iscrf {
             std::make_shared<scrf::seg_cost<ilat::fst>>(
                 scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
             l_args.cost_scale));
-        /*
-        s.gold_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
-            std::make_shared<scrf::seg_cost<ilat::fst>>(
-                scrf::make_hit_cost<ilat::fst>(s.gold_segs)),
-            l_args.cost_scale));
-        */
     }
 
 }
