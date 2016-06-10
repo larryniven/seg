@@ -41,6 +41,35 @@ namespace scrf {
 
 namespace iscrf {
 
+    struct lattice_score
+        : public scrf::scrf_feature<ilat::fst, scrf::dense_vec> {
+
+        scrf::feat_dim_alloc& alloc;
+        int dim;
+
+        lattice_score(scrf::feat_dim_alloc& alloc);
+
+        virtual void operator()(scrf::dense_vec& feat,
+            ilat::fst const& f, int e) const override;
+
+    };
+
+    struct external_feature
+        : public scrf::scrf_feature<ilat::fst, scrf::dense_vec> {
+
+        scrf::feat_dim_alloc& alloc;
+        int dim;
+
+        int order;
+        std::vector<int> dims;
+
+        external_feature(scrf::feat_dim_alloc& alloc, int order, std::vector<int> dims);
+
+        virtual void operator()(scrf::dense_vec& feat,
+            ilat::fst const& f, int e) const override;
+
+    };
+
     double weight(iscrf_data const& data, int e);
     void feature(iscrf_data const& data, scrf::dense_vec& f, int e);
     double cost(iscrf_data const& data, int e);
@@ -91,12 +120,14 @@ namespace iscrf {
     void make_graph(sample& s, inference_args const& i_args);
 
     void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args);
+    void make_lattice(ilat::fst const& lat, sample& s);
 
     struct learning_args
         : public inference_args {
 
         double cost_scale;
         scrf::dense_vec opt_data;
+        double l2;
         double step_size;
         double momentum;
         double decay;
@@ -120,6 +151,8 @@ namespace iscrf {
 
     std::vector<segcost::segment<std::string>> load_segments(std::istream& is);
 
+    std::vector<std::string> load_labels(std::istream& is);
+
     void parse_learning_args(learning_args& l_args,
         std::unordered_map<std::string, std::string> const& args);
 
@@ -130,6 +163,12 @@ namespace iscrf {
         inference_args const& i_args);
 
     void parameterize(learning_sample& s, learning_args const& l_args);
+
+    void parameterize_cached(iscrf_data& data, scrf::feat_dim_alloc& alloc,
+        std::vector<std::vector<double>> const& frames,
+        inference_args const& i_args);
+
+    void parameterize_cached(learning_sample& s, learning_args const& l_args);
 
 }
 

@@ -4,20 +4,50 @@
 
 namespace iscrf {
 
-     double weight(iscrf_data const& data, int e)
-     {
-          return (*data.weight_func)(*data.fst, e);
-     }
+    lattice_score::lattice_score(scrf::feat_dim_alloc& alloc)
+        : alloc(alloc)
+    {
+        dim = alloc.alloc(0, 1);
+    }
+
+    void lattice_score::operator()(scrf::dense_vec& feat,
+        ilat::fst const& f, int e) const
+    {
+        double *g = ilat_lexicalizer().lex(alloc, 0, feat, f, e);
+        g[dim] = f.weight(e);
+    }
+
+    external_feature::external_feature(scrf::feat_dim_alloc& alloc,
+        int order, std::vector<int> dims)
+        : alloc(alloc), order(order), dims(dims)
+    {
+        dim = alloc.alloc(order, dims.size());
+    }
+
+    void external_feature::operator()(scrf::dense_vec& feat,
+        ilat::fst const& f, int e) const
+    {
+        double *g = ilat_lexicalizer().lex(alloc, order, feat, f, e);
+
+        for (int i = 0; i < dims.size(); ++i) {
+            g[dim + i] = f.data->feats[e][dims[i]];
+        }
+    }
+
+    double weight(iscrf_data const& data, int e)
+    {
+         return (*data.weight_func)(*data.fst, e);
+    }
  
-     void feature(iscrf_data const& data, scrf::dense_vec& f, int e)
-     {
-          (*data.feature_func)(f, *data.fst, e);
-     }
+    void feature(iscrf_data const& data, scrf::dense_vec& f, int e)
+    {
+         (*data.feature_func)(f, *data.fst, e);
+    }
  
-     double cost(iscrf_data const& data, int e)
-     {
-          return (*data.cost_func)(*data.fst, e);
-     }
+    double cost(iscrf_data const& data, int e)
+    {
+         return (*data.cost_func)(*data.fst, e);
+    }
  
     std::shared_ptr<ilat::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
@@ -199,6 +229,35 @@ namespace iscrf {
                     std::make_shared<segfeat::length_indicator>(
                         segfeat::length_indicator { max_seg }),
                     frames)));
+            } else if (ebt::startswith(k, "ext")) {
+                std::vector<std::string> parts = ebt::split(k, "@");
+                int order = 0;
+                if (parts.size() > 1) {
+                    order = std::stoi(parts[1]);
+                }
+
+                parts = ebt::split(parts[0], ":");
+                parts = ebt::split(parts[1], "+");
+                std::vector<int> dims;
+
+                for (auto& p: parts) {
+                    std::vector<std::string> range = ebt::split(p, "-");
+                    if (range.size() == 2) {
+                        for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                            dims.push_back(i);
+                        }
+                    } else if (range.size() == 1) {
+                        dims.push_back(std::stoi(p));
+                    } else {
+                        std::cerr << "unknown external feature format: " << k << std::endl;
+                    }
+                }
+
+                result.features.push_back(std::make_shared<external_feature>(
+                    external_feature { alloc, order, dims }));
+            } else if (ebt::startswith(k, "lattice-score")) {
+                result.features.push_back(std::make_shared<lattice_score>(
+                    lattice_score { alloc }));
             } else if (ebt::startswith(k, "bias")) {
                 std::vector<std::string> parts = ebt::split(k, "@");
                 int order = 0;
@@ -269,6 +328,11 @@ namespace iscrf {
 
     void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args)
     {
+        make_lattice(lat, s, i_args);
+    }
+
+    void make_lattice(ilat::fst const& lat, sample& s)
+    {
         s.graph_data.fst = std::make_shared<ilat::fst>(lat);
         s.graph_data.topo_order = std::make_shared<std::vector<int>>(::fst::topo_order(lat));
     }
@@ -318,6 +382,25 @@ namespace iscrf {
         return result;
     }
 
+    std::vector<std::string> load_labels(std::istream& is)
+    {
+        std::string line;
+
+        std::getline(is, line);
+
+        if (!is) {
+            return std::vector<std::string>();
+        }
+
+        std::vector<std::string> parts = ebt::split(line);
+
+        if (ebt::startswith(parts.back(), "(") && ebt::endswith(parts.back(), ")")) {
+            parts.pop_back();
+        }
+
+        return parts;
+    }
+
     void parse_learning_args(learning_args& l_args,
         std::unordered_map<std::string, std::string> const& args)
     {
@@ -325,6 +408,11 @@ namespace iscrf {
 
         if (ebt::in(std::string("opt-data"), args)) {
             l_args.opt_data = scrf::load_dense_vec(args.at("opt-data"));
+        }
+
+        l_args.l2 = 0;
+        if (ebt::in(std::string("l2"), args)) {
+            l_args.l2 = std::stod(args.at("l2"));
         }
 
         l_args.step_size = 0;
@@ -418,6 +506,55 @@ namespace iscrf {
             l_args.cost_scale));
 
         parameterize(s.gold_data, s.gold_alloc, s.frames, l_args);
+
+        s.gold_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
+            std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
+            l_args.cost_scale));
+    }
+
+    void parameterize_cached(iscrf_data& data, scrf::feat_dim_alloc& alloc,
+        std::vector<std::vector<double>> const& frames,
+        inference_args const& i_args)
+    {
+        using comp_feat = scrf::composite_feature<ilat::fst, scrf::dense_vec>;
+
+        comp_feat feat_func
+            = make_feat(alloc, i_args.features, frames, i_args.args);
+
+        scrf::composite_weight<ilat::fst> weight;
+        weight.weights.push_back(std::make_shared<scrf::cached_linear_score<ilat::fst, scrf::dense_vec>>(
+            scrf::cached_linear_score<ilat::fst, scrf::dense_vec>(i_args.param,
+            std::make_shared<comp_feat>(feat_func))));
+
+        data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight);
+        data.feature_func = std::make_shared<comp_feat>(feat_func);
+    }
+
+    void parameterize_cached(learning_sample& s, learning_args const& l_args)
+    {
+        parameterize_cached(s.graph_data, s.graph_alloc, s.frames, l_args);
+
+        if (!ebt::in(std::string("use-gold-segs"), l_args.args)) {
+            std::vector<segcost::segment<int>> min_cost_segs;
+
+            for (auto& e: s.gold_data.fst->edges()) {
+                min_cost_segs.push_back(segcost::segment<int> {
+                    s.gold_data.fst->time(s.gold_data.fst->tail(e)),
+                    s.gold_data.fst->time(s.gold_data.fst->head(e)),
+                    s.gold_data.fst->output(e)
+                });
+            }
+
+            s.gold_segs = min_cost_segs;
+        }
+
+        s.graph_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
+            std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(s.gold_segs, l_args.sils)),
+            l_args.cost_scale));
+
+        parameterize_cached(s.gold_data, s.gold_alloc, s.frames, l_args);
 
         s.gold_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(scrf::mul<ilat::fst>(
             std::make_shared<scrf::seg_cost<ilat::fst>>(

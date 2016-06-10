@@ -114,6 +114,25 @@ namespace fst {
 
     };
 
+    template <class fst>
+    struct backward_one_best {
+
+        using vertex = typename fst::vertex;
+        using edge = typename fst::edge;
+
+        struct extra_data {
+            edge pi;
+            double value;
+        };
+
+        std::unordered_map<vertex, extra_data> extra;
+
+        void merge(fst const& f, std::vector<vertex> const& order);
+
+        std::vector<typename fst::edge> best_path(fst const& f);
+
+    };
+
     template <class fst, class path_maker>
     std::shared_ptr<fst> shortest_path(fst const& f);
 
@@ -274,6 +293,87 @@ namespace fst {
         }
 
         std::reverse(result.begin(), result.end());
+
+        return result;
+    }
+
+    template <class fst>
+    void backward_one_best<fst>::merge(fst const& f, std::vector<typename fst::vertex> const& order)
+    {
+        double inf = std::numeric_limits<double>::infinity();
+
+        auto get_value = [&](vertex v) {
+            if (!ebt::in(v, extra)) {
+                return -inf;
+            } else {
+                return extra.at(v).value;
+            }
+        };
+
+        auto rev_order = order;
+        std::reverse(rev_order.begin(), rev_order.end());
+
+        for (auto& u: rev_order) {
+            double max = get_value(u);
+            typename fst::edge argmax;
+            bool update = false;
+
+            std::vector<edge> edges = f.out_edges(u);
+            std::vector<double> candidate_value;
+            candidate_value.resize(edges.size());
+
+            #pragma omp parallel for
+            for (int i = 0; i < edges.size(); ++i) {
+                typename fst::edge& e = edges[i];
+                typename fst::vertex v = f.head(e);
+                candidate_value[i] = get_value(v) + f.weight(e);
+            }
+
+            for (int i = 0; i < edges.size(); ++i) {
+                if (candidate_value[i] > max) {
+                    max = candidate_value[i];
+                    argmax = edges[i];
+                    update = true;
+                }
+            }
+
+            if (update) {
+                extra[u] = extra_data { argmax, max };
+            }
+        }
+    }
+
+    template <class fst>
+    std::vector<typename fst::edge> backward_one_best<fst>::best_path(fst const& f)
+    {
+        double inf = std::numeric_limits<double>::infinity();
+        double max = -inf;
+        typename fst::vertex argmax;
+
+        for (auto v: f.initials()) {
+            if (ebt::in(v, extra) && extra.at(v).value > max) {
+                max = extra.at(v).value;
+                argmax = v;
+            }
+        }
+
+        std::vector<typename fst::edge> result;
+
+        if (max == -inf) {
+            return result;
+        }
+
+        vertex u = argmax;
+
+        std::vector<typename fst::vertex> const& finals = f.finals();
+        std::unordered_set<typename fst::vertex> final_set { finals.begin(), finals.end() };
+
+        while (!ebt::in(u, final_set)) {
+            edge e = extra.at(u).pi;
+            vertex v = f.head(e);
+            result.push_back(e);
+            u = v;
+        }
 
         return result;
     }

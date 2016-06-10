@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
         "learn-first",
         "Learn segmental CRF",
         {
-            {"frame-batch", "", true},
+            {"frame-batch", "", false},
             {"gold-batch", "", true},
             {"lattice-batch", "", false},
             {"min-seg", "", false},
@@ -124,8 +124,7 @@ void learning_env::run()
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
 
             if (!lattice_batch) {
-                std::cerr << "error reading " << args.at("lattice-batch") << std::endl;
-                exit(1);
+                break;
             }
 
             iscrf::make_lattice(lat, s, l_args);

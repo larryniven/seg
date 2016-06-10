@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
             {"max-seg", "", false},
             {"param", "", true},
             {"opt-data", "", true},
+            {"l2", "", false},
             {"step-size", "", true},
             {"nn-param", "", true},
             {"nn-opt-data", "", true},
@@ -282,6 +283,18 @@ void learning_env::run()
                     << pred_grad.softmax_weight(0, 0) << std::endl;
             }
 
+            if (ebt::in(std::string("l2"), l_args.args)) {
+                scrf::dense_vec p = l_args.param;
+                scrf::imul(p, l_args.l2);
+                scrf::iadd(param_grad, p);
+
+                lstm::dblstm_feat_param_t nn_p = l_args.nn_param;
+                lstm::imul(nn_p, l_args.l2);
+                lstm::iadd(nn_param_grad, nn_p);
+            }
+
+            double v1 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+
             if (ebt::in(std::string("decay"), args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
@@ -303,6 +316,10 @@ void learning_env::run()
                         l_args.step_size);
                 }
             }
+
+            double v2 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+
+            std::cout << "weight: " << v1 << " update: " << v2 - v1 << " rate: " << (v2 - v1) / v1 << std::endl;
 
         }
 

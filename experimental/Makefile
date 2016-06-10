@@ -3,6 +3,7 @@ CXXFLAGS += -std=c++11 -I ../../ -L ../../speech -L ../../nn -L ../../autodiff -
 bin = \
     learn-order1 \
     predict-order1 \
+    prune-order1 \
     learn-latent-order1 \
     learn-latent-order1-e2e \
     learn-order1-e2e \
@@ -15,7 +16,9 @@ bin = \
     learn-latent-order1-e2e-lstm2d \
     predict-order1-e2e-lstm2d \
     learn-fw-order1 \
-    fw-duality-gap
+    fw-duality-gap \
+    oracle-error \
+    oracle-cost
 
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o
 
@@ -31,6 +34,9 @@ learn-order1: learn-order1.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 predict-order1: predict-order1.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+prune-order1: prune-order1.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-latent-order1: learn-latent-order1.o align.o pair_scrf.o $(obj)
@@ -73,6 +79,12 @@ learn-latent-order1-e2e-lstm2d: learn-latent-order1-e2e-lstm2d.o iscrf_e2e_lstm2
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 predict-order1-e2e-lstm2d: predict-order1-e2e-lstm2d.o iscrf_e2e_lstm2d.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+oracle-error: oracle-error.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+oracle-cost: oracle-cost.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 segnn.o: segnn.h
