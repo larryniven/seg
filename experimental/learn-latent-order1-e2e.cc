@@ -28,6 +28,9 @@ struct learning_env {
 
     iscrf::e2e::learning_args l_args;
 
+    double grad_noise_var;
+    double grad_noise_time;
+
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
@@ -35,6 +38,12 @@ struct learning_env {
     void run();
 
 };
+
+void gaussian(la::vector<double>& v, double var, std::default_random_engine& gen);
+void gaussian(la::matrix<double>& m, double var, std::default_random_engine& gen);
+void gaussian(lstm::lstm_unit_param_t& param, double var, std::default_random_engine& gen);
+void gaussian(lstm::blstm_feat_param_t& param, double var, std::default_random_engine& gen);
+void gaussian(lstm::dblstm_feat_param_t& param, double var, std::default_random_engine& gen);
 
 int main(int argc, char *argv[])
 {
@@ -47,6 +56,7 @@ int main(int argc, char *argv[])
             {"lattice-batch", "", false},
             {"min-seg", "", false},
             {"max-seg", "", false},
+            {"l2", "", false},
             {"param", "", true},
             {"opt-data", "", true},
             {"nn-param", "", true},
@@ -70,7 +80,10 @@ int main(int argc, char *argv[])
             {"subsample-freq", "", false},
             {"subsample-shift", "", false},
             {"frame-softmax", "", false},
-            {"even-init", "", false}
+            {"even-init", "", false},
+            {"freeze-encoder", "", false},
+            {"grad-noise-var", "", false},
+            {"grad-noise-time", "", false}
         }
     };
 
@@ -140,6 +153,16 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
 
     align_param = scrf::load_dense_vec(args.at("align-param"));
     std::tie(align_nn_param, align_pred_param) = iscrf::e2e::load_lstm_param(args.at("align-nn-param"));
+
+    grad_noise_var = 0;
+    if (ebt::in(std::string("grad-noise-var"), args)) {
+        grad_noise_var = std::stod(args.at("grad-noise-var"));
+    }
+
+    grad_noise_time = 0;
+    if (ebt::in(std::string("grad-noise-time"), args)) {
+        grad_noise_time = std::stod(args.at("grad-noise-time"));
+    }
 }
 
 void learning_env::run()
@@ -314,57 +337,85 @@ void learning_env::run()
         if (ell > 0) {
             param_grad = loss_func->param_grad();
 
-            std::vector<std::vector<double>> frame_grad;
-            frame_grad.resize(inputs.size());
-            for (int i = 0; i < inputs.size(); ++i) {
-                frame_grad[i].resize(inputs[i].size());
+            if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
+                std::vector<std::vector<double>> frame_grad;
+                frame_grad.resize(inputs.size());
+                for (int i = 0; i < inputs.size(); ++i) {
+                    frame_grad[i].resize(inputs[i].size());
+                }
+
+                std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
+                    = iscrf::e2e::filter_feat_with_frame_grad(s.graph_data);
+
+                loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
+
+                for (int i = 0; i < frame_grad.size(); ++i) {
+                    upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
+                        frame_grad[i]);
+                }
+
+                autodiff::grad(order, autodiff::grad_funcs);
+
+                nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
+
+                if (ebt::in(std::string("frame-softmax"), args)) {
+                    pred_grad = rnn::copy_grad(pred_nn);
+
+                }
+
+                std::cout << "analytical grad: " << nn_param_grad.layer.back().forward_output_weight(0, 0) << std::endl;
+
+                if (ebt::in(std::string("l2"), l_args.args)) {
+                    scrf::dense_vec p = l_args.param;
+                    scrf::imul(p, l_args.l2);
+                    scrf::iadd(param_grad, p);
+
+                    lstm::dblstm_feat_param_t nn_p = l_args.nn_param;
+                    lstm::imul(nn_p, l_args.l2);
+                    lstm::iadd(nn_param_grad, nn_p);
+                }
+
+                if (ebt::in(std::string("grad-noise-var"), l_args.args)) {
+                    lstm::dblstm_feat_param_t noise = l_args.nn_param;
+                    gaussian(noise, grad_noise_var / std::sqrt(1 + grad_noise_time), gen);
+                    lstm::iadd(nn_param_grad, noise);
+                }
+
             }
 
-            std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
-                = iscrf::e2e::filter_feat_with_frame_grad(s.graph_data);
-
-            loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
-
-            for (int i = 0; i < frame_grad.size(); ++i) {
-                upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
-                    frame_grad[i]);
-            }
-
-            autodiff::grad(order, autodiff::grad_funcs);
-
-            nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
-
-            if (ebt::in(std::string("frame-softmax"), args)) {
-                pred_grad = rnn::copy_grad(pred_nn);
-
-                std::cout << "analytical grad: "
-                    << pred_grad.softmax_weight(0, 0) << std::endl;
-            }
-
-            std::cout << "analytical grad: " << nn_param_grad.layer.back().forward_output_weight(0, 0) << std::endl;
+            double v1 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
 
             if (ebt::in(std::string("decay"), args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
-                lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
-                    l_args.decay, l_args.step_size);
 
-                if (ebt::in(std::string("frame-softmax"), args)) {
-                    nn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
+                    lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                         l_args.decay, l_args.step_size);
+
+                    if (ebt::in(std::string("frame-softmax"), args)) {
+                        nn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                            l_args.decay, l_args.step_size);
+                    }
                 }
             } else {
                 scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.step_size);
-                lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
-                    l_args.step_size);
 
-                if (ebt::in(std::string("frame-softmax"), args)) {
-                    nn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
+                    lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                         l_args.step_size);
+
+                    if (ebt::in(std::string("frame-softmax"), args)) {
+                        nn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                            l_args.step_size);
+                    }
                 }
             }
 
+            double v2 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+
+            std::cout << "weight: " << v1 << " update: " << v2 - v1 << " rate: " << (v2 - v1) / v1 << std::endl;
 
             if (i % save_every == 0) {
                 scrf::save_vec(l_args.param, "param-last");
@@ -375,8 +426,11 @@ void learning_env::run()
 
             if (i % update_align_every == 0) {
                 align_param = l_args.param;
-                align_nn_param = l_args.nn_param;
-                align_pred_param = l_args.pred_param;
+
+                if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
+                    align_nn_param = l_args.nn_param;
+                    align_pred_param = l_args.pred_param;
+                }
 
                 std::cout << std::endl;
                 std::cout << "update align param" << std::endl;
@@ -406,3 +460,61 @@ void learning_env::run()
 
 }
 
+void gaussian(la::vector<double>& v, double var, std::default_random_engine& gen)
+{
+    std::normal_distribution<double> dist { 0, std::sqrt(var) };
+
+    for (int i = 0; i < v.size(); ++i) {
+        v(i) = dist(gen);
+    }
+}
+
+void gaussian(la::matrix<double>& m, double var, std::default_random_engine& gen)
+{
+    std::normal_distribution<double> dist { 0, std::sqrt(var) };
+
+    for (int i = 0; i < m.rows(); ++i) {
+        for (int j = 0; j < m.cols(); ++j) {
+            m(i, j) = dist(gen);
+        }
+    }
+}
+
+void gaussian(lstm::lstm_unit_param_t& param, double var, std::default_random_engine& gen)
+{
+    gaussian(param.hidden_input, var, gen);
+    gaussian(param.hidden_output, var, gen);
+    gaussian(param.hidden_bias, var, gen);
+
+    gaussian(param.input_input, var, gen);
+    gaussian(param.input_output, var, gen);
+    gaussian(param.input_peep, var, gen);
+    gaussian(param.input_bias, var, gen);
+
+    gaussian(param.output_input, var, gen);
+    gaussian(param.output_output, var, gen);
+    gaussian(param.output_peep, var, gen);
+    gaussian(param.output_bias, var, gen);
+
+    gaussian(param.forget_input, var, gen);
+    gaussian(param.forget_output, var, gen);
+    gaussian(param.forget_peep, var, gen);
+    gaussian(param.forget_bias, var, gen);
+}
+
+void gaussian(lstm::blstm_feat_param_t& param, double var, std::default_random_engine& gen)
+{
+    gaussian(param.forward_param, var, gen);
+    gaussian(param.backward_param, var, gen);
+
+    gaussian(param.forward_output_weight, var, gen);
+    gaussian(param.backward_output_weight, var, gen);
+    gaussian(param.output_bias, var, gen);
+}
+
+void gaussian(lstm::dblstm_feat_param_t& param, double var, std::default_random_engine& gen)
+{
+    for (auto& ell: param.layer) {
+        gaussian(ell, var, gen);
+    }
+}
