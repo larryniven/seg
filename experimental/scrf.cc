@@ -119,6 +119,49 @@ namespace scrf {
         }
     }
 
+    void const_step_update(dense_vec& param, dense_vec const& grad,
+        double step_size)
+    {
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::const_step_update(param.class_vec[i], grad.class_vec[i],
+                step_size);
+        }
+    }
+
+    void const_step_update_momentum(dense_vec& param, dense_vec const& grad,
+        dense_vec& opt_data, double momentum, double step_size)
+    {
+        if (opt_data.class_vec.size() == 0) {
+            opt_data.class_vec.resize(grad.class_vec.size());
+        }
+
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+            opt_data.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::const_step_update_momentum(param.class_vec[i], grad.class_vec[i],
+                opt_data.class_vec[i], momentum, step_size);
+        }
+    }
+
     void adagrad_update(dense_vec& param, dense_vec const& grad,
         dense_vec& accu_grad_sq, double step_size)
     {

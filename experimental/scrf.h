@@ -70,10 +70,16 @@ namespace scrf {
     void isub(dense_vec& u, dense_vec const& v);
     void imul(dense_vec& u, double c);
 
-    void adagrad_update(dense_vec& theta, dense_vec const& grad,
+    void const_step_update(dense_vec& param, dense_vec const& grad,
+        double step_size);
+
+    void const_step_update_momentum(dense_vec& param, dense_vec const& grad,
+        dense_vec& opt_data, double momentum, double step_size);
+
+    void adagrad_update(dense_vec& param, dense_vec const& grad,
         dense_vec& accu_grad_sq, double step_size);
 
-    void rmsprop_update(dense_vec& theta, dense_vec const& grad,
+    void rmsprop_update(dense_vec& param, dense_vec const& grad,
         dense_vec& accu_grad_sq, double decay, double step_size);
 
     struct sparse_vec {

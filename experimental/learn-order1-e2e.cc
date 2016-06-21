@@ -58,10 +58,9 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
-            {"rnndrop-prob", "", false},
-            {"rnndrop-seed", "", false},
-            {"subsample-freq", "", false},
-            {"subsample-shift", "", false},
+            {"dropout", "", false},
+            {"dropout-seed", "", false},
+            {"clip", "", false},
             {"frame-softmax", "", false}
         }
     };
@@ -130,7 +129,7 @@ void learning_env::run()
 {
     int i = 1;
 
-    std::default_random_engine gen { l_args.rnndrop_seed };
+    std::default_random_engine gen { l_args.dropout_seed };
 
     while (1) {
 
@@ -149,22 +148,27 @@ void learning_env::run()
         }
 
         autodiff::computation_graph comp_graph;
-        lstm::dblstm_feat_nn_t nn;
+        std::shared_ptr<tensor_tree::vertex> lstm_var_tree
+            = make_var_tree(comp_graph, l_args.nn_param);
+        std::shared_ptr<tensor_tree::vertex> pred_var_tree
+            = make_var_tree(comp_graph, l_args.pred_param);
+        lstm::stacked_bi_lstm_nn_t nn;
         rnn::pred_nn_t pred_nn;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output
-            = iscrf::e2e::make_input(comp_graph, nn, pred_nn, frames, gen, l_args);
+        std::vector<std::shared_ptr<autodiff::op_t>> feat_ops
+            = iscrf::e2e::make_feat(comp_graph, lstm_var_tree, pred_var_tree,
+                nn, pred_nn, frames, gen, l_args);
 
-        auto order = autodiff::topo_order(upsampled_output);
+        auto order = autodiff::topo_order(feat_ops);
         autodiff::eval(order, autodiff::eval_funcs);
 
-        std::vector<std::vector<double>> inputs;
-        for (auto& o: upsampled_output) {
+        std::vector<std::vector<double>> feats;
+        for (auto& o: feat_ops) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
-            inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
+            feats.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }
 
-        s.frames = inputs;
+        s.frames = feats;
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
@@ -250,16 +254,18 @@ void learning_env::run()
         std::cout << "loss: " << ell << std::endl;
 
         scrf::dense_vec param_grad;
-        lstm::dblstm_feat_param_t nn_param_grad;
-        nn::pred_param_t pred_grad;
+        std::shared_ptr<tensor_tree::vertex> nn_param_grad
+            = lstm::make_stacked_bi_lstm_tensor_tree(l_args.layer);
+        std::shared_ptr<tensor_tree::vertex> pred_grad
+            = nn::make_pred_tensor_tree();
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
 
             std::vector<std::vector<double>> frame_grad;
-            frame_grad.resize(inputs.size());
-            for (int i = 0; i < inputs.size(); ++i) {
-                frame_grad[i].resize(inputs[i].size());
+            frame_grad.resize(feats.size());
+            for (int i = 0; i < feats.size(); ++i) {
+                frame_grad[i].resize(feats[i].size());
             }
 
             std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
@@ -268,19 +274,24 @@ void learning_env::run()
             loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
 
             for (int i = 0; i < frame_grad.size(); ++i) {
-                upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
+                feat_ops[i]->grad = std::make_shared<la::vector<double>>(
                     frame_grad[i]);
             }
 
             autodiff::grad(order, autodiff::grad_funcs);
 
-            nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
+            tensor_tree::copy_grad(nn_param_grad, lstm_var_tree);
 
             if (ebt::in(std::string("frame-softmax"), args)) {
-                pred_grad = rnn::copy_grad(pred_nn);
+                tensor_tree::copy_grad(pred_grad, pred_var_tree);
+            }
 
-                std::cout << "analytical grad: "
-                    << pred_grad.softmax_weight(0, 0) << std::endl;
+            if (ebt::in(std::string("clip"), args)) {
+                double n = tensor_tree::norm(nn_param_grad);
+                if (n > l_args.clip) {
+                    tensor_tree::imul(nn_param_grad, l_args.clip / n);
+                    std::cout << "grad norm: " << n << " clip: " << l_args.clip << " gradient clipped" << std::endl;
+                }
             }
 
             if (ebt::in(std::string("l2"), l_args.args)) {
@@ -288,36 +299,42 @@ void learning_env::run()
                 scrf::imul(p, l_args.l2);
                 scrf::iadd(param_grad, p);
 
-                lstm::dblstm_feat_param_t nn_p = l_args.nn_param;
-                lstm::imul(nn_p, l_args.l2);
-                lstm::iadd(nn_param_grad, nn_p);
+                std::shared_ptr<tensor_tree::vertex> nn_p = tensor_tree::copy_tree(l_args.nn_param);
+                tensor_tree::imul(nn_p, l_args.l2);
+                tensor_tree::iadd(nn_param_grad, nn_p);
+
+                if (ebt::in(std::string("frame-softmax"), args)) {
+                    std::shared_ptr<tensor_tree::vertex> pred_p = tensor_tree::copy_tree(l_args.pred_param);
+                    tensor_tree::imul(pred_p, l_args.l2);
+                    tensor_tree::iadd(pred_grad, pred_p);
+                }
             }
 
-            double v1 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+            double v1 = get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
             if (ebt::in(std::string("decay"), args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
-                lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                tensor_tree::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                     l_args.decay, l_args.step_size);
 
                 if (ebt::in(std::string("frame-softmax"), args)) {
-                    nn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                    tensor_tree::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
                         l_args.decay, l_args.step_size);
                 }
             } else {
                 scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.step_size);
-                lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                tensor_tree::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                     l_args.step_size);
 
                 if (ebt::in(std::string("frame-softmax"), args)) {
-                    nn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                    tensor_tree::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
                         l_args.step_size);
                 }
             }
 
-            double v2 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+            double v2 = get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
             std::cout << "weight: " << v1 << " update: " << v2 - v1 << " rate: " << (v2 - v1) / v1 << std::endl;
 

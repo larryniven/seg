@@ -3,6 +3,7 @@
 #include "scrf/experimental/scrf_weight.h"
 #include "scrf/experimental/align.h"
 #include "nn/lstm.h"
+#include "nn/tensor_tree.h"
 #include <random>
 #include <fstream>
 
@@ -14,8 +15,8 @@ struct learning_env {
     std::ifstream lattice_batch;
 
     scrf::dense_vec align_param;
-    lstm::dblstm_feat_param_t align_nn_param;
-    nn::pred_param_t align_pred_param;
+    std::shared_ptr<tensor_tree::vertex> align_nn_param;
+    std::shared_ptr<tensor_tree::vertex> align_pred_param;
 
     int save_every;
     int update_align_every;
@@ -28,9 +29,6 @@ struct learning_env {
 
     iscrf::e2e::learning_args l_args;
 
-    double grad_noise_var;
-    double grad_noise_time;
-
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
@@ -38,12 +36,6 @@ struct learning_env {
     void run();
 
 };
-
-void gaussian(la::vector<double>& v, double var, std::default_random_engine& gen);
-void gaussian(la::matrix<double>& m, double var, std::default_random_engine& gen);
-void gaussian(lstm::lstm_unit_param_t& param, double var, std::default_random_engine& gen);
-void gaussian(lstm::blstm_feat_param_t& param, double var, std::default_random_engine& gen);
-void gaussian(lstm::dblstm_feat_param_t& param, double var, std::default_random_engine& gen);
 
 int main(int argc, char *argv[])
 {
@@ -75,15 +67,11 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
-            {"rnndrop-prob", "", false},
-            {"rnndrop-seed", "", false},
-            {"subsample-freq", "", false},
-            {"subsample-shift", "", false},
+            {"dropout", "", false},
+            {"dropout-seed", "", false},
             {"frame-softmax", "", false},
+            {"clip", "", false},
             {"even-init", "", false},
-            {"freeze-encoder", "", false},
-            {"grad-noise-var", "", false},
-            {"grad-noise-time", "", false}
         }
     };
 
@@ -152,17 +140,8 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     iscrf::e2e::parse_learning_args(l_args, args);
 
     align_param = scrf::load_dense_vec(args.at("align-param"));
-    std::tie(align_nn_param, align_pred_param) = iscrf::e2e::load_lstm_param(args.at("align-nn-param"));
-
-    grad_noise_var = 0;
-    if (ebt::in(std::string("grad-noise-var"), args)) {
-        grad_noise_var = std::stod(args.at("grad-noise-var"));
-    }
-
-    grad_noise_time = 0;
-    if (ebt::in(std::string("grad-noise-time"), args)) {
-        grad_noise_time = std::stod(args.at("grad-noise-time"));
-    }
+    int layer;
+    std::tie(layer, align_nn_param, align_pred_param) = iscrf::e2e::load_lstm_param(args.at("align-nn-param"));
 }
 
 void learning_env::run()
@@ -171,7 +150,7 @@ void learning_env::run()
 
     int i = 1;
 
-    std::default_random_engine gen { l_args.rnndrop_seed };
+    std::default_random_engine gen { l_args.dropout_seed };
 
     while (1) {
 
@@ -186,22 +165,27 @@ void learning_env::run()
         }
 
         autodiff::computation_graph comp_graph;
-        lstm::dblstm_feat_nn_t nn;
+        std::shared_ptr<tensor_tree::vertex> lstm_var_tree
+            = make_var_tree(comp_graph, l_args.nn_param);
+        std::shared_ptr<tensor_tree::vertex> pred_var_tree
+            = make_var_tree(comp_graph, l_args.pred_param);
+        lstm::stacked_bi_lstm_nn_t nn;
         rnn::pred_nn_t pred_nn;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output
-            = iscrf::e2e::make_input(comp_graph, nn, pred_nn, frames, gen, l_args);
+        std::vector<std::shared_ptr<autodiff::op_t>> feat_ops
+            = iscrf::e2e::make_feat(comp_graph, lstm_var_tree, pred_var_tree,
+                nn, pred_nn, frames, gen, l_args);
 
-        auto order = autodiff::topo_order(upsampled_output);
+        auto order = autodiff::topo_order(feat_ops);
         autodiff::eval(order, autodiff::eval_funcs);
 
-        std::vector<std::vector<double>> inputs;
-        for (auto& o: upsampled_output) {
+        std::vector<std::vector<double>> feats;
+        for (auto& o: feat_ops) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
-            inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
+            feats.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }
 
-        s.frames = inputs;
+        s.frames = feats;
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, l_args.label_id);
@@ -275,54 +259,6 @@ void learning_env::run()
             exit(1);
         }
 
-#if 0
-        {
-            double ell1 = loss_func->loss();
-
-            iscrf::e2e::learning_args l_args2 = l_args;
-            l_args2.nn_param.layer.back().forward_output_weight(0, 0) += 1e-8;
-
-            iscrf::learning_sample s2 { l_args2 };
-
-            autodiff::computation_graph comp_graph2;
-            lstm::dblstm_feat_nn_t nn2;
-            rnn::pred_nn_t pred_nn2;
-
-            std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output2
-                = iscrf::e2e::make_input(comp_graph2, nn2, pred_nn2, frames, gen, l_args2);
-
-            auto order2 = autodiff::topo_order(upsampled_output2);
-            autodiff::eval(order2, autodiff::eval_funcs);
-
-            std::vector<std::vector<double>> inputs2;
-            for (auto& o: upsampled_output2) {
-                auto& f = autodiff::get_output<la::vector<double>>(o);
-                inputs2.push_back(std::vector<double> {f.data(), f.data() + f.size()});
-            }
-
-            s2.frames = inputs2;
-
-            iscrf::make_graph(s2, l_args2);
-            iscrf::make_alignment_gold(align_param, label_seq, s2, l_args2);
-            iscrf::parameterize(s2, l_args2);
-
-            scrf::composite_weight<ilat::fst> weight_func_with_cost;
-            weight_func_with_cost.weights.push_back(s2.graph_data.weight_func);
-            weight_func_with_cost.weights.push_back(s2.graph_data.cost_func);
-            s2.graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func_with_cost);
-
-            using hinge_loss = scrf::hinge_loss<iscrf::iscrf_data>;
-
-            hinge_loss loss_func2 { s2.gold_data, s2.graph_data };
-
-            double ell2 = loss_func2.loss();
-
-            std::cout << "loss1: " << ell1 << " loss2: " << ell2 << std::endl;
-            std::cout << "num grad: " << (ell2 - ell1) / 1e-8 << std::endl;
-
-        }
-#endif
-
         std::cout << "gold segs: " << s.gold_data.fst->edges().size()
             << " frames: " << s.frames.size() << std::endl;
 
@@ -331,70 +267,68 @@ void learning_env::run()
         std::cout << "loss: " << ell << std::endl;
 
         scrf::dense_vec param_grad;
-        lstm::dblstm_feat_param_t nn_param_grad;
-        nn::pred_param_t pred_grad;
+        std::shared_ptr<tensor_tree::vertex> nn_param_grad
+            = lstm::make_stacked_bi_lstm_tensor_tree(l_args.layer);
+        std::shared_ptr<tensor_tree::vertex> pred_grad
+            = nn::make_pred_tensor_tree();
 
         if (ell > 0) {
             param_grad = loss_func->param_grad();
 
-            if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
-                std::vector<std::vector<double>> frame_grad;
-                frame_grad.resize(inputs.size());
-                for (int i = 0; i < inputs.size(); ++i) {
-                    frame_grad[i].resize(inputs[i].size());
-                }
-
-                std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
-                    = iscrf::e2e::filter_feat_with_frame_grad(s.graph_data);
-
-                loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
-
-                for (int i = 0; i < frame_grad.size(); ++i) {
-                    upsampled_output[i]->grad = std::make_shared<la::vector<double>>(
-                        frame_grad[i]);
-                }
-
-                autodiff::grad(order, autodiff::grad_funcs);
-
-                nn_param_grad = lstm::copy_dblstm_feat_grad(nn);
-
-                if (ebt::in(std::string("frame-softmax"), args)) {
-                    pred_grad = rnn::copy_grad(pred_nn);
-
-                }
-
-                std::cout << "analytical grad: " << nn_param_grad.layer.back().forward_output_weight(0, 0) << std::endl;
-
-                if (ebt::in(std::string("l2"), l_args.args)) {
-                    scrf::dense_vec p = l_args.param;
-                    scrf::imul(p, l_args.l2);
-                    scrf::iadd(param_grad, p);
-
-                    lstm::dblstm_feat_param_t nn_p = l_args.nn_param;
-                    lstm::imul(nn_p, l_args.l2);
-                    lstm::iadd(nn_param_grad, nn_p);
-                }
-
-                if (ebt::in(std::string("grad-noise-var"), l_args.args)) {
-                    lstm::dblstm_feat_param_t noise = l_args.nn_param;
-                    gaussian(noise, grad_noise_var / std::sqrt(1 + grad_noise_time), gen);
-                    lstm::iadd(nn_param_grad, noise);
-                }
-
+            std::vector<std::vector<double>> frame_grad;
+            frame_grad.resize(feats.size());
+            for (int i = 0; i < feats.size(); ++i) {
+                frame_grad[i].resize(feats[i].size());
             }
 
-            double v1 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+            std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>> feat_func
+                = iscrf::e2e::filter_feat_with_frame_grad(s.graph_data);
+
+            loss_func->frame_grad(*feat_func, frame_grad, l_args.param);
+
+            for (int i = 0; i < frame_grad.size(); ++i) {
+                feat_ops[i]->grad = std::make_shared<la::vector<double>>(
+                    frame_grad[i]);
+            }
+
+            autodiff::grad(order, autodiff::grad_funcs);
+
+            tensor_tree::copy_grad(nn_param_grad, lstm_var_tree);
+
+            if (ebt::in(std::string("frame-softmax"), args)) {
+                tensor_tree::copy_grad(pred_grad, pred_var_tree);
+            }
+
+            if (ebt::in(std::string("clip"), args)) {
+                double n = tensor_tree::norm(nn_param_grad);
+                if (n > l_args.clip) {
+                    tensor_tree::imul(nn_param_grad, l_args.clip / n);
+                    std::cout << "grad norm: " << n << " clip: " << l_args.clip << " gradient clipped" << std::endl;
+                }
+            }
+
+            if (ebt::in(std::string("l2"), l_args.args)) {
+                scrf::dense_vec p = l_args.param;
+                scrf::imul(p, l_args.l2);
+                scrf::iadd(param_grad, p);
+
+                std::shared_ptr<tensor_tree::vertex> nn_p = tensor_tree::copy_tree(l_args.nn_param);
+                tensor_tree::imul(nn_p, l_args.l2);
+                tensor_tree::iadd(nn_param_grad, nn_p);
+            }
+
+            double v1 = get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
             if (ebt::in(std::string("decay"), args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
 
                 if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
-                    lstm::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                    tensor_tree::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                         l_args.decay, l_args.step_size);
 
                     if (ebt::in(std::string("frame-softmax"), args)) {
-                        nn::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        tensor_tree::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
                             l_args.decay, l_args.step_size);
                     }
                 }
@@ -403,17 +337,17 @@ void learning_env::run()
                     l_args.step_size);
 
                 if (!ebt::in(std::string("freeze-encoder"), l_args.args)) {
-                    lstm::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                    tensor_tree::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                         l_args.step_size);
 
                     if (ebt::in(std::string("frame-softmax"), args)) {
-                        nn::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        tensor_tree::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
                             l_args.step_size);
                     }
                 }
             }
 
-            double v2 = l_args.nn_param.layer.front().forward_param.hidden_output(0, 0);
+            double v2 = get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
             std::cout << "weight: " << v1 << " update: " << v2 - v1 << " rate: " << (v2 - v1) / v1 << std::endl;
 
@@ -460,61 +394,3 @@ void learning_env::run()
 
 }
 
-void gaussian(la::vector<double>& v, double var, std::default_random_engine& gen)
-{
-    std::normal_distribution<double> dist { 0, std::sqrt(var) };
-
-    for (int i = 0; i < v.size(); ++i) {
-        v(i) = dist(gen);
-    }
-}
-
-void gaussian(la::matrix<double>& m, double var, std::default_random_engine& gen)
-{
-    std::normal_distribution<double> dist { 0, std::sqrt(var) };
-
-    for (int i = 0; i < m.rows(); ++i) {
-        for (int j = 0; j < m.cols(); ++j) {
-            m(i, j) = dist(gen);
-        }
-    }
-}
-
-void gaussian(lstm::lstm_unit_param_t& param, double var, std::default_random_engine& gen)
-{
-    gaussian(param.hidden_input, var, gen);
-    gaussian(param.hidden_output, var, gen);
-    gaussian(param.hidden_bias, var, gen);
-
-    gaussian(param.input_input, var, gen);
-    gaussian(param.input_output, var, gen);
-    gaussian(param.input_peep, var, gen);
-    gaussian(param.input_bias, var, gen);
-
-    gaussian(param.output_input, var, gen);
-    gaussian(param.output_output, var, gen);
-    gaussian(param.output_peep, var, gen);
-    gaussian(param.output_bias, var, gen);
-
-    gaussian(param.forget_input, var, gen);
-    gaussian(param.forget_output, var, gen);
-    gaussian(param.forget_peep, var, gen);
-    gaussian(param.forget_bias, var, gen);
-}
-
-void gaussian(lstm::blstm_feat_param_t& param, double var, std::default_random_engine& gen)
-{
-    gaussian(param.forward_param, var, gen);
-    gaussian(param.backward_param, var, gen);
-
-    gaussian(param.forward_output_weight, var, gen);
-    gaussian(param.backward_output_weight, var, gen);
-    gaussian(param.output_bias, var, gen);
-}
-
-void gaussian(lstm::dblstm_feat_param_t& param, double var, std::default_random_engine& gen)
-{
-    for (auto& ell: param.layer) {
-        gaussian(ell, var, gen);
-    }
-}

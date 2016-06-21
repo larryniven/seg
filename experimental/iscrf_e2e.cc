@@ -8,25 +8,13 @@ namespace iscrf {
         void parse_nn_inference_args(nn_inference_args& nn_args,
             std::unordered_map<std::string, std::string> const& args)
         {
-            std::tie(nn_args.nn_param, nn_args.pred_param) = load_lstm_param(args.at("nn-param"));
+            std::tie(nn_args.layer, nn_args.nn_param, nn_args.pred_param)
+                = load_lstm_param(args.at("nn-param"));
 
-            nn_args.rnndrop_prob = 1;
-            nn_args.rnndrop = false;
+            nn_args.dropout = 0;
             if (ebt::in(std::string("rnndrop-prob"), args)) {
-                nn_args.rnndrop_prob = std::stod(args.at("rnndrop-prob"));
-                assert(0 <= nn_args.rnndrop_prob && nn_args.rnndrop_prob <= 1);
-
-                nn_args.rnndrop = true;
-            }
-
-            nn_args.subsample_freq = 1;
-            if (ebt::in(std::string("subsample-freq"), args)) {
-                nn_args.subsample_freq = std::stoi(args.at("subsample-freq"));
-            }
-
-            nn_args.subsample_shift = 0;
-            if (ebt::in(std::string("subsample-shift"), args)) {
-                nn_args.subsample_shift = std::stoi(args.at("subsample-shift"));
+                nn_args.dropout = std::stod(args.at("dropout"));
+                assert(0 <= nn_args.dropout && nn_args.dropout <= 1);
             }
 
             nn_args.frame_softmax = false;
@@ -48,7 +36,7 @@ namespace iscrf {
             ::iscrf::parse_learning_args(l_args, args);
             parse_nn_inference_args(l_args, args);
 
-            std::tie(l_args.nn_opt_data, l_args.pred_opt_data)
+            std::tie(l_args.layer, l_args.nn_opt_data, l_args.pred_opt_data)
                 = load_lstm_param(args.at("nn-opt-data"));
 
             l_args.momentum = -1;
@@ -63,31 +51,44 @@ namespace iscrf {
                 assert(0 <= l_args.decay && l_args.decay <= 1);
             }
 
-            l_args.rnndrop_seed = 0;
-            if (ebt::in(std::string("rnndrop-seed"), args)) {
-                l_args.rnndrop_seed = std::stoi(args.at("rnndrop-seed"));
+            l_args.dropout_seed = 0;
+            if (ebt::in(std::string("dropout-seed"), args)) {
+                l_args.dropout_seed = std::stoi(args.at("dropout-seed"));
+            }
+
+            l_args.clip = 0;
+            if (ebt::in(std::string("clip"), args)) {
+                l_args.clip = std::stod(args.at("clip"));
             }
         }
 
-        std::tuple<lstm::dblstm_feat_param_t, nn::pred_param_t>
+        std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
         load_lstm_param(std::string filename)
         {
             std::ifstream ifs { filename };
+            std::string line;
 
-            lstm::dblstm_feat_param_t nn_param = lstm::load_dblstm_feat_param(ifs);
-            nn::pred_param_t pred_param = nn::load_pred_param(ifs);
+            std::getline(ifs, line);
+            int layer = std::stoi(line);
 
-            return std::make_tuple(nn_param, pred_param);
+            std::shared_ptr<tensor_tree::vertex> nn_param
+                = lstm::make_stacked_bi_lstm_tensor_tree(layer);
+            tensor_tree::load_tensor(nn_param, ifs);
+            std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
+            tensor_tree::load_tensor(pred_param, ifs);
+
+            return std::make_tuple(layer, nn_param, pred_param);
         }
 
-        void save_lstm_param(lstm::dblstm_feat_param_t const& nn_param,
-            nn::pred_param_t const& pred_param,
+        void save_lstm_param(std::shared_ptr<tensor_tree::vertex> nn_param,
+            std::shared_ptr<tensor_tree::vertex> pred_param,
             std::string filename)
         {
             std::ofstream ofs { filename };
 
-            lstm::save_dblstm_feat_param(nn_param, ofs);
-            nn::save_pred_param(pred_param, ofs);
+            ofs << nn_param->children.size() << std::endl;
+            tensor_tree::save_tensor(nn_param, ofs);
+            tensor_tree::save_tensor(pred_param, ofs);
         }
 
         std::shared_ptr<scrf::composite_feature_with_frame_grad<ilat::fst, scrf::dense_vec>>
@@ -113,8 +114,10 @@ namespace iscrf {
         }
 
         std::vector<std::shared_ptr<autodiff::op_t>>
-        make_input(autodiff::computation_graph& comp_graph,
-            lstm::dblstm_feat_nn_t& nn,
+        make_feat(autodiff::computation_graph& comp_graph,
+            std::shared_ptr<tensor_tree::vertex> lstm_var_tree,
+            std::shared_ptr<tensor_tree::vertex> pred_var_tree,
+            lstm::stacked_bi_lstm_nn_t& nn,
             rnn::pred_nn_t& pred_nn,
             std::vector<std::vector<double>> const& frames,
             std::default_random_engine& gen,
@@ -125,41 +128,22 @@ namespace iscrf {
                 frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
             }
 
-            std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input;
-            if (nn_args.subsample_freq > 1) {
-                subsampled_input = rnn::subsample_input(frame_ops,
-                    nn_args.subsample_freq, nn_args.subsample_shift);
+            if (nn_args.dropout == 0) {
+                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
             } else {
-                subsampled_input = frame_ops;
-            }
-
-            nn = lstm::make_dblstm_feat_nn(
-                comp_graph, nn_args.nn_param, subsampled_input);
-
-            if (nn_args.rnndrop) {
-                lstm::apply_random_mask(nn, nn_args.nn_param, gen, nn_args.rnndrop_prob);
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree,
+                    frame_ops, gen, nn_args.dropout);
             }
 
             std::vector<std::shared_ptr<autodiff::op_t>> output;
 
             if (nn_args.frame_softmax) {
-                pred_nn = rnn::make_pred_nn(comp_graph,
-                    nn_args.pred_param, nn.layer.back().output);
+                pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
 
-                output = pred_nn.logprob;
+                return pred_nn.logprob;
             } else {
-                output = nn.layer.back().output;
+                return nn.layer.back().output;
             }
-
-            std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
-            if (nn_args.subsample_freq > 1) {
-                 upsampled_output = rnn::upsample_output(output,
-                     nn_args.subsample_freq, nn_args.subsample_shift, frames.size());
-            } else {
-                 upsampled_output = output;
-            }
-
-            return upsampled_output;
         }
     }
 

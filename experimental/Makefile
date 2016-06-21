@@ -13,8 +13,6 @@ bin = \
     learn-order1-e2e-ff \
     learn-latent-order1-e2e-ff \
     predict-order1-e2e-ff \
-    learn-latent-order1-e2e-lstm2d \
-    predict-order1-e2e-lstm2d \
     learn-fw-order1 \
     fw-duality-gap \
     oracle-error \

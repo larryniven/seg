@@ -48,7 +48,8 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
-            {"use-gold-segs", "", false}
+            {"use-gold-segs", "", false},
+            {"decay", "", false}
         }
     };
 
@@ -212,7 +213,11 @@ void learning_env::run()
 
         std::cout << std::endl;
 
-        scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
+        if (ebt::in(std::string("decay"), l_args.args)) {
+            scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data, l_args.decay, l_args.step_size);
+        } else {
+            scrf::adagrad_update(l_args.param, param_grad, l_args.opt_data, l_args.step_size);
+        }
 
         if (i % save_every == 0) {
             scrf::save_vec(l_args.param, "param-last");

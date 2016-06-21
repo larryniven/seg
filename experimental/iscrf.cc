@@ -328,7 +328,7 @@ namespace iscrf {
 
     void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args)
     {
-        make_lattice(lat, s, i_args);
+        make_lattice(lat, s);
     }
 
     void make_lattice(ilat::fst const& lat, sample& s)

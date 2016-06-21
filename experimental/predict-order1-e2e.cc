@@ -35,9 +35,7 @@ int main(int argc, char *argv[])
             {"nn-param", "", true},
             {"features", "", true},
             {"label", "", true},
-            {"rnndrop-prob", "", false},
-            {"subsample-freq", "", false},
-            {"subsample-shift", "", false},
+            {"dropout", "", false},
             {"frame-softmax", "", false}
         }
     };
@@ -96,50 +94,41 @@ void prediction_env::run()
             frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
         }
 
-        std::vector<std::shared_ptr<autodiff::op_t>> subsampled_input;
-        if (i_args.subsample_freq > 1) {
-            subsampled_input = rnn::subsample_input(frame_ops,
-                i_args.subsample_freq, i_args.subsample_shift);
+        std::shared_ptr<tensor_tree::vertex> lstm_var_tree
+            = tensor_tree::make_var_tree(comp_graph, i_args.nn_param);
+        std::shared_ptr<tensor_tree::vertex> pred_var_tree
+            = tensor_tree::make_var_tree(comp_graph, i_args.pred_param);
+
+        lstm::stacked_bi_lstm_nn_t nn;
+
+        if (ebt::in(std::string("dropout"), args)) {
+            nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, i_args.dropout);
         } else {
-            subsampled_input = frame_ops;
-        }
-
-        lstm::dblstm_feat_nn_t nn = lstm::make_dblstm_feat_nn(comp_graph, i_args.nn_param, subsampled_input);
-
-        if (ebt::in(std::string("rnndrop-prob"), args)) {
-            lstm::apply_mask(nn, i_args.nn_param, i_args.rnndrop_prob);
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
         }
 
         rnn::pred_nn_t pred_nn;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> output;
+        std::vector<std::shared_ptr<autodiff::op_t>> feat_ops;
 
         if (ebt::in(std::string("frame-softmax"), args)) {
-            pred_nn = rnn::make_pred_nn(comp_graph, i_args.pred_param, nn.layer.back().output);
+            pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
 
-            output = pred_nn.logprob;
+            feat_ops = pred_nn.logprob;
         } else {
-            output = nn.layer.back().output;
+            feat_ops = nn.layer.back().output;
         }
 
-        std::vector<std::shared_ptr<autodiff::op_t>> upsampled_output;
-        if (i_args.subsample_freq > 1) {
-             upsampled_output = rnn::upsample_output(output,
-                 i_args.subsample_freq, i_args.subsample_shift, frames.size());
-        } else {
-             upsampled_output = output;
-        }
-
-        auto order = autodiff::topo_order(upsampled_output);
+        auto order = autodiff::topo_order(feat_ops);
         autodiff::eval(order, autodiff::eval_funcs);
 
-        std::vector<std::vector<double>> inputs;
-        for (auto& o: upsampled_output) {
+        std::vector<std::vector<double>> feats;
+        for (auto& o: feat_ops) {
             auto& f = autodiff::get_output<la::vector<double>>(o);
-            inputs.push_back(std::vector<double> {f.data(), f.data() + f.size()});
+            feats.push_back(std::vector<double> {f.data(), f.data() + f.size()});
         }
 
-        s.frames = inputs;
+        s.frames = feats;
 
         if (ebt::in(std::string("lattice-batch"), args)) {
             ilat::fst lat = ilat::load_lattice(lattice_batch, i_args.label_id);
