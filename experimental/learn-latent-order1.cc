@@ -2,6 +2,7 @@
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "scrf/experimental/align.h"
+#include "scrf/experimental/util.h"
 #include <fstream>
 
 struct learning_env {
@@ -129,7 +130,7 @@ void learning_env::run()
 
         s.frames = speech::load_frame_batch(frame_batch);
 
-        std::vector<std::string> label_seq = iscrf::load_label_seq(label_batch);
+        std::vector<std::string> label_seq = util::load_label_seq(label_batch);
 
         if (!label_batch) {
             break;

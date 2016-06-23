@@ -2,6 +2,7 @@
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "scrf/experimental/align.h"
+#include "scrf/experimental/util.h"
 #include "nn/lstm.h"
 #include "nn/tensor_tree.h"
 #include <random>
@@ -158,7 +159,7 @@ void learning_env::run()
 
         std::vector<std::vector<double>> frames = speech::load_frame_batch(frame_batch);
 
-        std::vector<std::string> label_seq = iscrf::load_label_seq(label_batch);
+        std::vector<std::string> label_seq = util::load_label_seq(label_batch);
 
         if (!label_batch || !frame_batch) {
             break;
@@ -288,7 +289,7 @@ void learning_env::run()
 
             for (int i = 0; i < frame_grad.size(); ++i) {
                 feat_ops[i]->grad = std::make_shared<la::vector<double>>(
-                    frame_grad[i]);
+                    la::vector<double>(frame_grad[i]));
             }
 
             autodiff::grad(order, autodiff::grad_funcs);
@@ -318,6 +319,7 @@ void learning_env::run()
             }
 
             double v1 = get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+            double w1 = l_args.param.class_vec[2](0);
 
             if (ebt::in(std::string("decay"), args)) {
                 scrf::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
@@ -348,8 +350,10 @@ void learning_env::run()
             }
 
             double v2 = get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+            double w2 = l_args.param.class_vec[2](0);
 
             std::cout << "weight: " << v1 << " update: " << v2 - v1 << " rate: " << (v2 - v1) / v1 << std::endl;
+            std::cout << "weight: " << w1 << " update: " << w2 - w1 << " rate: " << (w2 - w1) / w1 << std::endl;
 
             if (i % save_every == 0) {
                 scrf::save_vec(l_args.param, "param-last");

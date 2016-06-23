@@ -16,9 +16,11 @@ bin = \
     learn-fw-order1 \
     fw-duality-gap \
     oracle-error \
-    oracle-cost
+    oracle-cost \
+    learn-ctc \
+    predict-ctc
 
-obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o
+obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o util.o
 
 .PHONY: all clean
 
@@ -85,5 +87,13 @@ oracle-error: oracle-error.o $(obj)
 oracle-cost: oracle-cost.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
+learn-ctc: learn-ctc.o ctc.o fst.o ilat.o util.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+predict-ctc: predict-ctc.o ctc.o fst.o ilat.o util.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+util.o: util.h
+ctc.o: ctc.h
 segnn.o: segnn.h
 iscrf_segnn.o: iscrf_segnn.h

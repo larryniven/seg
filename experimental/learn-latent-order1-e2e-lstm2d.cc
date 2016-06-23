@@ -3,6 +3,7 @@
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
 #include "scrf/experimental/align.h"
+#include "scrf/experimental/util.h"
 #include "nn/residual.h"
 #include <random>
 #include <fstream>
@@ -150,7 +151,7 @@ void learning_env::run()
 
         std::vector<std::vector<double>> frames = speech::load_frame_batch(frame_batch);
 
-        std::vector<std::string> label_seq = iscrf::load_label_seq(label_batch);
+        std::vector<std::string> label_seq = util::load_label_seq(label_batch);
 
         if (!label_batch || !frame_batch) {
             break;

@@ -1,6 +1,7 @@
 #include "scrf/experimental/iscrf.h"
 #include "scrf/experimental/scrf_weight.h"
 #include <fstream>
+#include "scrf/experimental/util.h"
 
 namespace iscrf {
 
@@ -303,7 +304,7 @@ namespace iscrf {
 
         i_args.features = ebt::split(args.at("features"), ",");
 
-        i_args.label_id = scrf::load_label_id(args.at("label"));
+        i_args.label_id = util::load_label_id(args.at("label"));
 
         i_args.id_label.resize(i_args.label_id.size());
         for (auto& p: i_args.label_id) {

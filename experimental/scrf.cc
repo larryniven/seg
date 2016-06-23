@@ -312,23 +312,6 @@ namespace scrf {
         }
     }
 
-    std::unordered_map<std::string, int> load_label_id(std::string filename)
-    {
-        std::unordered_map<std::string, int> result;
-        std::string line;
-        std::ifstream ifs { filename };
-
-        result["<eps>"] = 0;
-    
-        int i = 1;
-        while (std::getline(ifs, line)) {
-            result[line] = i;
-            ++i;
-        }
-    
-        return result;
-    }
-
     std::pair<int, int> get_dim(std::string feat)
     {
         std::vector<std::string> parts = ebt::split(feat, ":");

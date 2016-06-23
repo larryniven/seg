@@ -160,6 +160,30 @@ namespace fst {
 
     };
 
+    template <class fst>
+    struct forward_log_sum {
+
+        using vertex = typename fst::vertex;
+        using edge = typename fst::edge;
+
+        std::unordered_map<vertex, double> extra;
+
+        void merge(fst const& f, std::vector<vertex> const& order);
+
+    };
+
+    template <class fst>
+    struct backward_log_sum {
+
+        using vertex = typename fst::vertex;
+        using edge = typename fst::edge;
+
+        std::unordered_map<vertex, double> extra;
+
+        void merge(fst const& f, std::vector<vertex> const& order);
+
+    };
+
 }
 
 namespace fst {
@@ -532,6 +556,88 @@ namespace fst {
         std::reverse(result.begin(), result.end());
 
         return result;
+    }
+
+    template <class fst>
+    void forward_log_sum<fst>::merge(fst const& f, std::vector<typename fst::vertex> const& order)
+    {
+        for (auto& v: f.initials()) {
+            extra[v] = 0;
+        }
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        auto get_value = [&](vertex v) {
+            if (!ebt::in(v, extra)) {
+                return -inf;
+            } else {
+                return extra.at(v);
+            }
+        };
+
+        for (auto& u: order) {
+            double s = get_value(u);
+
+            std::vector<edge> edges = f.in_edges(u);
+            std::vector<double> candidate_value;
+            candidate_value.resize(edges.size());
+
+            #pragma omp parallel for
+            for (int i = 0; i < edges.size(); ++i) {
+                typename fst::edge& e = edges[i];
+                typename fst::vertex v = f.tail(e);
+                candidate_value[i] = get_value(v) + f.weight(e);
+            }
+
+            for (int i = 0; i < edges.size(); ++i) {
+                if (candidate_value[i] != -inf) {
+                    s = ebt::log_add(s, candidate_value[i]);
+                }
+            }
+
+            extra[u] = s;
+        }
+    }
+
+    template <class fst>
+    void backward_log_sum<fst>::merge(fst const& f, std::vector<typename fst::vertex> const& order)
+    {
+        for (auto& v: f.finals()) {
+            extra[v] = 0;
+        }
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        auto get_value = [&](vertex v) {
+            if (!ebt::in(v, extra)) {
+                return -inf;
+            } else {
+                return extra.at(v);
+            }
+        };
+
+        for (auto& u: order) {
+            double s = get_value(u);
+
+            std::vector<edge> edges = f.out_edges(u);
+            std::vector<double> candidate_value;
+            candidate_value.resize(edges.size());
+
+            #pragma omp parallel for
+            for (int i = 0; i < edges.size(); ++i) {
+                typename fst::edge& e = edges[i];
+                typename fst::vertex v = f.head(e);
+                candidate_value[i] = get_value(v) + f.weight(e);
+            }
+
+            for (int i = 0; i < edges.size(); ++i) {
+                if (candidate_value[i] != -inf) {
+                    s = ebt::log_add(s, candidate_value[i]);
+                }
+            }
+
+            extra[u] = s;
+        }
     }
 
 }

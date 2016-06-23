@@ -1,6 +1,7 @@
 #include "scrf/experimental/iscrf.h"
 #include "scrf/experimental/loss.h"
 #include "scrf/experimental/scrf_weight.h"
+#include "scrf/experimental/util.h"
 #include <fstream>
 
 struct oracle_env {
@@ -56,7 +57,7 @@ oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
 
     lattice_batch.open(args.at("lattice-batch"));
 
-    l_args.label_id = scrf::load_label_id(args.at("label"));
+    l_args.label_id = util::load_label_id(args.at("label"));
 
     l_args.id_label.resize(l_args.label_id.size());
     for (auto& p: l_args.label_id) {

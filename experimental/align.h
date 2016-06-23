@@ -7,8 +7,6 @@
 
 namespace iscrf {
 
-    std::vector<std::string> load_label_seq(std::istream& is);
-
     ilat::fst make_label_seq_fst(std::vector<std::string> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);

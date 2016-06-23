@@ -103,8 +103,6 @@ namespace scrf {
     void rmsprop_update(sparse_vec& theta, sparse_vec const& grad,
         sparse_vec& accu_grad_sq, double decay, double step_size);
 
-    std::unordered_map<std::string, int> load_label_id(std::string filename);
-
     template <class vector>
     struct loss_func {
 

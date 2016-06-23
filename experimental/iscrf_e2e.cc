@@ -12,7 +12,7 @@ namespace iscrf {
                 = load_lstm_param(args.at("nn-param"));
 
             nn_args.dropout = 0;
-            if (ebt::in(std::string("rnndrop-prob"), args)) {
+            if (ebt::in(std::string("dropout"), args)) {
                 nn_args.dropout = std::stod(args.at("dropout"));
                 assert(0 <= nn_args.dropout && nn_args.dropout <= 1);
             }

@@ -275,7 +275,7 @@ void learning_env::run()
 
             for (int i = 0; i < frame_grad.size(); ++i) {
                 feat_ops[i]->grad = std::make_shared<la::vector<double>>(
-                    frame_grad[i]);
+                    la::vector<double>(frame_grad[i]));
             }
 
             autodiff::grad(order, autodiff::grad_funcs);

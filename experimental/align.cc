@@ -6,21 +6,6 @@
 
 namespace iscrf {
 
-    std::vector<std::string> load_label_seq(std::istream& is)
-    {
-        std::string line;
-        std::getline(is, line);
-
-        std::vector<std::string> parts;
-
-        if (is) {
-            parts = ebt::split(line);
-            parts.pop_back();
-        }
-
-        return parts;
-    }
-
     ilat::fst make_label_seq_fst(std::vector<std::string> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
