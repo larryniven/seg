@@ -50,37 +50,46 @@ namespace ctc {
         int u = 0;
         ilat::add_vertex(data, u, ilat::vertex_data { u });
 
-        int e = data.edges.size();
-        ilat::add_edge(data, e, ilat::edge_data { u, u, 0,
-            label_id.at("<blk>"), label_id.at("<blk>") });
-
         for (int i = 0; i < label_seq.size(); ++i) {
-            int v = data.vertices.size();
-            ilat::add_vertex(data, v, ilat::vertex_data { v });
+            int v1 = data.vertices.size();
+            ilat::add_vertex(data, v1, ilat::vertex_data { v1 });
 
             int e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { u, v, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
-
-            e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { v, v, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
-
-            u = v;
-
-            v = data.vertices.size();
-            ilat::add_vertex(data, v, ilat::vertex_data { v });
-
-            e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { u, v, 0,
-                label_id.at("<eps>"), label_id.at("<eps>") });
-
-            e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { v, v, 0,
+            ilat::add_edge(data, e, ilat::edge_data { u, v1, 0,
                 label_id.at("<blk>"), label_id.at("<blk>") });
 
-            u = v;
+            e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { v1, v1, 0,
+                label_id.at("<blk>"), label_id.at("<blk>") });
+
+            int v2 = data.vertices.size();
+            ilat::add_vertex(data, v2, ilat::vertex_data { v2 });
+
+            e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { u, v2, 0,
+                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+
+            e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { v1, v2, 0,
+                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+
+            e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { v2, v2, 0,
+                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+
+            u = v2;
         }
+
+        int v = 0;
+        ilat::add_vertex(data, v, ilat::vertex_data { v });
+
+        int e = data.edges.size();
+        ilat::add_edge(data, e, ilat::edge_data { u, v, 0,
+            label_id.at("<blk>"), label_id.at("<blk>") });
+
+        e = data.edges.size();
+        ilat::add_edge(data, e, ilat::edge_data { v, v, 0,
+            label_id.at("<blk>"), label_id.at("<blk>") });
 
         data.initials.push_back(0);
         data.finals.push_back(data.vertices.size() - 1);

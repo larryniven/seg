@@ -37,6 +37,7 @@ int main(int argc, char *argv[])
             {"opt-data", "", true},
             {"step-size", "", true},
             {"decay", "", false},
+            {"momentum", "", false},
             {"save-every", "", false},
             {"output-param", "", false},
             {"output-opt-data", "", false},
@@ -111,6 +112,7 @@ void learning_env::run()
             break;
         }
 
+        std::cout << "sample: " << i << std::endl;
         std::cout << "segs: " << label_seq.size() << std::endl;
 
         autodiff::computation_graph comp_graph;
@@ -137,8 +139,6 @@ void learning_env::run()
         ilat::fst label_fst = ctc::make_label_fst(label_seq, l_args.label_id, l_args.id_label);
         ilat::fst frame_fst = ctc::make_frame_fst(feats, l_args.label_id, l_args.id_label);
 
-        ilat::add_eps_loops(frame_fst, 0);
-
         ilat::lazy_pair_mode1 composed_fst { label_fst, frame_fst };
 
         std::vector<std::tuple<int, int>> fst_order = fst::topo_order(composed_fst);
@@ -160,7 +160,7 @@ void learning_env::run()
 
         double Z = forward.extra.at(composed_fst.finals().front());
 
-        std::cout << "loss: " << Z << std::endl;
+        std::cout << "loss: " << -Z << " " << " normalized loss: " << -Z / frames.size() << std::endl;
 
         std::vector<std::vector<double>> feat_grad;
         feat_grad.resize(feats.size());
@@ -234,7 +234,13 @@ void learning_env::run()
 
         double v1 = get_matrix(l_args.pred_param->children[0])(0, 0);
 
-        if (ebt::in(std::string("decay"), args)) {
+        if (ebt::in(std::string("momentum"), args)) {
+            tensor_tree::const_step_update_momentum(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                l_args.momentum, l_args.step_size);
+
+            tensor_tree::const_step_update_momentum(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                l_args.momentum, l_args.step_size);
+        } else if (ebt::in(std::string("decay"), args)) {
             tensor_tree::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
                 l_args.decay, l_args.step_size);
 

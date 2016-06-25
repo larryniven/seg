@@ -29,7 +29,8 @@ int main(int argc, char *argv[])
             {"param", "", true},
             {"label", "", true},
             {"dropout", "", false},
-            {"log-prob", "", false}
+            {"log-prob", "", false},
+            {"frame-pred", "", false}
         }
     };
 
@@ -132,19 +133,25 @@ void prediction_env::run()
             one_best.merge(frame_fst, fst_order);
             std::vector<int> edges = one_best.best_path(frame_fst);
 
-            int prev = -1;
-
-            for (auto& e: edges) {
-                if (i_args.id_label[frame_fst.output(e)] == "<blk>") {
-                    prev = frame_fst.output(e);
-                    continue;
-                }
-
-                if (frame_fst.output(e) != prev) {
+            if (ebt::in(std::string("frame-pred"), args)) {
+                for (auto& e: edges) {
                     std::cout << i_args.id_label[frame_fst.output(e)] << " ";
                 }
+            } else {
+                int prev = -1;
 
-                prev = frame_fst.output(e);
+                for (auto& e: edges) {
+                    if (i_args.id_label[frame_fst.output(e)] == "<blk>") {
+                        prev = frame_fst.output(e);
+                        continue;
+                    }
+
+                    if (frame_fst.output(e) != prev) {
+                        std::cout << i_args.id_label[frame_fst.output(e)] << " ";
+                    }
+
+                    prev = frame_fst.output(e);
+                }
             }
 
             std::cout << "(" << i << ".dot)" << std::endl;
