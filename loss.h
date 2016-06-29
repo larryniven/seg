@@ -1,210 +1,109 @@
 #ifndef LOSS_H
 #define LOSS_H
 
-#include "scrf/loss.h"
-#include "scrf/scrf.h"
+#include "scrf/experimental/scrf.h"
 
 namespace scrf {
 
+    template <class scrf_data>
     struct hinge_loss
-        : public loss_func {
+        : public loss_func_with_frame_grad<typename scrf_data_trait<scrf_data>::vector,
+            typename scrf_data_trait<scrf_data>::base_fst> {
 
-        fst::path<scrf_t> const& gold;
-        scrf_t const& graph;
-        fst::path<scrf_t> graph_path;
+        using vector = typename scrf_data_trait<scrf_data>::vector;
+        using fst = typename scrf_data_trait<scrf_data>::base_fst;
 
-        hinge_loss(fst::path<scrf_t> const& gold, scrf_t const& graph);
+        scrf_data gold_path;
+        scrf_data graph_path;
 
-        virtual real loss() override;
-        virtual param_t param_grad() override;
+        hinge_loss(scrf_data const& gold_path, scrf_data const& graph);
+
+        virtual double loss() const override;
+        virtual vector param_grad() const override;
+
+        virtual void frame_grad(
+            scrf_feature_with_frame_grad<fst, vector> const& feat_func,
+            std::vector<std::vector<double>>& grad,
+            vector const& param) const override;
     };
 
-    struct log_loss
-        : public loss_func {
+}
 
-        fst::path<scrf_t> const& gold;
-        scrf_t const& graph;
+namespace scrf {
 
-        std::unordered_map<scrf_t::vertex, double> forward;
-        std::unordered_map<scrf_t::vertex, double> backward;
-        double logZ;
+    template <class scrf_data>
+    hinge_loss<scrf_data>::hinge_loss(scrf_data const& gold_path, scrf_data const& graph)
+        : gold_path(gold_path), graph_path(graph)
+    {
+        graph_path.fst = shortest_path(graph);
 
-        std::unordered_map<scrf_t::vertex, param_t> forward_feat;
-        std::unordered_map<scrf_t::vertex, param_t> backward_feat;
-
-        log_loss(fst::path<scrf_t> const& gold,
-            scrf_t const& graph);
-
-        virtual double loss() override;
-        virtual param_t param_grad() override;
-    };
-
-#if 0
-    struct filtering_loss
-        : public loss_func {
-
-        fst::path<scrf_t> const& gold;
-        scrf_t const& graph;
-        real alpha;
-
-        fst::path<scrf_t> graph_path;
-        fst::forward_one_best<scrf_t> forward;
-        fst::backward_one_best<scrf_t> backward;
-        std::unordered_map<scrf_t::vertex, param_t> f_param;
-        std::unordered_map<scrf_t::vertex, param_t> b_param;
-        real threshold;
-
-        filtering_loss(
-            fst::path<scrf_t> const& gold,
-            scrf_t const& graph,
-            real alpha);
-
-        virtual real loss() override;
-        virtual param_t param_grad() override;
-    };
-#endif
-
-    struct hinge_loss_beam
-        : public loss_func {
-
-        fst::path<scrf_t> const& gold;
-        scrf_t const& graph;
-        fst::path<scrf_t> graph_path;
-        int beam_width;
-
-        hinge_loss_beam(fst::path<scrf_t> const& gold, scrf_t const& graph, int beam_width);
-
-        virtual real loss() override;
-        virtual param_t param_grad() override;
-    };
-
-    namespace first_order {
-
-        struct hinge_loss
-            : public loss_func {
-
-            fst::path<scrf_t> const& gold;
-            scrf_t const& graph;
-            fst::path<scrf_t> graph_path;
-
-            hinge_loss(fst::path<scrf_t> const& gold, scrf_t const& graph);
-
-            virtual real loss() override;
-            virtual param_t param_grad() override;
-        };
-
-        struct log_loss
-            : public loss_func {
-
-            fst::path<scrf_t> const& gold;
-            scrf_t const& graph;
-
-            std::vector<double> forward;
-            std::vector<double> backward;
-            double logZ;
-
-            std::vector<param_t> forward_feat;
-            std::vector<param_t> backward_feat;
-
-            log_loss(fst::path<scrf_t> const& gold,
-                scrf_t const& graph);
-
-            virtual double loss() override;
-            virtual param_t param_grad() override;
-        };
-
-        struct filtering_loss
-            : public loss_func {
-
-            fst::path<scrf_t> const& gold;
-            scrf_t const& graph;
-            double alpha;
-
-            fst::path<scrf_t> graph_path;
-            fst::forward_one_best<scrf_t> forward;
-            fst::backward_one_best<scrf_t> backward;
-            std::vector<param_t> f_param;
-            std::vector<param_t> b_param;
-            double threshold;
-
-            filtering_loss(
-                fst::path<scrf_t> const& gold,
-                scrf_t const& graph,
-                double alpha);
-
-            virtual double loss() override;
-            virtual param_t param_grad() override;
-        };
+        if (graph_path.fst->edges().size() == 0) {
+            std::cout << "no cost aug path" << std::endl;
+            exit(1);
+        }
     }
 
-    namespace experimental {
+    template <class scrf_data>
+    double hinge_loss<scrf_data>::loss() const
+    {
+        double gold_score = 0;
 
-        template <class fst, class vector, class path_maker>
-        struct hinge_loss
-            : public loss_func<vector> {
-
-            fst const& gold;
-            fst const& graph;
-            std::shared_ptr<fst> graph_path;
-
-            hinge_loss(fst const& gold, fst const& graph);
-
-            virtual double loss() override;
-            virtual vector param_grad() override;
-        };
-
-        template <class fst, class vector, class path_maker>
-        hinge_loss<fst, vector, path_maker>::hinge_loss(fst const& gold, fst const& graph)
-            : gold(gold), graph(graph)
-        {
-            graph_path = ::fst::experimental::shortest_path<fst, path_maker>(graph);
-
-            if (graph_path->edges().size() == 0) {
-                std::cout << "no cost aug path" << std::endl;
-                exit(1);
-            }
+        for (auto& e: gold_path.fst->edges()) {
+            gold_score += weight(gold_path, e);
         }
 
-        template <class fst, class vector, class path_maker>
-        double hinge_loss<fst, vector, path_maker>::loss()
-        {
-            double gold_score = 0;
+        double graph_score = 0;
 
-            for (auto& e: gold.edges()) {
-                gold_score += gold.weight(e);
-            }
-
-            double graph_score = 0;
-
-            for (auto& e: graph_path->edges()) {
-                graph_score += graph_path->weight(e);
-            }
-
-            return graph_score - gold_score;
+        for (auto& e: graph_path.fst->edges()) {
+            graph_score += weight(graph_path, e);
         }
 
-        template <class fst, class vector, class path_maker>
-        vector hinge_loss<fst, vector, path_maker>::param_grad()
-        {
-            vector result;
+        return graph_score - gold_score;
+    }
 
-            for (auto& e: gold.edges()) {
-                vector f;
-                gold.feature(f, e);
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::vector hinge_loss<scrf_data>::param_grad() const
+    {
+        using vector = typename scrf_data_trait<scrf_data>::vector;
 
-                isub(result, f);
-            }
+        vector result;
 
-            for (auto& e: graph_path->edges()) {
-                vector f;
-                graph.feature(f, e);
+        for (auto& e: gold_path.fst->edges()) {
+            vector f;
+            feature(gold_path, f, e);
 
-                iadd(result, f);
-            }
-
-            return result;
+            isub(result, f);
         }
 
+        for (auto& e: graph_path.fst->edges()) {
+            vector f;
+            feature(graph_path, f, e);
+
+            iadd(result, f);
+        }
+
+        return result;
+    }
+
+    template <class scrf_data>
+    void hinge_loss<scrf_data>::frame_grad(
+        scrf_feature_with_frame_grad<typename scrf_data_trait<scrf_data>::base_fst,
+            typename scrf_data_trait<scrf_data>::vector> const& feat_func,
+        std::vector<std::vector<double>>& grad,
+        typename scrf_data_trait<scrf_data>::vector const& param) const
+    {
+        using vector = typename scrf_data_trait<scrf_data>::vector;
+
+        vector neg_param = param;
+        imul(neg_param, -1);
+
+        for (auto& e: gold_path.fst->edges()) {
+            feat_func.frame_grad(grad, neg_param, *gold_path.fst, e);
+        }
+
+        for (auto& e: graph_path.fst->edges()) {
+            feat_func.frame_grad(grad, param, *graph_path.fst, e);
+        }
     }
 
 }

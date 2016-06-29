@@ -8,356 +8,264 @@
 #include <ostream>
 #include <iostream>
 #include <unordered_map>
-#include <map>
 #include "ebt/ebt.h"
-#include "scrf/fst.h"
-#include "scrf/lm.h"
-#include "scrf/lattice.h"
+#include "scrf/experimental/fst.h"
 #include "la/la.h"
-#include "scrf/ilat.h"
+#include "scrf/experimental/ilat.h"
 
 namespace scrf {
 
-    struct feat_t {
-        std::unordered_map<std::string, std::vector<real>> class_vec;
-    };
-
-    struct param_t {
-        std::unordered_map<std::string, la::vector<real>> class_vec;
-    };
-
-    feat_t to_feat(param_t f);
-    param_t to_param(feat_t f);
-
-    void iadd(param_t& p1, param_t const& p2);
-    void isub(param_t& p1, param_t const& p2);
-
-    param_t& operator-=(param_t& p1, param_t const& p2);
-    param_t& operator+=(param_t& p1, param_t const& p2);
-    param_t& operator*=(param_t& p1, real c);
-
-    real norm(param_t const& p);
-    real dot(param_t const& p1, param_t const& p2);
-
-    param_t load_param(std::istream& is);
-    param_t load_param(std::string filename);
-
-    void save_param(param_t const& param, std::ostream& os);
-    void save_param(param_t const& param, std::string filename);
-
-    void const_step_update_momentum(param_t& theta, param_t grad,
-        param_t& update, real momentum, real step_size);
-
-    void adagrad_update(param_t& theta, param_t const& grad,
-        param_t& accu_grad_sq, real step_size);
-
+    template <class fst, class vector>
     struct scrf_feature {
 
-        virtual ~scrf_feature();
+        virtual ~scrf_feature()
+        {}
 
-        virtual void operator()(
-            feat_t& feat,
-            fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            std::tuple<int, int> const& e) const = 0;
+        virtual void operator()(vector& f, fst const& a,
+            typename fst::edge e) const = 0;
 
     };
 
+    template <class fst, class vector>
+    struct scrf_feature_with_grad
+        : public scrf_feature<fst, vector> {
+
+        virtual void grad(vector const& g, fst const& a,
+            typename fst::edge e) = 0;
+
+    };
+
+    template <class fst, class vector>
+    struct scrf_feature_with_frame_grad
+        : public scrf_feature<fst, vector> {
+
+        virtual void frame_grad(std::vector<std::vector<double>>& grad,
+            vector const& param, fst const& a,
+            typename fst::edge e) const = 0;
+    };
+
+    template <class fst>
     struct scrf_weight {
 
-        virtual ~scrf_weight();
+        virtual ~scrf_weight()
+        {}
 
-        virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            std::tuple<int, int> const& e) const = 0;
-
-    };
-
-    template <class base_fst, class weight_func_t,
-        class feature_func_t, class cost_func_t = weight_func_t>
-    struct scrf_fst {
-        using fst_type = base_fst;
-        using vertex = typename base_fst::vertex;
-        using edge = typename base_fst::edge;
-
-        std::shared_ptr<fst_type> fst;
-        std::shared_ptr<weight_func_t> weight_func;
-        std::shared_ptr<feature_func_t> feature_func;
-        std::shared_ptr<weight_func_t> cost_func;
-        std::vector<vertex> topo_order;
-
-        std::vector<vertex> vertices() const
-        {
-            return fst->vertices();
-        }
-
-        std::vector<edge> edges() const
-        {
-            return fst->edges();
-        }
-
-        vertex head(edge const& e) const
-        {
-            return fst->head(e);
-        }
-
-        vertex tail(edge const& e) const
-        {
-            return fst->tail(e);
-        }
-
-        std::vector<edge> in_edges(vertex const& v) const
-        {
-            return fst->in_edges(v);
-        }
-
-        std::vector<edge> out_edges(vertex const& v) const
-        {
-            return fst->out_edges(v);
-        }
-
-        real weight(edge const& e) const
-        {
-            return (*weight_func)(*fst, e);
-        }
-
-        std::string input(edge const& e) const
-        {
-            return fst->input(e);
-        }
-
-        std::string output(edge const& e) const
-        {
-            return fst->output(e);
-        }
-
-        std::vector<vertex> initials() const
-        {
-            return fst->initials();
-        }
-
-        std::vector<vertex> finals() const
-        {
-            return fst->finals();
-        }
-
-        void feature(feat_t& f, edge const& e) const
-        {
-            (*feature_func)(f, *fst, e);
-        }
-
-        double cost(edge const& e) const
-        {
-            return (*cost_func)(*fst, e);
-        }
+        virtual double operator()(fst const& f,
+            typename fst::edge e) const = 0;
 
     };
 
-    struct scrf_t
-        : public scrf_fst<fst::composed_fst<lattice::fst, lm::fst>, scrf_weight, scrf_feature> {
-
+    struct dense_vec {
+        std::vector<la::vector<double>> class_vec;
     };
 
-    std::vector<std::tuple<int, int>> topo_order(scrf_t const& scrf);
+    dense_vec load_dense_vec(std::istream& is);
+    dense_vec load_dense_vec(std::string filename);
 
-    fst::path<scrf_t> shortest_path(scrf_t const& s,
-        std::vector<std::tuple<int, int>> const& order);
+    void save_vec(dense_vec const& v, std::ostream& os);
+    void save_vec(dense_vec const& v, std::string filename);
 
+    double dot(dense_vec const& u, dense_vec const& v);
+    void iadd(dense_vec& u, dense_vec const& v);
+    void isub(dense_vec& u, dense_vec const& v);
+    void imul(dense_vec& u, double c);
+
+    void const_step_update(dense_vec& param, dense_vec const& grad,
+        double step_size);
+
+    void const_step_update_momentum(dense_vec& param, dense_vec const& grad,
+        dense_vec& opt_data, double momentum, double step_size);
+
+    void adagrad_update(dense_vec& param, dense_vec const& grad,
+        dense_vec& accu_grad_sq, double step_size);
+
+    void rmsprop_update(dense_vec& param, dense_vec const& grad,
+        dense_vec& accu_grad_sq, double decay, double step_size);
+
+    struct sparse_vec {
+        std::unordered_map<std::string, la::vector<double>> class_vec;
+    };
+
+    sparse_vec load_sparse_vec(std::istream& is);
+    sparse_vec load_sparse_vec(std::string filename);
+
+    void save_vec(sparse_vec const& v, std::ostream& os);
+    void save_vec(sparse_vec const& v, std::string filename);
+
+    double dot(sparse_vec const& u, sparse_vec const& v);
+    void iadd(sparse_vec& u, sparse_vec const& v);
+    void isub(sparse_vec& u, sparse_vec const& v);
+    void imul(sparse_vec& u, double c);
+
+    void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
+        sparse_vec& accu_grad_sq, double step_size);
+
+    void rmsprop_update(sparse_vec& theta, sparse_vec const& grad,
+        sparse_vec& accu_grad_sq, double decay, double step_size);
+
+    template <class vector>
     struct loss_func {
 
-        virtual ~loss_func();
+        virtual ~loss_func()
+        {}
 
-        virtual double loss() = 0;
-        virtual param_t param_grad() = 0;
+        virtual double loss() const = 0;
+        virtual vector param_grad() const = 0;
 
     };
 
-    namespace first_order {
+    template <class vector, class fst>
+    struct loss_func_with_frame_grad
+        : public loss_func<vector> {
 
-        struct param_t {
-            std::vector<la::vector<real>> class_vec;
-        };
+        virtual void frame_grad(
+            scrf_feature_with_frame_grad<fst, vector> const& feat_func,
+            std::vector<std::vector<double>>& grad,
+            vector const& param) const = 0;
+    };
 
-        void iadd(param_t& p1, param_t const& p2);
-        void isub(param_t& p1, param_t const& p2);
-        void imul(param_t& p, double c);
+    std::pair<int, int> get_dim(std::string feat);
 
-        param_t& operator-=(param_t& p1, param_t const& p2);
-        param_t& operator+=(param_t& p1, param_t const& p2);
-        param_t& operator*=(param_t& p1, real c);
+    template <class scrf_data>
+    struct scrf_data_trait;
 
-        real norm(param_t const& p);
-        real dot(param_t const& p1, param_t const& p2);
+    template <class scrf_data>
+    struct scrf_fst {
 
-        param_t load_param(std::istream& is);
-        param_t load_param(std::string filename);
+        using vertex = typename scrf_data_trait<scrf_data>::vertex;
+        using edge = typename scrf_data_trait<scrf_data>::edge;
+        using symbol = typename scrf_data_trait<scrf_data>::symbol;
 
-        void save_param(param_t const& param, std::ostream& os);
-        void save_param(param_t const& param, std::string filename);
+        scrf_data const& data;
 
-        void const_step_update_momentum(param_t& theta, param_t const& grad,
-            param_t& update, double momentum, double step_size);
+        std::vector<vertex> const& vertices() const;
+        std::vector<edge> const& edges() const;
+        vertex head(edge e) const;
+        vertex tail(edge e) const;
+        std::vector<edge> const& in_edges(vertex v) const;
+        std::vector<edge> const& out_edges(vertex v) const;
+        double weight(edge e) const;
+        symbol const& input(edge e) const;
+        symbol const& output(edge e) const;
+        std::vector<vertex> const& initials() const;
+        std::vector<vertex> const& finals() const;
 
-        void adagrad_update(param_t& theta, param_t const& grad,
-            param_t& accu_grad_sq, double step_size);
+        long time(vertex v) const;
+        std::vector<vertex> const& topo_order() const;
 
-        struct scrf_feature {
-            virtual ~scrf_feature();
+    };
 
-            virtual void operator()(
-                param_t& feat, ilat::fst const& fst, int e) const = 0;
-        };
+    template <class scrf_data>
+    std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst> shortest_path(scrf_data const& data);
 
-        struct feat_dim_alloc {
+}
 
-            std::vector<int> order_dim;
-            std::vector<int> const& labels;
+namespace scrf {
 
-            feat_dim_alloc(std::vector<int> const& labels);
-
-            int alloc(int order, int dim);
-        };
-
-        struct scrf_weight {
-
-            virtual ~scrf_weight();
-
-            virtual double operator()(ilat::fst const& fst, int e) const = 0;
-
-        };
-
-        struct scrf_t {
-            using vertex = int;
-            using edge = int;
-
-            std::shared_ptr<ilat::fst> fst;
-            std::shared_ptr<scrf_weight> weight_func;
-            std::shared_ptr<scrf_feature> feature_func;
-            std::shared_ptr<scrf_weight> cost_func;
-
-            std::vector<vertex> topo_order;
-
-            std::vector<vertex> vertices() const;
-            std::vector<edge> edges() const;
-            vertex head(int e) const;
-            vertex tail(int e) const;
-            std::vector<edge> in_edges(int v) const;
-            std::vector<edge> out_edges(int v) const;
-            double weight(int e) const;
-            int input(int e) const;
-            int output(int e) const;
-            std::vector<vertex> initials() const;
-            std::vector<vertex> finals() const;
-
-            void feature(param_t& f, int e) const;
-            double cost(int e) const;
-        };
-
-        fst::path<scrf_t> shortest_path(scrf_t const& s,
-            std::vector<int> const& order);
-
-        struct loss_func {
-
-            virtual ~loss_func();
-
-            virtual double loss() = 0;
-            virtual param_t param_grad() = 0;
-
-        };
-
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::vertices() const
+    {
+        return data.fst->vertices();
     }
 
-    namespace experimental {
-
-        template <class edge, class vector>
-        struct with_feature {
-            virtual void feature(vector& f, edge e) const = 0;
-        };
-
-        template <class edge>
-        struct with_cost {
-            virtual double cost(edge e) const = 0;
-        };
-
-        template <class vertex, class edge, class symbol, class vector>
-        struct scrf
-            : public fst::experimental::fst<vertex, edge, symbol>
-            , public fst::experimental::timed<vertex>
-            , public fst::experimental::with_topo_order<vertex>
-            , public with_feature<edge, vector>
-            , public with_cost<edge> {
-        };
-
-        template <class fst, class vector>
-        struct scrf_feature {
-
-            virtual ~scrf_feature()
-            {}
-
-            virtual void operator()(vector& f, fst const& g,
-                typename fst::edge e) const = 0;
-
-        };
-
-        template <class fst>
-        struct scrf_weight {
-
-            virtual ~scrf_weight()
-            {}
-
-            virtual double operator()(fst const& f,
-                typename fst::edge e) const = 0;
-
-        };
-
-        struct dense_vec {
-            std::vector<la::vector<double>> class_vec;
-        };
-
-        dense_vec load_dense_vec(std::istream& is);
-        dense_vec load_dense_vec(std::string filename);
-
-        void save_vec(dense_vec const& v, std::ostream& os);
-        void save_vec(dense_vec const& v, std::string filename);
-
-        double dot(dense_vec const& u, dense_vec const& v);
-        void iadd(dense_vec& u, dense_vec const& v);
-        void isub(dense_vec& u, dense_vec const& v);
-        void imul(dense_vec& u, double c);
-
-        void adagrad_update(dense_vec& theta, dense_vec const& grad,
-            dense_vec& accu_grad_sq, double step_size);
-
-        struct sparse_vec {
-            std::unordered_map<std::string, la::vector<double>> class_vec;
-        };
-
-        sparse_vec load_sparse_vec(std::istream& is);
-        sparse_vec load_sparse_vec(std::string filename);
-
-        void save_vec(sparse_vec const& v, std::ostream& os);
-        void save_vec(sparse_vec const& v, std::string filename);
-
-        double dot(sparse_vec const& u, sparse_vec const& v);
-        void iadd(sparse_vec& u, sparse_vec const& v);
-        void isub(sparse_vec& u, sparse_vec const& v);
-        void imul(sparse_vec& u, double c);
-
-        void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
-            sparse_vec& accu_grad_sq, double step_size);
-
-        std::unordered_map<std::string, int> load_label_id(std::string filename);
-
-        template <class vector>
-        struct loss_func {
-
-            virtual ~loss_func()
-            {}
-
-            virtual double loss() = 0;
-            virtual vector param_grad() = 0;
-
-        };
-
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::edge> const&
+    scrf_fst<scrf_data>::edges() const
+    {
+        return data.fst->edges();
     }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::vertex
+    scrf_fst<scrf_data>::head(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->head(e);
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::vertex
+    scrf_fst<scrf_data>::tail(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->tail(e);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::edge> const&
+    scrf_fst<scrf_data>::in_edges(typename scrf_data_trait<scrf_data>::vertex v) const
+    {
+        return data.fst->in_edges(v);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::edge> const&
+    scrf_fst<scrf_data>::out_edges(typename scrf_data_trait<scrf_data>::vertex v) const
+    {
+        return data.fst->out_edges(v);
+    }
+
+    template <class scrf_data>
+    double scrf_fst<scrf_data>::weight(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return (*data.weight_func)(*data.fst, e);
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::symbol const&
+    scrf_fst<scrf_data>::input(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->input(e);
+    }
+
+    template <class scrf_data>
+    typename scrf_data_trait<scrf_data>::symbol const&
+    scrf_fst<scrf_data>::output(typename scrf_data_trait<scrf_data>::edge e) const
+    {
+        return data.fst->output(e);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::initials() const
+    {
+        return data.fst->initials();
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::finals() const
+    {
+        return data.fst->finals();
+    }
+
+    template <class scrf_data>
+    long scrf_fst<scrf_data>::time(typename scrf_data_trait<scrf_data>::vertex v) const
+    {
+        return data.fst->time(v);
+    }
+
+    template <class scrf_data>
+    std::vector<typename scrf_data_trait<scrf_data>::vertex> const&
+    scrf_fst<scrf_data>::topo_order() const
+    {
+        return *data.topo_order;
+    }
+
+    template <class scrf_data>
+    std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst>
+    shortest_path(scrf_data const& data)
+    {
+        typename scrf_data_trait<scrf_data>::fst f { data };
+        fst::forward_one_best<typename scrf_data_trait<scrf_data>::fst> one_best;
+        for (auto& v: f.initials()) {
+            one_best.extra[v] = { fst::edge_trait<typename scrf_data_trait<scrf_data>::edge>::null, 0 };
+        }
+        one_best.merge(f, f.topo_order());
+        std::vector<typename scrf_data_trait<scrf_data>::edge> edges = one_best.best_path(f);
+
+        return typename scrf_data_trait<scrf_data>::path_maker()(edges, *data.fst);
+    }
+
 }
 
 #endif

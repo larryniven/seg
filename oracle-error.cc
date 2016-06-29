@@ -1,17 +1,16 @@
-#include "scrf/util.h"
-#include "scrf/fst.h"
-#include "scrf/lm.h"
-#include "scrf/lattice.h"
-#include "speech/speech.h"
+#include "scrf/experimental/iscrf.h"
+#include "scrf/experimental/loss.h"
+#include "scrf/experimental/scrf_weight.h"
+#include "scrf/experimental/util.h"
 #include <fstream>
 
 struct oracle_env {
 
-    std::ifstream lattice_list;
-    std::ifstream gold_list;
+    std::ifstream label_batch;
 
-    std::vector<std::string> lat_skip;
-    std::vector<std::string> gold_skip;
+    std::ifstream lattice_batch;
+
+    iscrf::inference_args i_args;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -21,17 +20,21 @@ struct oracle_env {
 
 };
 
+ilat::fst make_label_fst(std::vector<std::string> const& label_seq,
+    std::unordered_map<std::string, int> const& label_id);
+
+std::tuple<int, int, int, int> error_analysis(std::vector<std::tuple<int, int>> const& edges,
+    ilat::lazy_pair_mode1 const& composed_fst);
+
 int main(int argc, char *argv[])
 {
     ebt::ArgumentSpec spec {
         "oracle-error",
-        "Calculate oracle error of lattices",
+        "Calculate orracle error rate of a lattice",
         {
+            {"label-batch", "", true},
             {"lattice-batch", "", true},
-            {"gold-batch", "", true},
-            {"lat-skip", "", false},
-            {"gold-skip", "", false},
-            {"print-path", "", false}
+            {"label", "", true},
         }
     };
 
@@ -42,7 +45,10 @@ int main(int argc, char *argv[])
 
     auto args = ebt::parse_args(argc, argv, spec);
 
-    std::cout << args << std::endl;
+    for (int i = 0; i < argc; ++i) {
+        std::cout << argv[i] << " ";
+    }
+    std::cout << std::endl;
 
     oracle_env env { args };
 
@@ -52,80 +58,46 @@ int main(int argc, char *argv[])
 }
 
 oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
-    : args(args)
 {
-    lattice_list.open(args.at("lattice-batch"));
-    gold_list.open(args.at("gold-batch"));
+    label_batch.open(args.at("label-batch"));
 
-    if (ebt::in(std::string("lat-skip"), args)) {
-        lat_skip = ebt::split(args.at("lat-skip"), ",");
+    lattice_batch.open(args.at("lattice-batch"));
+
+    i_args.label_id = util::load_label_id(args.at("label"));
+
+    i_args.id_label.resize(i_args.label_id.size());
+    for (auto& p: i_args.label_id) {
+        i_args.labels.push_back(p.second);
+        i_args.id_label[p.second] = p.first;
     }
-
-    if (ebt::in(std::string("gold-skip"), args)) {
-        gold_skip = ebt::split(args.at("gold-skip"), ",");
-    }
-}
-
-lm::fst make_cost(std::unordered_set<std::string> const& phone_set)
-{
-    lm::fst_data data;
-
-    data.vertices = 1;
-    data.initials.push_back(0);
-    data.finals.push_back(0);
-    data.in_edges.resize(1);
-    data.in_edges_map.resize(1);
-    data.out_edges.resize(1);
-    data.out_edges_map.resize(1);
-
-    for (auto& p1: phone_set) {
-        {
-            lm::edge_data e_data { 0, 0, -1, p1, "<eps2>"};
-            data.edges.push_back(e_data);
-            data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0][p1].push_back(data.edges.size() - 1);
-            data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0][p1].push_back(data.edges.size() - 1);
-        }
-
-        {
-            lm::edge_data e_data { 0, 0, -1, "<eps1>", p1};
-            data.edges.push_back(e_data);
-            data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
-            data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
-        }
-
-        for (auto& p2: phone_set) {
-            lm::edge_data e_data { 0, 0, (p1 != p2 ? -1.0 : 0.0), p1, p2 };
-            data.edges.push_back(e_data);
-            data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0][p1].push_back(data.edges.size() - 1);
-            data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0][p1].push_back(data.edges.size() - 1);
-        }
-    }
-
-    lm::fst result;
-    result.data = std::make_shared<lm::fst_data>(std::move(data));
-
-    return result;
 }
 
 void oracle_env::run()
 {
-    int i = 0;
+    
+    ebt::Timer timer;
 
-    double error_sum = 0;
-    int length_sum = 0;
-    double rate_sum = 0;
-    double density_sum = 0;
+    int i = 1;
 
-    while (true) {
-        lattice::fst lat = lattice::load_lattice(lattice_list);
+    int total_len = 0;
 
-        if (!lattice_list) {
+    int total_ins = 0;
+    int total_del = 0;
+    int total_sub = 0;
+
+    while (1) {
+
+        iscrf::sample s { i_args };
+
+        std::vector<std::string> label_seq = iscrf::load_labels(label_batch);
+
+        if (!label_batch) {
+            break;
+        }
+
+        ilat::fst lat = ilat::load_lattice(lattice_batch, i_args.label_id);
+
+        if (!lattice_batch) {
             break;
         }
 
@@ -133,153 +105,116 @@ void oracle_env::run()
             e.weight = 0;
         }
 
-        int lat_edges = lat.edges().size();
+        iscrf::make_lattice(lat, s);
 
-        lattice::add_eps_loops(lat, "<eps1>");
+        ilat::add_eps_loops(lat);
 
-        lattice::fst gold = lattice::load_lattice(gold_list);
+        ilat::fst label_fst = make_label_fst(label_seq, i_args.label_id);
 
-        if (!gold_list) {
-            break;
+        ilat::lazy_pair_mode1 composed_fst { lat, label_fst };
+
+        auto topo_order = fst::topo_order(composed_fst);
+
+        fst::forward_one_best<ilat::lazy_pair_mode1> one_best;
+        for (auto& i: composed_fst.initials()) {
+            one_best.extra[i] = { std::make_tuple(-1, -1), 0 };
         }
+        one_best.merge(composed_fst, topo_order);
+        std::vector<std::tuple<int, int>> best_edges = one_best.best_path(composed_fst);
 
-        for (auto& e: gold.data->edges) {
-            e.weight = 0;
-        }
+        int ins = 0;
+        int del = 0;
+        int sub = 0;
+        int length = 0;
 
-        std::unordered_set<std::string> phone_set;
+        std::tie(ins, del, sub, length) = error_analysis(best_edges, composed_fst);
 
-        for (auto& e: lat.edges()) {
-            phone_set.insert(lat.output(e));
-        }
+        std::cout << i << ": edges: " << lat.edges().size() << " density: " << lat.edges().size() / length << std::endl;
 
-        for (auto& e: gold.edges()) {
-            phone_set.insert(gold.output(e));
-        }
+        std::cout << "best ins: " << ins << " del: " << del << " sub: " << sub << " len: " << length
+            << " er: " << double(ins + del + sub) / length << std::endl;
 
-        lm::fst cost = make_cost(phone_set);
-        for (auto& p: lat_skip) {
-            lm::edge_data e_data { 0, 0, 0, p, "<eps2>"};
-            auto& data = *(cost.data);
-            data.edges.push_back(e_data);
-            data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0][p].push_back(data.edges.size() - 1);
-            data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0][p].push_back(data.edges.size() - 1);
-        }
-        for (auto& p: gold_skip) {
-            lm::edge_data e_data { 0, 0, 0, "<eps1>", p};
-            auto& data = *(cost.data);
-            data.edges.push_back(e_data);
-            data.in_edges[0].push_back(data.edges.size() - 1);
-            data.in_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
-            data.out_edges[0].push_back(data.edges.size() - 1);
-            data.out_edges_map[0]["<eps1>"].push_back(data.edges.size() - 1);
-        }
-
-        int gold_edges = 0;
-        for (auto& e: gold.edges()) {
-            bool skip = false;
-            for (auto& p: gold_skip) {
-                if (gold.output(e) == p) {
-                    skip = true;
-                    break;
-                }
-            }
-            if (!skip) {
-                ++gold_edges;
-            }
-        }
-
-        lattice::add_eps_loops(gold, "<eps2>");
-
-        fst::composed_fst<lattice::fst, lm::fst, lattice::fst> comp;
-        comp.fst1 = std::make_shared<lattice::fst>(lat);
-        comp.fst2 = std::make_shared<lm::fst>(cost);
-        comp.fst3 = std::make_shared<lattice::fst>(gold);
-
-        std::vector<std::tuple<int, int, int>> topo_order;
-        for (auto& v: lattice::topo_order(lat)) {
-            for (auto& u: gold.vertices()) {
-                topo_order.push_back(std::make_tuple(v, 0, u));
-            }
-        }
-
-        fst::one_best<decltype(comp)> one_best;
-
-        for (auto& i: comp.initials()) {
-            one_best.extra[i] = { std::make_tuple(-1, -1, -1), 0 };
-        }
-
-        one_best.merge(comp, topo_order);
-
-        double max = -std::numeric_limits<double>::infinity();
-        for (auto& f: comp.finals()) {
-            if (ebt::in(f, one_best.extra)) {
-                if (one_best.extra.at(f).value > max) {
-                    max = one_best.extra.at(f).value;
-                }
-            }
-        }
-
-        fst::path<decltype(comp)> path = one_best.best_path(comp);
-
-        if (ebt::in(std::string("print-path"), args)) {
-            std::cout << lat.data->name << std::endl;
-
-            std::unordered_set<int> vertices;
-
-            for (auto& v: path.vertices()) {
-                int lat_v = std::get<0>(v);
-                vertices.insert(lat_v);
-            }
-
-            std::vector<int> sorted_ver { vertices.begin(), vertices.end() };
-            std::sort(sorted_ver.begin(), sorted_ver.end());
-
-            for (auto& v: sorted_ver) {
-                std::cout << v << " " << "time=" << lat.data->vertices.at(v).time << std::endl;
-            }
-
-            std::cout << "#" << std::endl;
-
-            for (auto& e: path.edges()) {
-                int lat_e = std::get<0>(e);
-
-                if (lat.tail(lat_e) == lat.head(lat_e)) {
-                    continue;
-                }
-
-                std::cout << lat.tail(lat_e) << " " << lat.head(lat_e);
-
-                auto& attr = lat.data->attrs[lat_e];
-                for (int i = 0; i < attr.size(); ++i) {
-                    auto& p = attr[i];
-                    if (i == 0) {
-                        std::cout << " ";
-                    } else {
-                        std::cout << ",";
-                    }
-                    std::cout << p.first << "=" << p.second;
-                }
-                std::cout << std::endl;
-            }
-            std::cout << "." << std::endl;
-        } else {
-            error_sum += -max;
-            length_sum += gold_edges;
-            rate_sum += -max / gold_edges;
-            density_sum += double(lat_edges) / gold_edges;
-
-            std::cout << ebt::format("error: {} length: {} rate: {} density: {}", -max,
-                gold_edges, -max / gold_edges, double(lat_edges) / gold_edges) << std::endl;
-        }
+        total_ins += ins;
+        total_del += del;
+        total_sub += sub;
+        total_len += length;
 
         ++i;
     }
 
-    if (!ebt::in(std::string("print-path"), args)) {
-        std::cout << ebt::format("total error: {} total length: {} rate: {} avg rate: {} avg density: {}",
-            error_sum, length_sum, error_sum / length_sum, rate_sum / i, density_sum / i) << std::endl;
-    }
+    std::cout << "total ins: " << total_ins
+        << " total del: " << total_del
+        << " total sub: " << total_sub
+        << " total len: " << total_len
+        << " er: " << double(total_ins + total_del + total_sub) / total_len << std::endl;
 }
+
+ilat::fst make_label_fst(std::vector<std::string> const& label_seq,
+    std::unordered_map<std::string, int> const& label_id)
+{
+    ilat::fst_data data;
+    data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+
+    int v = 0;
+    ilat::add_vertex(data, v, ilat::vertex_data { v });
+
+    for (int i = 0; i < label_seq.size(); ++i) {
+        int u = data.vertices.size();
+        ilat::add_vertex(data, u, ilat::vertex_data { u });
+
+        // substitution & insertion
+        for (int ell = 0; ell < label_id.size(); ++ell) {
+            int e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { v, u,
+                (ell == label_id.at(label_seq.at(i)) ? 0.0 : -1.0),
+                ell, label_id.at(label_seq.at(i)) });
+        }
+
+        v = u;
+    }
+
+    data.initials.push_back(0);
+    data.finals.push_back(v);
+
+    for (int v = 0; v < data.vertices.size(); ++v) {
+        // deletion
+        for (int ell = 1; ell < label_id.size(); ++ell) {
+            int e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { v, v,
+                -1, ell, 0 });
+        }
+    }
+
+    ilat::fst f;
+    f.data = std::make_shared<ilat::fst_data>(data);
+
+    return f;
+}
+
+std::tuple<int, int, int, int> error_analysis(std::vector<std::tuple<int, int>> const& edges,
+    ilat::lazy_pair_mode1 const& composed_fst)
+{
+    int ins = 0;
+    int del = 0;
+    int sub = 0;
+    int length = 0;
+
+    for (auto& e: edges) {
+        if (composed_fst.input(e) == 0) {
+            ++del;
+        } else if (composed_fst.output(e) == 0) {
+            ++ins;
+        } else if (composed_fst.input(e) != composed_fst.output(e)) {
+            ++sub;
+        }
+
+        if (composed_fst.output(e) != 0) {
+            ++length;
+        }
+    }
+
+    return std::make_tuple(ins, del, sub, length);
+
+}
+
+

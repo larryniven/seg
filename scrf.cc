@@ -1,4 +1,4 @@
-#include "scrf/scrf.h"
+#include "scrf/experimental/scrf.h"
 #include <istream>
 #include <fstream>
 #include <cassert>
@@ -8,785 +8,322 @@
 
 namespace scrf {
 
-    feat_t to_feat(param_t param)
+    dense_vec load_dense_vec(std::istream& is)
     {
-        feat_t result;
-
-        for (auto& p: param.class_vec) {
-            result.class_vec[p.first] = std::vector<double>(p.second.data(),
-                p.second.data() + p.second.size());
-        }
-
-        return result;
-    }
-
-    param_t to_param(feat_t f)
-    {
-        param_t result;
-
-        for (auto& p: f.class_vec) {
-            result.class_vec[p.first] = la::vector<double>(std::move(p.second));
-        }
-
-        return result;
-    }
-
-    param_t load_param(std::istream& is)
-    {
-        param_t result;
+        dense_vec result;
         std::string line;
 
-        result = to_param(feat_t { ebt::json::json_parser<
-            std::unordered_map<std::string, std::vector<real>>>().parse(is) });
+        result = dense_vec { ebt::json::json_parser<
+            std::vector<la::vector<double>>>().parse(is) };
         std::getline(is, line);
 
         return result;
     }
 
-    param_t load_param(std::string filename)
+    dense_vec load_dense_vec(std::string filename)
     {
         std::ifstream ifs { filename };
-        return load_param(ifs);
+        return load_dense_vec(ifs);
     }
 
-    void save_param(param_t const& param, std::ostream& os)
+    void save_vec(dense_vec const& v, std::ostream& os)
     {
-        os << to_feat(param).class_vec << std::endl;
+        os << v.class_vec << std::endl;
     }
 
-    void save_param(param_t const& param, std::string filename)
+    void save_vec(dense_vec const& v, std::string filename)
     {
         std::ofstream ofs { filename };
-        save_param(param, ofs);
+        save_vec(v, ofs);
     }
 
-    void iadd(param_t& p1, param_t const& p2)
+    double dot(dense_vec const& p1, dense_vec const& p2)
     {
-        for (auto& p: p2.class_vec) {
-            auto& v = p1.class_vec[p.first];
-
-            v.resize(std::max(v.size(), p.second.size()));
-
-            la::iadd(v, p.second);
-        }
-    }
-
-    void isub(param_t& p1, param_t const& p2)
-    {
-        for (auto& p: p2.class_vec) {
-            auto& v = p1.class_vec[p.first];
-
-            v.resize(std::max(v.size(), p.second.size()));
-
-            la::isub(v, p.second);
-        }
-    }
-
-    param_t& operator-=(param_t& p1, param_t const& p2)
-    {
-        for (auto& p: p2.class_vec) {
-            auto& v = p1.class_vec[p.first];
-
-            v.resize(std::max(v.size(), p.second.size()));
-
-            la::isub(v, p.second);
+        if (p1.class_vec.size() == 0 || p2.class_vec.size() == 0) {
+            return 0;
         }
 
-        return p1;
-    }
+        double sum = 0;
 
-    param_t& operator+=(param_t& p1, param_t const& p2)
-    {
-        for (auto& p: p2.class_vec) {
-            auto& v = p1.class_vec[p.first];
-
-            v.resize(std::max(v.size(), p.second.size()));
-
-            la::iadd(v, p.second);
-        }
-
-        return p1;
-    }
-
-    param_t& operator*=(param_t& p, real c)
-    {
-        if (c == 0) {
-            p.class_vec.clear();
-        }
-
-        for (auto& t: p.class_vec) {
-            la::imul(t.second, c);
-        }
-
-        return p;
-    }
-
-    real norm(param_t const& p)
-    {
-        real sum = 0;
-
-        for (auto& t: p.class_vec) {
-            double n = la::norm(t.second);
-            sum += n * n;
-        }
-
-        return std::sqrt(sum);
-    }
-
-    real dot(param_t const& p1, param_t const& p2)
-    {
-        real sum = 0;
-
-        for (auto& p: p2.class_vec) {
-            if (!ebt::in(p.first, p1.class_vec)) {
+        for (int i = 0; i < p2.class_vec.size(); ++i) {
+            if (p1.class_vec[i].size() == 0 || p2.class_vec[i].size() == 0) {
                 continue;
             }
 
-            auto& v = p1.class_vec.at(p.first);
-
-            sum += la::dot(v, p.second);
+            sum += la::dot(p1.class_vec[i], p2.class_vec[i]);
         }
 
         return sum;
     }
 
-    void const_step_update_momentum(param_t& theta, param_t grad,
-        param_t& update, real momentum, real step_size)
+    void iadd(dense_vec& p1, dense_vec const& p2)
     {
-        std::unordered_map<std::string, int> classes;
-
-        unsigned int size = 0;
-
-        for (auto& p: grad.class_vec) {
-            classes[p.first] = p.second.size();
+        if (p1.class_vec.size() == 0) {
+            p1.class_vec.resize(p2.class_vec.size());
         }
 
-        for (auto& p: update.class_vec) {
-            classes[p.first] = p.second.size();
-        }
+        for (int i = 0; i < p2.class_vec.size(); ++i) {
+            auto& v = p1.class_vec[i];
+            auto& u = p2.class_vec[i];
 
-        for (auto& p: theta.class_vec) {
-            classes[p.first] = p.second.size();
-        }
-
-        for (auto& p: classes) {
-            if (!ebt::in(p.first, theta.class_vec)) {
-                theta.class_vec[p.first].resize(p.second);
+            if (u.size() == 0) {
+                continue;
             }
 
-            if (!ebt::in(p.first, update.class_vec)) {
-                update.class_vec[p.first].resize(p.second);
+            if (v.size() == 0) { 
+                v.resize(u.size());
+            } else {
+                assert(v.size() == u.size());
             }
 
-            if (!ebt::in(p.first, grad.class_vec)) {
-                grad.class_vec[p.first].resize(p.second);
-            }
-
-            opt::const_step_update_momentum(theta.class_vec.at(p.first), grad.class_vec.at(p.first),
-                update.class_vec.at(p.first), momentum, step_size);
+            la::iadd(v, u);
         }
     }
 
-    void adagrad_update(param_t& param, param_t const& grad,
-        param_t& accu_grad_sq, real step_size)
+    void isub(dense_vec& p1, dense_vec const& p2)
     {
-        for (auto& p: grad.class_vec) {
-            if (!ebt::in(p.first, param.class_vec)) {
-                param.class_vec[p.first].resize(p.second.size());
+        if (p1.class_vec.size() == 0) {
+            p1.class_vec.resize(p2.class_vec.size());
+        }
+
+        for (int i = 0; i < p2.class_vec.size(); ++i) {
+            auto& v = p1.class_vec[i];
+            auto& u = p2.class_vec[i];
+
+            if (u.size() == 0) {
+                continue;
             }
-            if (!ebt::in(p.first, accu_grad_sq.class_vec)) {
-                accu_grad_sq.class_vec[p.first].resize(p.second.size());
+
+            if (v.size() == 0) { 
+                v.resize(u.size());
+            } else {
+                assert(v.size() == u.size());
             }
-            opt::adagrad_update(param.class_vec.at(p.first), p.second,
-                accu_grad_sq.class_vec.at(p.first), step_size);
+
+            la::isub(v, u);
         }
     }
 
-    scrf_weight::~scrf_weight()
-    {}
-
-    scrf_feature::~scrf_feature()
-    {}
-
-    std::vector<std::tuple<int, int>> topo_order(scrf_t const& scrf)
+    void imul(dense_vec& p, double c)
     {
-        auto const& lat = *(scrf.fst->fst1);
-        auto const& lm = *(scrf.fst->fst2);
-
-        auto lat_order = fst::topo_order(lat);
-        auto lm_vertices = lm.vertices();
-
-        std::vector<std::tuple<int, int>> result;
-
-        std::reverse(lm_vertices.begin(), lm_vertices.end());
-
-        for (auto u: lat_order) {
-            for (auto v: lm_vertices) {
-                result.push_back(std::make_tuple(u, v));
-            }
+        if (c == 0) {
+            p.class_vec.clear();
         }
+
+        for (int i = 0; i < p.class_vec.size(); ++i) {
+            if (p.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            la::imul(p.class_vec[i], c);
+        }
+    }
+
+    void const_step_update(dense_vec& param, dense_vec const& grad,
+        double step_size)
+    {
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::const_step_update(param.class_vec[i], grad.class_vec[i],
+                step_size);
+        }
+    }
+
+    void const_step_update_momentum(dense_vec& param, dense_vec const& grad,
+        dense_vec& opt_data, double momentum, double step_size)
+    {
+        if (opt_data.class_vec.size() == 0) {
+            opt_data.class_vec.resize(grad.class_vec.size());
+        }
+
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+            opt_data.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::const_step_update_momentum(param.class_vec[i], grad.class_vec[i],
+                opt_data.class_vec[i], momentum, step_size);
+        }
+    }
+
+    void adagrad_update(dense_vec& param, dense_vec const& grad,
+        dense_vec& accu_grad_sq, double step_size)
+    {
+        if (accu_grad_sq.class_vec.size() == 0) {
+            accu_grad_sq.class_vec.resize(grad.class_vec.size());
+        }
+
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+            accu_grad_sq.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::adagrad_update(param.class_vec[i], grad.class_vec[i],
+                accu_grad_sq.class_vec[i], step_size);
+        }
+    }
+
+    void rmsprop_update(dense_vec& param, dense_vec const& grad,
+        dense_vec& accu_grad_sq, double decay, double step_size)
+    {
+        if (accu_grad_sq.class_vec.size() == 0) {
+            accu_grad_sq.class_vec.resize(grad.class_vec.size());
+        }
+
+        if (param.class_vec.size() == 0) {
+            param.class_vec.resize(grad.class_vec.size());
+        }
+
+        for (int i = 0; i < grad.class_vec.size(); ++i) {
+            if (grad.class_vec[i].size() == 0) {
+                continue;
+            }
+
+            param.class_vec[i].resize(grad.class_vec[i].size());
+            accu_grad_sq.class_vec[i].resize(grad.class_vec[i].size());
+
+            opt::rmsprop_update(param.class_vec[i], grad.class_vec[i],
+                accu_grad_sq.class_vec[i], decay, step_size);
+        }
+    }
+
+    double dot(sparse_vec const& u, sparse_vec const& v)
+    {
+         double sum = 0;
+         for (auto& p: u.class_vec) {
+             if (ebt::in(p.first, v.class_vec)) {
+                 sum += la::dot(p.second, v.class_vec.at(p.first));
+             }
+         }
+         return sum;
+    }
+
+    sparse_vec load_sparse_vec(std::istream& is)
+    {
+        ebt::json::json_parser<std::unordered_map<std::string, la::vector<double>>> parser;
+
+        sparse_vec result { parser.parse(is) };
 
         return result;
     }
 
-    fst::path<scrf_t> shortest_path(scrf_t const& s,
-        std::vector<std::tuple<int, int>> const& order)
+    sparse_vec load_sparse_vec(std::string filename)
     {
-        fst::one_best<scrf_t> best;
+        std::ifstream ifs { filename };
 
-        for (auto v: s.initials()) {
-            best.extra[v] = {std::make_tuple(-1, -1), 0};
-        }
-
-        best.merge(s, order);
-
-        return best.best_path(s);
+        return load_sparse_vec(ifs);
     }
 
-    loss_func::~loss_func()
-    {}
-
-    namespace first_order {
-
-        param_t load_param(std::istream& is)
-        {
-            param_t result;
-            std::string line;
-
-            result = param_t { ebt::json::json_parser<
-                std::vector<la::vector<double>>>().parse(is) };
-            std::getline(is, line);
-
-            return result;
-        }
-
-        param_t load_param(std::string filename)
-        {
-            std::ifstream ifs { filename };
-            return load_param(ifs);
-        }
-
-        void save_param(param_t const& param, std::ostream& os)
-        {
-            os << param.class_vec << std::endl;
-        }
-
-        void save_param(param_t const& param, std::string filename)
-        {
-            std::ofstream ofs { filename };
-            save_param(param, ofs);
-        }
-
-        void iadd(param_t& p1, param_t const& p2)
-        {
-            if (p1.class_vec.size() == 0) {
-                p1.class_vec.resize(p2.class_vec.size());
-            }
-
-            for (int i = 0; i < p2.class_vec.size(); ++i) {
-                auto& v = p1.class_vec[i];
-                auto& u = p2.class_vec[i];
-
-                if (u.size() == 0) {
-                    continue;
-                }
-
-                if (v.size() == 0) { 
-                    v.resize(u.size());
-                } else {
-                    assert(v.size() == u.size());
-                }
-
-                la::iadd(v, u);
-            }
-        }
-
-        void isub(param_t& p1, param_t const& p2)
-        {
-            if (p1.class_vec.size() == 0) {
-                p1.class_vec.resize(p2.class_vec.size());
-            }
-
-            for (int i = 0; i < p2.class_vec.size(); ++i) {
-                auto& v = p1.class_vec[i];
-                auto& u = p2.class_vec[i];
-
-                if (u.size() == 0) {
-                    continue;
-                }
-
-                if (v.size() == 0) { 
-                    v.resize(u.size());
-                } else {
-                    assert(v.size() == u.size());
-                }
-
-                la::isub(v, u);
-            }
-        }
-
-        param_t& operator+=(param_t& p1, param_t const& p2)
-        {
-            iadd(p1, p2);
-
-            return p1;
-        }
-
-        param_t& operator-=(param_t& p1, param_t const& p2)
-        {
-            isub(p1, p2);
-
-            return p1;
-        }
-
-        void imul(param_t& p, double c)
-        {
-            if (c == 0) {
-                p.class_vec.clear();
-            }
-
-            for (int i = 0; i < p.class_vec.size(); ++i) {
-                if (p.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                la::imul(p.class_vec[i], c);
-            }
-        }
-
-        param_t& operator*=(param_t& p, double c)
-        {
-            imul(p, c);
-            return p;
-        }
-
-        real norm(param_t const& p)
-        {
-            real sum = 0;
-
-            for (int i = 0; i < p.class_vec.size(); ++i) {
-                if (p.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                double n = la::norm(p.class_vec[i]);
-                sum += n * n;
-            }
-
-            return std::sqrt(sum);
-        }
-
-        real dot(param_t const& p1, param_t const& p2)
-        {
-            if (p1.class_vec.size() == 0) {
-                return 0;
-            }
-
-            real sum = 0;
-
-            for (int i = 0; i < p2.class_vec.size(); ++i) {
-                if (p1.class_vec[i].size() == 0 || p2.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                sum += la::dot(p1.class_vec[i], p2.class_vec[i]);
-            }
-
-            return sum;
-        }
-
-        void const_step_update_momentum(param_t& theta, param_t const& grad,
-            param_t& update, double momentum, double step_size)
-        {
-            if (update.class_vec.size() == 0) {
-                update.class_vec.resize(grad.class_vec.size());
-            }
-
-            if (theta.class_vec.size() == 0) {
-                theta.class_vec.resize(grad.class_vec.size());
-            }
-
-            for (int i = 0; i < grad.class_vec.size(); ++i) {
-                if (grad.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                theta.class_vec[i].resize(grad.class_vec[i].size());
-                update.class_vec[i].resize(grad.class_vec[i].size());
-
-                opt::const_step_update_momentum(theta.class_vec[i], grad.class_vec[i],
-                    update.class_vec[i], momentum, step_size);
-            }
-        }
-
-        void adagrad_update(param_t& param, param_t const& grad,
-            param_t& accu_grad_sq, double step_size)
-        {
-            if (accu_grad_sq.class_vec.size() == 0) {
-                accu_grad_sq.class_vec.resize(grad.class_vec.size());
-            }
-
-            if (param.class_vec.size() == 0) {
-                param.class_vec.resize(grad.class_vec.size());
-            }
-
-            for (int i = 0; i < grad.class_vec.size(); ++i) {
-                if (grad.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                param.class_vec[i].resize(grad.class_vec[i].size());
-                accu_grad_sq.class_vec[i].resize(grad.class_vec[i].size());
-
-                opt::adagrad_update(param.class_vec[i], grad.class_vec[i],
-                    accu_grad_sq.class_vec[i], step_size);
-            }
-        }
-
-        scrf_feature::~scrf_feature()
-        {}
-
-        feat_dim_alloc::feat_dim_alloc(std::vector<int> const& labels)
-            : labels(labels)
-        {}
-
-        int feat_dim_alloc::alloc(int order, int dim)
-        {
-            if (order >= order_dim.size()) {
-                order_dim.resize(order + 1);
-            }
-
-            int result = order_dim[order];
-            order_dim[order] += dim;
-
-            return result;
-        }
-
-        scrf_weight::~scrf_weight()
-        {}
-
-        std::vector<int> scrf_t::vertices() const
-        {
-            return fst->vertices();
-        }
-
-        std::vector<int> scrf_t::edges() const
-        {
-            return fst->edges();
-        }
-
-        int scrf_t::head(int e) const
-        {
-            return fst->head(e);
-        }
-
-        int scrf_t::tail(int e) const
-        {
-            return fst->tail(e);
-        }
-
-        std::vector<int> scrf_t::in_edges(int v) const
-        {
-            return fst->in_edges(v);
-        }
-
-        std::vector<int> scrf_t::out_edges(int v) const
-        {
-            return fst->out_edges(v);
-        }
-
-        double scrf_t::weight(int e) const
-        {
-            return (*weight_func)(*fst, e);
-        }
-
-        int scrf_t::input(int e) const
-        {
-            return fst->input(e);
-        }
-
-        int scrf_t::output(int e) const
-        {
-            return fst->output(e);
-        }
-
-        std::vector<int> scrf_t::initials() const
-        {
-            return fst->initials();
-        }
-
-        std::vector<int> scrf_t::finals() const
-        {
-            return fst->finals();
-        }
-
-        void scrf_t::feature(param_t& f, int e) const
-        {
-            (*feature_func)(f, *fst, e);
-        }
-
-        double scrf_t::cost(int e) const
-        {
-            return (*cost_func)(*fst, e);
-        }
-
-        fst::path<scrf_t> shortest_path(scrf_t const& s,
-            std::vector<int> const& order)
-        {
-            fst::one_best<scrf_t> best;
-
-            for (auto v: s.initials()) {
-                best.extra[v] = {-1, 0};
-            }
-
-            best.merge(s, order);
-
-            return best.best_path(s);
-        }
-
-        loss_func::~loss_func()
-        {}
-
+    void save_vec(sparse_vec const& v, std::ostream& os)
+    {
+        os << v.class_vec << std::endl;
     }
 
-    namespace experimental {
+    void save_vec(sparse_vec const& v, std::string filename)
+    {
+        std::ofstream ofs { filename };
 
-        dense_vec load_dense_vec(std::istream& is)
-        {
-            dense_vec result;
-            std::string line;
-
-            result = dense_vec { ebt::json::json_parser<
-                std::vector<la::vector<double>>>().parse(is) };
-            std::getline(is, line);
-
-            return result;
-        }
-
-        dense_vec load_dense_vec(std::string filename)
-        {
-            std::ifstream ifs { filename };
-            return load_dense_vec(ifs);
-        }
-
-        void save_vec(dense_vec const& v, std::ostream& os)
-        {
-            os << v.class_vec << std::endl;
-        }
-
-        void save_vec(dense_vec const& v, std::string filename)
-        {
-            std::ofstream ofs { filename };
-            save_vec(v, ofs);
-        }
-
-        double dot(dense_vec const& p1, dense_vec const& p2)
-        {
-            if (p1.class_vec.size() == 0) {
-                return 0;
-            }
-
-            double sum = 0;
-
-            for (int i = 0; i < p2.class_vec.size(); ++i) {
-                if (p1.class_vec[i].size() == 0 || p2.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                sum += la::dot(p1.class_vec[i], p2.class_vec[i]);
-            }
-
-            return sum;
-        }
-
-        void iadd(dense_vec& p1, dense_vec const& p2)
-        {
-            if (p1.class_vec.size() == 0) {
-                p1.class_vec.resize(p2.class_vec.size());
-            }
-
-            for (int i = 0; i < p2.class_vec.size(); ++i) {
-                auto& v = p1.class_vec[i];
-                auto& u = p2.class_vec[i];
-
-                if (u.size() == 0) {
-                    continue;
-                }
-
-                if (v.size() == 0) { 
-                    v.resize(u.size());
-                } else {
-                    assert(v.size() == u.size());
-                }
-
-                la::iadd(v, u);
-            }
-        }
-
-        void isub(dense_vec& p1, dense_vec const& p2)
-        {
-            if (p1.class_vec.size() == 0) {
-                p1.class_vec.resize(p2.class_vec.size());
-            }
-
-            for (int i = 0; i < p2.class_vec.size(); ++i) {
-                auto& v = p1.class_vec[i];
-                auto& u = p2.class_vec[i];
-
-                if (u.size() == 0) {
-                    continue;
-                }
-
-                if (v.size() == 0) { 
-                    v.resize(u.size());
-                } else {
-                    assert(v.size() == u.size());
-                }
-
-                la::isub(v, u);
-            }
-        }
-
-        void imul(dense_vec& p, double c)
-        {
-            if (c == 0) {
-                p.class_vec.clear();
-            }
-
-            for (int i = 0; i < p.class_vec.size(); ++i) {
-                if (p.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                la::imul(p.class_vec[i], c);
-            }
-        }
-
-        void adagrad_update(dense_vec& param, dense_vec const& grad,
-            dense_vec& accu_grad_sq, double step_size)
-        {
-            if (accu_grad_sq.class_vec.size() == 0) {
-                accu_grad_sq.class_vec.resize(grad.class_vec.size());
-            }
-
-            if (param.class_vec.size() == 0) {
-                param.class_vec.resize(grad.class_vec.size());
-            }
-
-            for (int i = 0; i < grad.class_vec.size(); ++i) {
-                if (grad.class_vec[i].size() == 0) {
-                    continue;
-                }
-
-                param.class_vec[i].resize(grad.class_vec[i].size());
-                accu_grad_sq.class_vec[i].resize(grad.class_vec[i].size());
-
-                opt::adagrad_update(param.class_vec[i], grad.class_vec[i],
-                    accu_grad_sq.class_vec[i], step_size);
-            }
-        }
-
-        double dot(sparse_vec const& u, sparse_vec const& v)
-        {
-             double sum = 0;
-             for (auto& p: u.class_vec) {
-                 if (ebt::in(p.first, v.class_vec)) {
-                     sum += la::dot(p.second, v.class_vec.at(p.first));
-                 }
-             }
-             return sum;
-        }
-
-        sparse_vec load_sparse_vec(std::istream& is)
-        {
-            ebt::json::json_parser<std::unordered_map<std::string, la::vector<double>>> parser;
-
-            sparse_vec result { parser.parse(is) };
-
-            return result;
-        }
-
-        sparse_vec load_sparse_vec(std::string filename)
-        {
-            std::ifstream ifs { filename };
-
-            return load_sparse_vec(ifs);
-        }
-
-        void save_vec(sparse_vec const& v, std::ostream& os)
-        {
-            os << v.class_vec << std::endl;
-        }
-
-        void save_vec(sparse_vec const& v, std::string filename)
-        {
-            std::ofstream ofs { filename };
-
-            save_vec(v, ofs);
-        }
-
-        void iadd(sparse_vec& u, sparse_vec const& v)
-        {
-            for (auto& p: v.class_vec) {
-                auto& k = u.class_vec[p.first];
-                if (k.size() == 0) {
-                    k.resize(p.second.size());
-                }
-                la::iadd(k, p.second);
-            }
-        }
-
-        void isub(sparse_vec& u, sparse_vec const& v)
-        {
-            for (auto& p: v.class_vec) {
-                auto& k = u.class_vec[p.first];
-                if (k.size() == 0) {
-                    k.resize(p.second.size());
-                }
-                la::isub(k, p.second);
-            }
-        }
-
-        void imul(sparse_vec& u, double c)
-        {
-            for (auto& p: u.class_vec) {
-                la::imul(p.second, c);
-            }
-        }
-
-        void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
-            sparse_vec& accu_grad_sq, double step_size)
-        {
-            for (auto& p: grad.class_vec) {
-                if (theta.class_vec[p.first].size() == 0) {
-                    theta.class_vec[p.first].resize(p.second.size());
-                }
-
-                if (accu_grad_sq.class_vec[p.first].size() == 0) {
-                    accu_grad_sq.class_vec[p.first].resize(p.second.size());
-                }
-
-                opt::adagrad_update(theta.class_vec.at(p.first), p.second,
-                    accu_grad_sq.class_vec.at(p.first), step_size);
-            }
-        }
-
-        std::unordered_map<std::string, int> load_label_id(std::string filename)
-        {
-            std::unordered_map<std::string, int> result;
-            std::string line;
-            std::ifstream ifs { filename };
-
-            result["<eps>"] = 0;
-        
-            int i = 1;
-            while (std::getline(ifs, line)) {
-                result[line] = i;
-                ++i;
-            }
-        
-            return result;
-        }
-
+        save_vec(v, ofs);
     }
+
+    void iadd(sparse_vec& u, sparse_vec const& v)
+    {
+        for (auto& p: v.class_vec) {
+            auto& k = u.class_vec[p.first];
+            if (k.size() == 0) {
+                k.resize(p.second.size());
+            }
+            la::iadd(k, p.second);
+        }
+    }
+
+    void isub(sparse_vec& u, sparse_vec const& v)
+    {
+        for (auto& p: v.class_vec) {
+            auto& k = u.class_vec[p.first];
+            if (k.size() == 0) {
+                k.resize(p.second.size());
+            }
+            la::isub(k, p.second);
+        }
+    }
+
+    void imul(sparse_vec& u, double c)
+    {
+        for (auto& p: u.class_vec) {
+            la::imul(p.second, c);
+        }
+    }
+
+    void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
+        sparse_vec& accu_grad_sq, double step_size)
+    {
+        for (auto& p: grad.class_vec) {
+            if (theta.class_vec[p.first].size() == 0) {
+                theta.class_vec[p.first].resize(p.second.size());
+            }
+
+            if (accu_grad_sq.class_vec[p.first].size() == 0) {
+                accu_grad_sq.class_vec[p.first].resize(p.second.size());
+            }
+
+            opt::adagrad_update(theta.class_vec.at(p.first), p.second,
+                accu_grad_sq.class_vec.at(p.first), step_size);
+        }
+    }
+
+    void rmsprop_update(sparse_vec& theta, sparse_vec const& grad,
+        sparse_vec& accu_grad_sq, double decay, double step_size)
+    {
+        for (auto& p: grad.class_vec) {
+            if (theta.class_vec[p.first].size() == 0) {
+                theta.class_vec[p.first].resize(p.second.size());
+            }
+
+            if (accu_grad_sq.class_vec[p.first].size() == 0) {
+                accu_grad_sq.class_vec[p.first].resize(p.second.size());
+            }
+
+            opt::rmsprop_update(theta.class_vec.at(p.first), p.second,
+                accu_grad_sq.class_vec.at(p.first), decay, step_size);
+        }
+    }
+
+    std::pair<int, int> get_dim(std::string feat)
+    {
+        std::vector<std::string> parts = ebt::split(feat, ":");
+        int start_dim = -1;
+        int end_dim = -1;
+        if (parts.size() == 2) {
+            std::vector<std::string> indices = ebt::split(parts.back(), "-");
+            start_dim = std::stoi(indices.at(0));
+            end_dim = std::stoi(indices.at(1));
+        }
+
+        return std::make_pair(start_dim, end_dim);
+    }
+
 }

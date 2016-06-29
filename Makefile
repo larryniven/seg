@@ -1,158 +1,103 @@
-CXXFLAGS += -std=c++11 -I .. -L ../ebt -L ../opt -L ../speech -L ../la -L ../autodiff -L ./
-AR = gcc-ar
+CXXFLAGS += -std=c++11 -I ../../ -L ../../speech -L ../../nn -L ../../autodiff -L ../../opt -L ../../la -L ../../ebt
 
-obj = fst.o \
-    ilat.o \
-    lattice.o \
-    lm.o \
-    scrf_weight.o \
-    scrf_feat.o \
-    scrf_feat_util.o \
-    segfeat.o \
-    segcost.o \
-    scrf_cost.o \
-    loss.o \
-    scrf.o \
-    iscrf.o \
-    pair_scrf.o \
-    scrf_feat.o \
-    scrf_util.o \
-    make_feat.o \
-    nn_feat.o
-
-bin = libscrf.a \
-    learn-exp \
-    learn \
-    learn-first \
-    predict \
-    predict-first \
-    learn-lat \
-    predict-lat \
-    prune \
-    prune-first \
-    beam-prune \
-    beam-prune-first \
-    vertex-prune \
-    vertex-prune-first \
+bin = \
+    learn-order1 \
+    predict-order1 \
+    prune-order1 \
+    learn-latent-order1 \
+    learn-latent-order1-e2e \
+    learn-order1-e2e \
+    predict-order1-e2e \
+    learn-order1-segnn \
+    predict-order1-segnn \
+    learn-order1-e2e-ff \
+    learn-latent-order1-e2e-ff \
+    predict-order1-e2e-ff \
+    learn-fw-order1 \
+    fw-duality-gap \
     oracle-error \
-    forced-align \
-    lat-cost
+    oracle-cost \
+    learn-ctc \
+    predict-ctc \
+    learn-order1-e2e-mll
 
-.PHONY: all gpu clean header
+obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o util.o
+
+.PHONY: all clean
 
 all: $(bin)
 
-gpu: learn-e2e predict-e2e
-
 clean:
-	-rm *.o *.gch
+	-rm *.o
 	-rm $(bin)
 
-header: fst.h.gch
+learn-order1: learn-order1.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-libscrf.a: $(obj)
-	$(AR) rcs libscrf.a $(obj)
+predict-order1: predict-order1.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-exp: learn-exp.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+prune-order1: prune-order1.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-exp-lm: learn-exp-lm.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-latent-order1: learn-latent-order1.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn: learn.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-fw-order1: learn-fw-order1.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-first: learn-first.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+fw-duality-gap: fw-duality-gap.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-predict: predict.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-order2: learn-order2.o $(obj) 
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-predict-first: predict-first.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-order1-e2e: learn-order1-e2e.o iscrf_e2e.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-lat: learn-lat.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-latent-order1-e2e: learn-latent-order1-e2e.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-predict-lat: predict-lat.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+predict-order1-e2e: predict-order1-e2e.o iscrf_e2e.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-e2e.o: learn-e2e.cu
-	nvcc $(CXXFLAGS) -c learn-e2e.cu
+learn-order1-segnn: learn-order1-segnn.o segnn.o iscrf_segnn.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-e2e-util.o: e2e-util.cu
-	nvcc $(CXXFLAGS) -c e2e-util.cu
+predict-order1-segnn: predict-order1-segnn.o segnn.o iscrf_segnn.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-learn-e2e: learn-e2e.o e2e-util.o libscrf.a
-	$(CXX) $(CXXFLAGS) -L /opt/cuda/lib64 -o $@ $^ -lnngpu -lautodiffgpu -loptgpu -lspeech -llagpu -lebt -lcblas -lcublas -lcudart
+learn-order1-e2e-ff: learn-order1-e2e-ff.o iscrf_e2e_ff.o iscrf_e2e.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-predict-e2e.o: predict-e2e.cu
-	nvcc $(CXXFLAGS) -c predict-e2e.cu
+learn-latent-order1-e2e-ff: learn-latent-order1-e2e-ff.o iscrf_e2e_ff.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-predict-e2e: predict-e2e.o e2e-util.o libscrf.a
-	nvcc $(CXXFLAGS) -L /opt/cuda/lib64 -o $@ $^ -lnngpu -lautodiffgpu -loptgpu -lspeech -llagpu -lebt -lcblas -lcublas -lcudart
+predict-order1-e2e-ff: predict-order1-e2e-ff.o iscrf_e2e_ff.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-prune: prune.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-latent-order1-e2e-lstm2d: learn-latent-order1-e2e-lstm2d.o iscrf_e2e_lstm2d.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-prune-first: prune-first.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+predict-order1-e2e-lstm2d: predict-order1-e2e-lstm2d.o iscrf_e2e_lstm2d.o iscrf_e2e.o align.o pair_scrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-beam-prune: beam-prune.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+oracle-error: oracle-error.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-beam-prune-first: beam-prune-first.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+oracle-cost: oracle-cost.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-vertex-prune: vertex-prune.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+learn-ctc: learn-ctc.o ctc.o fst.o ilat.o util.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-vertex-prune-first: vertex-prune-first.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
+predict-ctc: predict-ctc.o ctc.o fst.o ilat.o util.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-oracle-error: oracle-error.o lm.o lattice.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lopt -lspeech -lla -lebt -lcblas
+learn-order1-e2e-mll: learn-order1-e2e-mll.o pair_scrf.o iscrf_e2e.o align.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
-forced-align: forced-align.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
-
-lat-cost: lat-cost.o libscrf.a
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lautodiff -lopt -lspeech -lla -lebt -lcblas
-
-fst.o: fst.h
-ilat.o: ilat.h
-scrf.o: scrf.h fst.h lattice.h lm.h
-lm.o: lm.h
-lattice.o: lattice.h
-weiran.o: weiran.h
-feat.o: feat.h scrf.h
-cost.o: cost.h scrf.h
-loss.o: loss.h scrf.h
-nn.o: nn.h
-scrf_weight.o: scrf_weight.h scrf_feat.h scrf.h
-scrf_feat.o: scrf_feat.h scrf.h
-make_feat.o: make_feat.h scrf_feat.h
-scrf_cost.o: scrf_cost.h
-segcost.o: segcost.h
-segfeat.o: segfeat.h
-iscrf.o: iscrf.h scrf.h fst.h
-pair_scrf.o: pair_scrf.h
-
-learn.o: fst.h scrf.h util.h
-learn-first.o: fst.h scrf.h util.h
-predict.o: fst.h scrf.h util.h
-learn-lat.o: fst.h scrf.h util.h
-predict-lat.o: fst.h scrf.h util.h
-learn-e2e.o: fst.h scrf.h util.h
-predict-e2e.o: fst.h scrf.h util.h
-prune.o: fst.h scrf.h util.h
-prune-first.o: fst.h scrf.h util.h
-beam-prune.o: fst.h scrf.h util.h
-beam-prune-first.o: fst.h scrf.h util.h
-vertex-prune.o: fst.h scrf.h util.h
-oracle-error.o: fst.h scrf.h util.h
-forced-align.o: fst.h scrf.h util.h
-lat-cost.o: fst.h scrf.h util.h
-
-fst.h.gch: fst.h
-	$(CXX) $(CXXFLAGS) -c -o $@ $^
+util.o: util.h
+ctc.o: ctc.h
+segnn.o: segnn.h
+iscrf_segnn.o: iscrf_segnn.h

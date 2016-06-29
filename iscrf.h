@@ -1,132 +1,174 @@
 #ifndef ISCRF_H
 #define ISCRF_H
 
-#include "scrf/scrf.h"
-#include "scrf/scrf_feat.h"
-#include "scrf/scrf_cost.h"
-#include "scrf/scrf_util.h"
+#include "scrf/experimental/scrf.h"
+#include "scrf/experimental/scrf_feat.h"
+#include "scrf/experimental/scrf_cost.h"
+#include "scrf/experimental/scrf_weight.h"
+#include "nn/lstm.h"
+#include "nn/pred.h"
+
+namespace iscrf {
+
+    struct iscrf_data {
+        std::shared_ptr<ilat::fst> fst;
+        std::shared_ptr<std::vector<int>> topo_order;
+        std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight_func;
+        std::shared_ptr<scrf::composite_feature<ilat::fst, scrf::dense_vec>> feature_func;
+        std::shared_ptr<scrf::scrf_weight<ilat::fst>> cost_func;
+        std::shared_ptr<scrf::dense_vec> param;
+        std::shared_ptr<std::vector<std::string>> features;
+    };
+
+    using iscrf_fst = scrf::scrf_fst<iscrf_data>;
+
+}
 
 namespace scrf {
 
-    namespace experimental {
+    template <>
+    struct scrf_data_trait<iscrf::iscrf_data> {
+        using base_fst = ilat::fst;
+        using path_maker = ilat::ilat_path_maker;
+        using edge = int;
+        using vertex = int;
+        using symbol = int;
+        using fst = scrf_fst<iscrf::iscrf_data>;
+        using vector = dense_vec;
+    };
 
-        struct iscrf
-            : public scrf<int, int, int, dense_vec> {
+}
 
-            using vertex = int;
-            using edge = int;
-            using symbol = int;
+namespace iscrf {
 
-            std::shared_ptr<ilat::fst> fst;
-            std::vector<vertex> topo_order_cache;
+    struct lattice_score
+        : public scrf::scrf_feature<ilat::fst, scrf::dense_vec> {
 
-            std::shared_ptr<scrf_weight<ilat::fst>> weight_func;
-            std::shared_ptr<scrf_feature<ilat::fst, dense_vec>> feature_func;
-            std::shared_ptr<scrf_weight<ilat::fst>> cost_func;
+        scrf::feat_dim_alloc& alloc;
+        int dim;
 
-            virtual std::vector<int> const& vertices() const override;
-            virtual std::vector<int> const& edges() const override;
-            virtual int head(int e) const override;
-            virtual int tail(int e) const override;
-            virtual std::vector<int> const& in_edges(int v) const override;
-            virtual std::vector<int> const& out_edges(int v) const override;
-            virtual double weight(int e) const override;
-            virtual int const& input(int e) const override;
-            virtual int const& output(int e) const override;
-            virtual std::vector<int> const& initials() const override;
-            virtual std::vector<int> const& finals() const override;
+        lattice_score(scrf::feat_dim_alloc& alloc);
 
-            virtual long time(int v) const override;
+        virtual void operator()(scrf::dense_vec& feat,
+            ilat::fst const& f, int e) const override;
 
-            virtual void feature(dense_vec& f, int e) const override;
-            virtual double cost(int e) const override;
+    };
 
-            virtual std::vector<int> const& topo_order() const override;
+    struct external_feature
+        : public scrf::scrf_feature<ilat::fst, scrf::dense_vec> {
 
-        };
+        scrf::feat_dim_alloc& alloc;
+        int dim;
 
-        struct iscrf_path_maker
-            : public fst::experimental::path_maker<iscrf> {
+        int order;
+        std::vector<int> dims;
 
-            virtual std::shared_ptr<iscrf> operator()(std::vector<int> const& edges,
-                iscrf const& f) const override;
-        };
+        external_feature(scrf::feat_dim_alloc& alloc, int order, std::vector<int> dims);
 
-        iscrf make_graph(int frames,
-            std::vector<int> const& labels,
-            int min_seg_len, int max_seg_len);
+        virtual void operator()(scrf::dense_vec& feat,
+            ilat::fst const& f, int e) const override;
 
+    };
 
-        struct ilat_lexicalizer
-            : public lexicalizer<ilat::fst, dense_vec> {
+    double weight(iscrf_data const& data, int e);
+    void feature(iscrf_data const& data, scrf::dense_vec& f, int e);
+    double cost(iscrf_data const& data, int e);
 
-            virtual double* operator()(feat_dim_alloc const& alloc,
-                int order, dense_vec& f, ilat::fst const& a, int e) const override;
-        };
+    std::shared_ptr<ilat::fst> make_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride);
 
-        std::pair<int, int> get_dim(std::string feat);
+    struct ilat_lexicalizer
+        : public scrf::lexicalizer<ilat::fst, scrf::dense_vec> {
 
-        composite_feature<ilat::fst, dense_vec> make_feat(
-            feat_dim_alloc& alloc,
-            std::vector<std::string> features,
-            std::vector<std::vector<double>> const& frames,
-            std::unordered_map<std::string, std::string> const& args);
+        virtual double* lex(scrf::feat_dim_alloc const& alloc,
+            int order, scrf::dense_vec& f, ilat::fst const& a, int e) const override;
+    };
 
-        struct inference_args {
-            int min_seg;
-            int max_seg;
-            dense_vec param;
-            std::unordered_map<std::string, int> label_id;
-            std::vector<std::string> id_label;
-            std::vector<int> labels;
-            std::vector<std::string> features;
-            std::unordered_map<std::string, std::string> args;
-        };
-        
-        struct sample {
-            std::vector<std::vector<double>> frames;
-        
-            feat_dim_alloc graph_alloc;
-        
-            iscrf graph;
-            std::shared_ptr<iscrf> graph_path;
-        
-            sample(inference_args const& args);
-        };
-        
-        void make_graph(sample& s, inference_args const& i_args);
-        void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args);
-        
-        struct learning_args
-            : public inference_args {
-        
-            dense_vec opt_data;
-            double step_size;
-            double momentum;
-            std::vector<int> sils;
-        };
-        
-        struct learning_sample
-            : public sample {
-        
-            ilat::fst ground_truth_fst;
-        
-            feat_dim_alloc gold_alloc;
-        
-            iscrf ground_truth;
-            std::shared_ptr<iscrf> gold;
-        
-            std::shared_ptr<seg_cost<ilat::fst>> cost;
-        
-            learning_sample(learning_args const& args);
-        };
-        
-        learning_args parse_learning_args(
-            std::unordered_map<std::string, std::string> const& args);
+    scrf::composite_feature<ilat::fst, scrf::dense_vec> make_feat(
+        scrf::feat_dim_alloc& alloc,
+        std::vector<std::string> features,
+        std::vector<std::vector<double>> const& frames,
+        std::unordered_map<std::string, std::string> const& args);
 
-        void make_gold(learning_sample& s, learning_args const& l_args);
-        void make_min_cost_gold(learning_sample& s, learning_args const& l_args);
-    }
+    struct inference_args {
+        int min_seg;
+        int max_seg;
+        int stride;
+        scrf::dense_vec param;
+        std::unordered_map<std::string, int> label_id;
+        std::vector<std::string> id_label;
+        std::vector<int> labels;
+        std::vector<std::string> features;
+        std::unordered_map<std::string, std::string> args;
+    };
+
+    void parse_inference_args(inference_args& l_args,
+        std::unordered_map<std::string, std::string> const& args);
+
+    struct sample {
+        std::vector<std::vector<double>> frames;
+
+        scrf::feat_dim_alloc graph_alloc;
+
+        iscrf_data graph_data;
+
+        sample(inference_args const& i_args);
+    };
+
+    void make_graph(sample& s, inference_args const& i_args);
+
+    void make_lattice(ilat::fst const& lat, sample& s, inference_args const& i_args);
+    void make_lattice(ilat::fst const& lat, sample& s);
+
+    struct learning_args
+        : public inference_args {
+
+        double cost_scale;
+        scrf::dense_vec opt_data;
+        double l2;
+        double step_size;
+        double momentum;
+        double decay;
+        std::vector<int> sils;
+    };
+
+    struct learning_sample
+        : public sample {
+
+        std::vector<segcost::segment<int>> gold_segs;
+
+        scrf::feat_dim_alloc gold_alloc;
+
+        iscrf_data gold_data;
+
+        learning_sample(learning_args const& args);
+    };
+
+    std::vector<segcost::segment<int>> load_segments(std::istream& is,
+        std::unordered_map<std::string, int> const& label_id);
+
+    std::vector<segcost::segment<std::string>> load_segments(std::istream& is);
+
+    std::vector<std::string> load_labels(std::istream& is);
+
+    void parse_learning_args(learning_args& l_args,
+        std::unordered_map<std::string, std::string> const& args);
+
+    void make_min_cost_gold(learning_sample& s, learning_args const& l_args);
+
+    void parameterize(iscrf_data& data, scrf::feat_dim_alloc& alloc,
+        std::vector<std::vector<double>> const& frames,
+        inference_args const& i_args);
+
+    void parameterize(learning_sample& s, learning_args const& l_args);
+
+    void parameterize_cached(iscrf_data& data, scrf::feat_dim_alloc& alloc,
+        std::vector<std::vector<double>> const& frames,
+        inference_args const& i_args);
+
+    void parameterize_cached(learning_sample& s, learning_args const& l_args);
 
 }
 

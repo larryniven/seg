@@ -1,189 +1,129 @@
 #ifndef SCRF_WEIGHT_H
 #define SCRF_WEIGHT_H
 
-#include "scrf/scrf.h"
-#include "scrf/scrf_feat.h"
+#include "scrf/experimental/scrf.h"
+#include "scrf/experimental/scrf_feat.h"
 
 namespace scrf {
 
+    template <class fst>
     struct composite_weight
-        : public scrf_weight {
+        : public scrf_weight<fst> {
 
-        std::vector<std::shared_ptr<scrf_weight>> weights;
+        std::vector<std::shared_ptr<scrf_weight<fst>>> weights;
 
-        virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-            std::tuple<int, int> const& e) const override;
+        virtual double operator()(fst const& f,
+            typename fst::edge e) const override;
 
     };
 
-    std::shared_ptr<scrf_weight> operator+(std::shared_ptr<scrf_weight> w1,
-        std::shared_ptr<scrf_weight> w2);
+    template <class fst>
+    struct mul
+        : public scrf_weight<fst> {
 
-    namespace score {
+        std::shared_ptr<scrf_weight<fst>> weight;
+        double alpha;
 
-        struct linear_score
-            : public scrf_weight {
+        mul(std::shared_ptr<scrf_weight<fst>> const& w, double a);
 
-            param_t const& param;
-            std::shared_ptr<scrf_feature> feat;
+        virtual double operator()(fst const& f,
+            typename fst::edge e) const override;
+    };
 
-            linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
+    template <class fst, class vector>
+    struct linear_score
+        : public scrf_weight<fst> {
 
-            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const override;
+        vector const& param;
+        std::shared_ptr<scrf_feature<fst, vector>> feat;
 
-        };
+        linear_score(vector const& param, std::shared_ptr<scrf_feature<fst, vector>> feat);
 
-        struct cached_linear_score
-            : public scrf_weight {
+        virtual double operator()(fst const& f, typename fst::edge e) const override;
 
-            param_t const& param;
-            std::shared_ptr<scrf_feature> feat;
+    };
 
-            mutable std::unordered_map<std::tuple<int, int>, double> cache;
+    template <class fst, class vector>
+    struct cached_linear_score
+        : public scrf_weight<fst> {
 
-            cached_linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
+        vector const& param;
+        std::shared_ptr<scrf_feature<fst, vector>> feat;
 
-            virtual real operator()(fst::composed_fst<lattice::fst, lm::fst> const& fst,
-                std::tuple<int, int> const& e) const override;
+        mutable std::unordered_map<typename fst::edge, double> cache;
 
-        };
+        cached_linear_score(vector const& param, std::shared_ptr<scrf_feature<fst, vector>> feat);
 
+        virtual double operator()(fst const& f, typename fst::edge e) const override;
+
+    };
+
+    template <class fst>
+    double composite_weight<fst>::operator()(fst const& f,
+        typename fst::edge e) const
+    {
+        double sum = 0;
+
+        for (auto& w: weights) {
+            sum += (*w)(f, e);
+        }
+
+        return sum;
     }
 
-    composite_weight make_weight(
-        std::vector<std::string> const& features,
-        param_t const& param,
-        composite_feature const& feat);
+    template <class fst>
+    mul<fst>::mul(std::shared_ptr<scrf_weight<fst>> const& w, double a)
+        : weight(w), alpha(a)
+    {}
 
-    namespace first_order {
-
-        struct composite_weight
-            : public scrf_weight {
-
-            std::vector<std::shared_ptr<scrf_weight>> weights;
-
-            virtual real operator()(ilat::fst const& fst,
-                int e) const override;
-
-        };
-
-        std::shared_ptr<scrf_weight> operator+(std::shared_ptr<scrf_weight> w1,
-            std::shared_ptr<scrf_weight> w2);
-
-        namespace score {
-
-            struct linear_score
-                : public scrf_weight {
-
-                param_t const& param;
-                std::shared_ptr<scrf_feature> feat;
-
-                linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat);
-
-                virtual real operator()(ilat::fst const& fst,
-                    int e) const override;
-
-            };
-
-            struct cached_linear_score
-                : public scrf_weight {
-
-                param_t const& param;
-                std::shared_ptr<scrf_feature> feat;
-
-                mutable std::vector<double> cache;
-                mutable std::vector<bool> in_cache;
-
-                cached_linear_score(param_t const& param, std::shared_ptr<scrf_feature> feat,
-                    ilat::fst const& fst);
-
-                virtual real operator()(ilat::fst const& fst,
-                    int e) const override;
-
-            };
-
-        }
-
+    template <class fst>
+    double mul<fst>::operator()(fst const& f,
+        typename fst::edge e) const
+    {
+        return (*weight)(f, e) * alpha;
     }
 
-    namespace experimental {
+    template <class fst, class vector>
+    linear_score<fst, vector>::linear_score(vector const& param,
+            std::shared_ptr<scrf_feature<fst, vector>> feat)
+        : param(param), feat(feat)
+    {}
 
-        template <class fst>
-        struct composite_weight
-            : public scrf_weight<fst> {
+    template <class fst, class vector>
+    double linear_score<fst, vector>::operator()(fst const& a, typename fst::edge e) const
+    {
+        vector f;
+        (*feat)(f, a, e);
+        return dot(param, f);
 
-            std::vector<std::shared_ptr<scrf_weight<fst>>> weights;
+        /*
 
-            virtual double operator()(fst const& f,
-                typename fst::edge e) const override;
-
-        };
-
-        template <class fst>
-        struct neg
-            : public scrf_weight<fst> {
-
-            std::shared_ptr<scrf_weight<fst>> weight;
-
-            neg(std::shared_ptr<scrf_weight<fst>> weight);
-
-            virtual double operator()(fst const& f,
-                typename fst::edge e) const override;
-        };
-
-        template <class fst, class vector>
-        struct linear_score
-            : public scrf_weight<fst> {
-
-            vector const& param;
-            std::shared_ptr<scrf_feature<fst, vector>> feat;
-
-            linear_score(vector const& param, std::shared_ptr<scrf_feature<fst, vector>> feat);
-
-            virtual double operator()(fst const& f, typename fst::edge e) const override;
-
-        };
-
-        template <class fst>
-        double composite_weight<fst>::operator()(fst const& f,
-            typename fst::edge e) const
-        {
-            double sum = 0;
-
-            for (auto& w: weights) {
-                sum += (*w)(f, e);
-            }
-
-            return sum;
+        for (int i = 0; i < feature.size(); ++i) {
+            (*feature[i])(v[feat->order()], a, e);
+            la::weak_vector<double> d = lex.lex(alloc, i, param, a, e);
+            la::dot(v[feat->order()], d)
         }
 
-        template <class fst>
-        neg<fst>::neg(std::shared_ptr<scrf_weight<fst>> weight)
-            : weight(weight)
-        {}
+        */
+    }
 
-        template <class fst>
-        double neg<fst>::operator()(fst const& f,
-            typename fst::edge e) const
-        {
-            return -(*weight)(f, e);
+    template <class fst, class vector>
+    cached_linear_score<fst, vector>::cached_linear_score(vector const& param,
+            std::shared_ptr<scrf_feature<fst, vector>> feat)
+        : param(param), feat(feat)
+    {}
+
+    template <class fst, class vector>
+    double cached_linear_score<fst, vector>::operator()(fst const& a, typename fst::edge e) const
+    {
+        if (ebt::in(e, cache)) {
+            return cache[e];
         }
 
-        template <class fst, class vector>
-        linear_score<fst, vector>::linear_score(vector const& param,
-                std::shared_ptr<scrf_feature<fst, vector>> feat)
-            : param(param), feat(feat)
-        {}
-
-        template <class fst, class vector>
-        double linear_score<fst, vector>::operator()(fst const& a, typename fst::edge e) const
-        {
-            vector f;
-            (*feat)(f, a, e);
-            return dot(param, f);
-        }
-
+        vector f;
+        (*feat)(f, a, e);
+        cache[e] = dot(param, f);
+        return cache[e];
     }
 
 }

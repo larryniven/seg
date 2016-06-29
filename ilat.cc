@@ -1,4 +1,4 @@
-#include "scrf/ilat.h"
+#include "scrf/experimental/ilat.h"
 #include "ebt/ebt.h"
 #include <algorithm>
 #include <cassert>
@@ -426,7 +426,7 @@ namespace ilat {
         return load_arpa_lm(ifs, symbol_id);
     }
 
-    lazy_pair::lazy_pair(ilat::fst fst1, ilat::fst fst2)
+    lazy_pair_mode1::lazy_pair_mode1(ilat::fst fst1, ilat::fst fst2)
         : fst1_(fst1), fst2_(fst2)
         , vertices_cache(nullptr), edges_cache(nullptr)
         , initials_cache(nullptr), finals_cache(nullptr)
@@ -435,7 +435,7 @@ namespace ilat {
     {
     }
 
-    std::vector<lazy_pair::vertex> const& lazy_pair::vertices() const
+    std::vector<lazy_pair_mode1::vertex> const& lazy_pair_mode1::vertices() const
     {
         if (vertices_cache == nullptr) {
             std::vector<std::tuple<int, int>> result;
@@ -452,7 +452,7 @@ namespace ilat {
         return *vertices_cache;
     }
 
-    std::vector<lazy_pair::edge> const& lazy_pair::edges() const
+    std::vector<lazy_pair_mode1::edge> const& lazy_pair_mode1::edges() const
     {
         if (edges_cache == nullptr) {
             std::vector<std::tuple<int, int>> result;
@@ -472,12 +472,12 @@ namespace ilat {
         return *edges_cache;
     }
 
-    double lazy_pair::weight(lazy_pair::edge e) const
+    double lazy_pair_mode1::weight(lazy_pair_mode1::edge e) const
     {
         return fst1_.weight(std::get<0>(e)) + fst2_.weight(std::get<1>(e));
     }
 
-    std::vector<lazy_pair::edge> const& lazy_pair::in_edges(lazy_pair::vertex v) const
+    std::vector<lazy_pair_mode1::edge> const& lazy_pair_mode1::in_edges(lazy_pair_mode1::vertex v) const
     {
         if (in_edges_vertex == nullptr || *in_edges_vertex != v) {
             in_edges_vertex = std::make_shared<std::tuple<int, int>>(v);
@@ -486,6 +486,10 @@ namespace ilat {
 
             for (int e1: fst1_.in_edges(std::get<0>(v))) {
                 auto& edge_map = fst2_.in_edges_map(std::get<1>(v));
+
+                if (edge_map.size() == 0) {
+                    continue;
+                }
 
                 for (auto& e2: edge_map.at(fst1_.output(e1))) {
                     result.push_back(std::make_tuple(e1, e2));
@@ -499,7 +503,7 @@ namespace ilat {
         return *in_edges_cache;
     }
 
-    std::vector<lazy_pair::edge> const& lazy_pair::out_edges(lazy_pair::vertex v) const
+    std::vector<lazy_pair_mode1::edge> const& lazy_pair_mode1::out_edges(lazy_pair_mode1::vertex v) const
     {
         if (out_edges_vertex == nullptr || *out_edges_vertex != v) {
             out_edges_vertex = std::make_shared<std::tuple<int, int>>(v);
@@ -508,6 +512,10 @@ namespace ilat {
 
             for (int e1: fst1_.out_edges(std::get<0>(v))) {
                 auto& edge_map = fst2_.out_edges_map(std::get<1>(v));
+
+                if (edge_map.size() == 0) {
+                    continue;
+                }
 
                 for (auto& e2: edge_map.at(fst1_.output(e1))) {
                     result.push_back(std::make_tuple(e1, e2));
@@ -521,17 +529,17 @@ namespace ilat {
         return *out_edges_cache;
     }
 
-    lazy_pair::vertex lazy_pair::tail(lazy_pair::edge e) const
+    lazy_pair_mode1::vertex lazy_pair_mode1::tail(lazy_pair_mode1::edge e) const
     {
         return std::make_tuple(fst1_.tail(std::get<0>(e)), fst2_.tail(std::get<1>(e)));
     }
 
-    lazy_pair::vertex lazy_pair::head(lazy_pair::edge e) const
+    lazy_pair_mode1::vertex lazy_pair_mode1::head(lazy_pair_mode1::edge e) const
     {
         return std::make_tuple(fst1_.head(std::get<0>(e)), fst2_.head(std::get<1>(e)));
     }
 
-    std::vector<lazy_pair::vertex> const& lazy_pair::initials() const
+    std::vector<lazy_pair_mode1::vertex> const& lazy_pair_mode1::initials() const
     {
         if (initials_cache == nullptr) {
             std::vector<std::tuple<int, int>> result;
@@ -549,7 +557,7 @@ namespace ilat {
         return *initials_cache;
     }
 
-    std::vector<lazy_pair::vertex> const& lazy_pair::finals() const
+    std::vector<lazy_pair_mode1::vertex> const& lazy_pair_mode1::finals() const
     {
         if (finals_cache == nullptr) {
             std::vector<std::tuple<int, int>> result;
@@ -567,27 +575,201 @@ namespace ilat {
         return *finals_cache;
     }
 
-    int const& lazy_pair::input(lazy_pair::edge e) const
+    int const& lazy_pair_mode1::input(lazy_pair_mode1::edge e) const
     {
         return fst1_.input(std::get<0>(e));
     }
 
-    int const& lazy_pair::output(lazy_pair::edge e) const
+    int const& lazy_pair_mode1::output(lazy_pair_mode1::edge e) const
     {
         return fst2_.output(std::get<1>(e));
     }
 
-    long lazy_pair::time(lazy_pair::vertex v) const
+    long lazy_pair_mode1::time(lazy_pair_mode1::vertex v) const
     {
         return fst1_.time(std::get<0>(v));
     }
 
-    ilat::fst const& lazy_pair::fst1() const
+    ilat::fst const& lazy_pair_mode1::fst1() const
     {
         return fst1_;
     }
 
-    ilat::fst const& lazy_pair::fst2() const
+    ilat::fst const& lazy_pair_mode1::fst2() const
+    {
+        return fst2_;
+    }
+
+    lazy_pair_mode2::lazy_pair_mode2(ilat::fst fst1, ilat::fst fst2)
+        : fst1_(fst1), fst2_(fst2)
+        , vertices_cache(nullptr), edges_cache(nullptr)
+        , initials_cache(nullptr), finals_cache(nullptr)
+        , in_edges_vertex(nullptr), in_edges_cache(nullptr)
+        , out_edges_vertex(nullptr), out_edges_cache(nullptr)
+    {
+    }
+
+    std::vector<lazy_pair_mode2::vertex> const& lazy_pair_mode2::vertices() const
+    {
+        if (vertices_cache == nullptr) {
+            std::vector<std::tuple<int, int>> result;
+            for (int u: fst1_.vertices()) {
+                for (int v: fst2_.vertices()) {
+                    result.push_back(std::make_tuple(u, v));
+                }
+            }
+
+            vertices_cache = std::make_shared<std::vector<std::tuple<int, int>>>(
+                std::move(result));
+        }
+
+        return *vertices_cache;
+    }
+
+    std::vector<lazy_pair_mode2::edge> const& lazy_pair_mode2::edges() const
+    {
+        if (edges_cache == nullptr) {
+            std::vector<std::tuple<int, int>> result;
+
+            for (int e1: fst1_.edges()) {
+                for (int e2: fst2_.edges()) {
+                    if (fst1_.output(e1) == fst2_.input(e2)) {
+                        result.push_back(std::make_tuple(e1, e2));
+                    }
+                }
+            }
+
+            edges_cache = std::make_shared<std::vector<std::tuple<int, int>>>(
+                std::move(result));
+        }
+
+        return *edges_cache;
+    }
+
+    double lazy_pair_mode2::weight(lazy_pair_mode2::edge e) const
+    {
+        return fst1_.weight(std::get<0>(e)) + fst2_.weight(std::get<1>(e));
+    }
+
+    std::vector<lazy_pair_mode2::edge> const& lazy_pair_mode2::in_edges(lazy_pair_mode2::vertex v) const
+    {
+        if (in_edges_vertex == nullptr || *in_edges_vertex != v) {
+            in_edges_vertex = std::make_shared<std::tuple<int, int>>(v);
+
+            std::vector<std::tuple<int, int>> result;
+
+            for (int e2: fst2_.in_edges(std::get<1>(v))) {
+                auto& edge_map = fst1_.in_edges_map(std::get<0>(v));
+
+                if (edge_map.size() == 0) {
+                    continue;
+                }
+
+                for (auto& e1: edge_map.at(fst2_.output(e2))) {
+                    result.push_back(std::make_tuple(e1, e2));
+                }
+            }
+
+            in_edges_cache = std::make_shared<std::vector<std::tuple<int, int>>>(
+                std::move(result));
+        }
+
+        return *in_edges_cache;
+    }
+
+    std::vector<lazy_pair_mode2::edge> const& lazy_pair_mode2::out_edges(lazy_pair_mode2::vertex v) const
+    {
+        if (out_edges_vertex == nullptr || *out_edges_vertex != v) {
+            out_edges_vertex = std::make_shared<std::tuple<int, int>>(v);
+
+            std::vector<std::tuple<int, int>> result;
+
+            for (int e2: fst2_.out_edges(std::get<1>(v))) {
+                auto& edge_map = fst1_.out_edges_map(std::get<0>(v));
+
+                if (edge_map.size() == 0) {
+                    continue;
+                }
+
+                for (auto& e1: edge_map.at(fst2_.output(e2))) {
+                    result.push_back(std::make_tuple(e1, e2));
+                }
+            }
+
+            out_edges_cache = std::make_shared<std::vector<std::tuple<int, int>>>(
+                std::move(result));
+        }
+
+        return *out_edges_cache;
+    }
+
+    lazy_pair_mode2::vertex lazy_pair_mode2::tail(lazy_pair_mode2::edge e) const
+    {
+        return std::make_tuple(fst1_.tail(std::get<0>(e)), fst2_.tail(std::get<1>(e)));
+    }
+
+    lazy_pair_mode2::vertex lazy_pair_mode2::head(lazy_pair_mode2::edge e) const
+    {
+        return std::make_tuple(fst1_.head(std::get<0>(e)), fst2_.head(std::get<1>(e)));
+    }
+
+    std::vector<lazy_pair_mode2::vertex> const& lazy_pair_mode2::initials() const
+    {
+        if (initials_cache == nullptr) {
+            std::vector<std::tuple<int, int>> result;
+
+            for (int i: fst1_.initials()) {
+                for (int j: fst2_.initials()) {
+                    result.push_back(std::make_tuple(i, j));
+                }
+            }
+
+            initials_cache = std::make_shared<std::vector<std::tuple<int, int>>>(
+                std::move(result));
+        }
+
+        return *initials_cache;
+    }
+
+    std::vector<lazy_pair_mode2::vertex> const& lazy_pair_mode2::finals() const
+    {
+        if (finals_cache == nullptr) {
+            std::vector<std::tuple<int, int>> result;
+
+            for (int i: fst1_.finals()) {
+                for (int j: fst2_.finals()) {
+                    result.push_back(std::make_tuple(i, j));
+                }
+            }
+
+            finals_cache = std::make_shared<std::vector<std::tuple<int, int>>>(
+                std::move(result));
+        }
+
+        return *finals_cache;
+    }
+
+    int const& lazy_pair_mode2::input(lazy_pair_mode2::edge e) const
+    {
+        return fst1_.input(std::get<0>(e));
+    }
+
+    int const& lazy_pair_mode2::output(lazy_pair_mode2::edge e) const
+    {
+        return fst2_.output(std::get<1>(e));
+    }
+
+    long lazy_pair_mode2::time(lazy_pair_mode2::vertex v) const
+    {
+        return fst1_.time(std::get<0>(v));
+    }
+
+    ilat::fst const& lazy_pair_mode2::fst1() const
+    {
+        return fst1_;
+    }
+
+    ilat::fst const& lazy_pair_mode2::fst2() const
     {
         return fst2_;
     }
@@ -709,15 +891,11 @@ namespace ilat {
 
 namespace fst {
 
-    namespace experimental {
+    int edge_trait<int>::null = -1;
 
-        int edge_trait<int>::null = -1;
+    std::tuple<int, int> edge_trait<std::tuple<int, int>>::null = std::make_tuple(-1, -1);
 
-        std::tuple<int, int> edge_trait<std::tuple<int, int>>::null = std::make_tuple(-1, -1);
-
-        int symbol_trait<int>::eps = 0;
-
-    }
+    int symbol_trait<int>::eps = 0;
 
 }
 
