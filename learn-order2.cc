@@ -1,7 +1,7 @@
-#include "scrf/experimental/pair_scrf.h"
-#include "scrf/experimental/loss.h"
-#include "scrf/experimental/scrf_weight.h"
-#include "scrf/experimental/iscrf.h"
+#include "scrf/pair_scrf.h"
+#include "scrf/loss.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/iscrf.h"
 #include <fstream>
 
 namespace second_order = scrf::second_order;

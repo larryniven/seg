@@ -1,9 +1,9 @@
 #ifndef PAIR_SCRF_H
 #define PAIR_SCRF_H
 
-#include "scrf/experimental/scrf.h"
-#include "scrf/experimental/scrf_feat.h"
-#include "scrf/experimental/scrf_cost.h"
+#include "scrf/scrf.h"
+#include "scrf/scrf_feat.h"
+#include "scrf/scrf_cost.h"
 
 namespace iscrf {
 

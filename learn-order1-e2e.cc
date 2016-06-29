@@ -1,6 +1,6 @@
-#include "scrf/experimental/iscrf_e2e.h"
-#include "scrf/experimental/loss.h"
-#include "scrf/experimental/scrf_weight.h"
+#include "scrf/iscrf_e2e.h"
+#include "scrf/loss.h"
+#include "scrf/scrf_weight.h"
 #include "autodiff/autodiff.h"
 #include "nn/lstm.h"
 #include <fstream>

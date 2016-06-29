@@ -1,4 +1,4 @@
-#include "scrf/experimental/segfeat.h"
+#include "scrf/segfeat.h"
 #include <cassert>
 
 namespace segfeat {

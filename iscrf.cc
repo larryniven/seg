@@ -1,7 +1,7 @@
-#include "scrf/experimental/iscrf.h"
-#include "scrf/experimental/scrf_weight.h"
+#include "scrf/iscrf.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/util.h"
 #include <fstream>
-#include "scrf/experimental/util.h"
 
 namespace iscrf {
 

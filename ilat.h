@@ -7,7 +7,7 @@
 #include <unordered_set>
 #include <memory>
 #include "ebt/ebt.h"
-#include "scrf/experimental/fst.h"
+#include "scrf/fst.h"
 
 namespace ilat {
 

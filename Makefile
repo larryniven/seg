@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++11 -I ../../ -L ../../speech -L ../../nn -L ../../autodiff -L ../../opt -L ../../la -L ../../ebt
+CXXFLAGS += -std=c++11 -I ../ -L ../speech -L ../nn -L ../autodiff -L ../opt -L ../la -L ../ebt
 
 bin = \
     learn-order1 \

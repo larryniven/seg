@@ -1,10 +1,10 @@
 #ifndef SEGNN_H
 #define SEGNN_H
 
-#include "scrf/experimental/segfeat.h"
+#include "scrf/segfeat.h"
 #include "autodiff/autodiff.h"
-#include "scrf/experimental/scrf.h"
-#include "scrf/experimental/scrf_feat.h"
+#include "scrf/scrf.h"
+#include "scrf/scrf_feat.h"
 
 namespace segnn {
 

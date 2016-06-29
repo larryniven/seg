@@ -1,8 +1,8 @@
 #ifndef SCRF_WEIGHT_H
 #define SCRF_WEIGHT_H
 
-#include "scrf/experimental/scrf.h"
-#include "scrf/experimental/scrf_feat.h"
+#include "scrf/scrf.h"
+#include "scrf/scrf_feat.h"
 
 namespace scrf {
 

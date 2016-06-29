@@ -1,4 +1,4 @@
-#include "scrf/experimental/scrf.h"
+#include "scrf/scrf.h"
 #include <istream>
 #include <fstream>
 #include <cassert>

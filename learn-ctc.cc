@@ -1,7 +1,7 @@
 #include "ebt/ebt.h"
 #include <fstream>
-#include "scrf/experimental/ctc.h"
-#include "scrf/experimental/util.h"
+#include "scrf/ctc.h"
+#include "scrf/util.h"
 #include "speech/speech.h"
 #include "autodiff/autodiff.h"
 

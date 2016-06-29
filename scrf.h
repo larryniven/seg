@@ -9,9 +9,9 @@
 #include <iostream>
 #include <unordered_map>
 #include "ebt/ebt.h"
-#include "scrf/experimental/fst.h"
+#include "scrf/fst.h"
 #include "la/la.h"
-#include "scrf/experimental/ilat.h"
+#include "scrf/ilat.h"
 
 namespace scrf {
 

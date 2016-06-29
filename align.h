@@ -1,9 +1,9 @@
 #ifndef ALIGN_H
 #define ALIGN_H
 
-#include "scrf/experimental/ilat.h"
-#include "scrf/experimental/iscrf.h"
-#include "scrf/experimental/pair_scrf.h"
+#include "scrf/ilat.h"
+#include "scrf/iscrf.h"
+#include "scrf/pair_scrf.h"
 
 namespace iscrf {
 

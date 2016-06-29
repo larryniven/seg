@@ -1,6 +1,6 @@
-#include "scrf/experimental/pair_scrf.h"
-#include "scrf/experimental/scrf_weight.h"
-#include "scrf/experimental/util.h"
+#include "scrf/pair_scrf.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/util.h"
 
 namespace iscrf {
 

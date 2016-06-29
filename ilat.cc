@@ -1,4 +1,4 @@
-#include "scrf/experimental/ilat.h"
+#include "scrf/ilat.h"
 #include "ebt/ebt.h"
 #include <algorithm>
 #include <cassert>

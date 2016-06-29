@@ -1,8 +1,8 @@
-#include "scrf/experimental/align.h"
-#include "scrf/experimental/scrf_feat.h"
-#include "scrf/experimental/iscrf.h"
-#include "scrf/experimental/segcost.h"
-#include "scrf/experimental/scrf.h"
+#include "scrf/align.h"
+#include "scrf/scrf_feat.h"
+#include "scrf/iscrf.h"
+#include "scrf/segcost.h"
+#include "scrf/scrf.h"
 
 namespace iscrf {
 

@@ -1,6 +1,6 @@
-#include "scrf/experimental/iscrf_segnn.h"
-#include "scrf/experimental/loss.h"
-#include "scrf/experimental/scrf_weight.h"
+#include "scrf/iscrf_segnn.h"
+#include "scrf/loss.h"
+#include "scrf/scrf_weight.h"
 #include "autodiff/autodiff.h"
 #include <fstream>
 #include <random>

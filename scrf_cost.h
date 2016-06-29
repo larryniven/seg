@@ -1,8 +1,8 @@
 #ifndef SCRF_COST_H
 #define SCRF_COST_H
 
-#include "scrf/experimental/scrf.h"
-#include "scrf/experimental/segcost.h"
+#include "scrf/scrf.h"
+#include "scrf/segcost.h"
 
 namespace scrf {
 

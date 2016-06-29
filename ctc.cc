@@ -1,6 +1,6 @@
-#include "scrf/experimental/ctc.h"
+#include "scrf/ctc.h"
+#include "scrf/util.h"
 #include <fstream>
-#include "scrf/experimental/util.h"
 
 namespace ctc {
 

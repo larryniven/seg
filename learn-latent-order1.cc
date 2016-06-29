@@ -1,8 +1,8 @@
-#include "scrf/experimental/iscrf.h"
-#include "scrf/experimental/loss.h"
-#include "scrf/experimental/scrf_weight.h"
-#include "scrf/experimental/align.h"
-#include "scrf/experimental/util.h"
+#include "scrf/iscrf.h"
+#include "scrf/loss.h"
+#include "scrf/scrf_weight.h"
+#include "scrf/align.h"
+#include "scrf/util.h"
 #include <fstream>
 
 struct learning_env {

@@ -1,4 +1,4 @@
-#include "scrf/experimental/fst.h"
+#include "scrf/fst.h"
 
 namespace fst {
 
