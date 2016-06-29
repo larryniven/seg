@@ -225,9 +225,12 @@ void learning_env::run()
         tensor_tree::copy_grad(pred_grad, pred_var_tree);
 
         if (ebt::in(std::string("clip"), args)) {
-            double n = tensor_tree::norm(nn_param_grad);
+            double n1 = tensor_tree::norm(nn_param_grad);
+            double n2 = tensor_tree::norm(pred_grad);
+            double n = std::sqrt(n1 * n1 + n2 * n2);
             if (n > l_args.clip) {
                 tensor_tree::imul(nn_param_grad, l_args.clip / n);
+                tensor_tree::imul(pred_grad, l_args.clip / n);
                 std::cout << "grad norm: " << n << " clip: " << l_args.clip << " gradient clipped" << std::endl;
             }
         }
