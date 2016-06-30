@@ -1,6 +1,7 @@
 #include "scrf/iscrf.h"
 #include "scrf/loss.h"
 #include "scrf/scrf_weight.h"
+#include "scrf/util.h"
 #include <fstream>
 
 namespace frank_wolfe {
@@ -125,7 +126,7 @@ void learning_env::run()
 
         s.frames = speech::load_frame_batch(frame_batch);
 
-        s.gold_segs = iscrf::load_segments(gold_batch, l_args.label_id);
+        s.gold_segs = util::load_segments(gold_batch, l_args.label_id);
 
         if (!gold_batch) {
             break;

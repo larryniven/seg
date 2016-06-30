@@ -146,13 +146,6 @@ namespace iscrf {
         learning_sample(learning_args const& args);
     };
 
-    std::vector<segcost::segment<int>> load_segments(std::istream& is,
-        std::unordered_map<std::string, int> const& label_id);
-
-    std::vector<segcost::segment<std::string>> load_segments(std::istream& is);
-
-    std::vector<std::string> load_labels(std::istream& is);
-
     void parse_learning_args(learning_args& l_args,
         std::unordered_map<std::string, std::string> const& args);
 

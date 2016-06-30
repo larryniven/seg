@@ -89,7 +89,7 @@ void oracle_env::run()
 
         iscrf::sample s { i_args };
 
-        std::vector<std::string> label_seq = iscrf::load_labels(label_batch);
+        std::vector<std::string> label_seq = util::load_labels(label_batch);
 
         if (!label_batch) {
             break;

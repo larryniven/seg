@@ -2,6 +2,7 @@
 #include "scrf/loss.h"
 #include "scrf/scrf_weight.h"
 #include "scrf/iscrf.h"
+#include "scrf/util.h"
 #include <fstream>
 
 namespace second_order = scrf::second_order;

@@ -15,6 +15,11 @@ namespace scrf {
         virtual double operator()(fst const& f,
             typename fst::edge e) const override;
 
+        virtual void accumulate_grad(double g, fst const& f,
+            typename fst::edge e) const override;
+
+        virtual void grad() const override;
+
     };
 
     template <class fst>
@@ -24,7 +29,7 @@ namespace scrf {
         std::shared_ptr<scrf_weight<fst>> weight;
         double alpha;
 
-        mul(std::shared_ptr<scrf_weight<fst>> const& w, double a);
+        mul(std::shared_ptr<scrf_weight<fst>> w, double a);
 
         virtual double operator()(fst const& f,
             typename fst::edge e) const override;
@@ -72,7 +77,24 @@ namespace scrf {
     }
 
     template <class fst>
-    mul<fst>::mul(std::shared_ptr<scrf_weight<fst>> const& w, double a)
+    void composite_weight<fst>::accumulate_grad(double g, fst const& f,
+        typename fst::edge e) const
+    {
+        for (auto& w: weights) {
+            w->accumulate_grad(g, f, e);
+        }
+    }
+
+    template <class fst>
+    void composite_weight<fst>::grad() const
+    {
+        for (auto& w: weights) {
+            w->grad();
+        }
+    }
+
+    template <class fst>
+    mul<fst>::mul(std::shared_ptr<scrf_weight<fst>> w, double a)
         : weight(w), alpha(a)
     {}
 
@@ -95,16 +117,6 @@ namespace scrf {
         vector f;
         (*feat)(f, a, e);
         return dot(param, f);
-
-        /*
-
-        for (int i = 0; i < feature.size(); ++i) {
-            (*feature[i])(v[feat->order()], a, e);
-            la::weak_vector<double> d = lex.lex(alloc, i, param, a, e);
-            la::dot(v[feat->order()], d)
-        }
-
-        */
     }
 
     template <class fst, class vector>

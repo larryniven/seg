@@ -19,7 +19,8 @@ bin = \
     oracle-cost \
     learn-ctc \
     predict-ctc \
-    learn-order1-e2e-mll
+    learn-order1-full \
+    predict-order1-full
 
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o util.o
 
@@ -95,6 +96,12 @@ predict-ctc: predict-ctc.o ctc.o fst.o ilat.o util.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-order1-e2e-mll: learn-order1-e2e-mll.o pair_scrf.o iscrf_e2e.o align.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+learn-order1-full: learn-order1-full.o fscrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+predict-order1-full: predict-order1-full.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 util.o: util.h

@@ -1,6 +1,7 @@
 #include "scrf/iscrf_e2e.h"
 #include "scrf/loss.h"
 #include "scrf/scrf_weight.h"
+#include "scrf/util.h"
 #include "autodiff/autodiff.h"
 #include "nn/lstm.h"
 #include <fstream>
@@ -141,7 +142,7 @@ void learning_env::run()
             break;
         }
 
-        s.gold_segs = iscrf::load_segments(gold_batch, l_args.label_id);
+        s.gold_segs = util::load_segments(gold_batch, l_args.label_id);
 
         if (!gold_batch) {
             break;

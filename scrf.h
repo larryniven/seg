@@ -53,6 +53,13 @@ namespace scrf {
         virtual double operator()(fst const& f,
             typename fst::edge e) const = 0;
 
+        virtual void accumulate_grad(double g, fst const& f,
+            typename fst::edge e) const
+        {}
+
+        virtual void grad() const
+        {}
+
     };
 
     struct dense_vec {

@@ -79,7 +79,7 @@ void oracle_env::run()
 
         iscrf::learning_sample s { l_args };
 
-        s.gold_segs = iscrf::load_segments(gold_batch, l_args.label_id);
+        s.gold_segs = util::load_segments(gold_batch, l_args.label_id);
 
         if (!gold_batch) {
             break;
