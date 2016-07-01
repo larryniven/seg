@@ -89,7 +89,7 @@ void prediction_env::run()
 
         auto frame_mat = autodiff::col_cat(frame_ops);
 
-        std::unordered_map<std::string> feature_keys { i_args.features.begin(), i_args.features.end() };
+        std::unordered_set<std::string> feature_keys { i_args.features.begin(), i_args.features.end() };
 
         scrf::composite_weight<ilat::fst> weight_func;
 
