@@ -89,33 +89,73 @@ void prediction_env::run()
 
         auto frame_mat = autodiff::col_cat(frame_ops);
 
+        std::unordered_map<std::string> feature_keys { i_args.features.begin(), i_args.features.end() };
+
         scrf::composite_weight<ilat::fst> weight_func;
-        weight_func.weights.push_back(std::make_shared<fscrf::frame_avg_score>(
-            fscrf::frame_avg_score(tensor_tree::get_var(var_tree->children[0]), frame_mat)));
-        weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
-            fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[1]), frame_mat, 1.0 / 6)));
-        weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
-            fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[2]), frame_mat, 1.0 / 2)));
-        weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
-            fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[3]), frame_mat, 5.0 / 6)));
-        weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
-            fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[4]), frame_mat, -1)));
-        weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
-            fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[5]), frame_mat, -2)));
-        weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
-            fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[6]), frame_mat, -3)));
-        weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
-            fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[7]), frame_mat, 1)));
-        weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
-            fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[8]), frame_mat, 2)));
-        weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
-            fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[9]), frame_mat, 3)));
-        weight_func.weights.push_back(std::make_shared<fscrf::length_score>(
-            fscrf::length_score { tensor_tree::get_var(var_tree->children[10]) }));
-        weight_func.weights.push_back(std::make_shared<fscrf::log_length_score>(
-            fscrf::log_length_score { tensor_tree::get_var(var_tree->children[11]) }));
-        weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
-            fscrf::bias_score { tensor_tree::get_var(var_tree->children[12]) }));
+
+        int feat_idx = 0;
+
+        if (ebt::in(std::string("frame-avg"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_avg_score>(
+                fscrf::frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
+
+            ++feat_idx;
+        }
+
+        if (ebt::in(std::string("frame-samples"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 1.0 / 2)));
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 5.0 / 6)));
+
+            feat_idx += 3;
+        }
+
+        if (ebt::in(std::string("left-boundary"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, -1)));
+            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, -2)));
+            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, -3)));
+
+            feat_idx += 3;
+        }
+
+        if (ebt::in(std::string("left-boundary"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1)));
+            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 2)));
+            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
+
+            feat_idx += 3;
+        }
+
+        if (ebt::in(std::string("length-indicator"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::length_score>(
+                fscrf::length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+            ++feat_idx;
+        }
+
+        if (ebt::in(std::string("log-length"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::log_length_score>(
+                fscrf::log_length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+            ++feat_idx;
+        }
+
+        if (ebt::in(std::string("bias"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
+                fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+            ++feat_idx;
+        }
+
         s.graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func);
 
         fscrf::fscrf_data graph_path_data;

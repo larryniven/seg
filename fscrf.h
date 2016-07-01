@@ -44,7 +44,8 @@ namespace fscrf {
         std::vector<std::string> const& id_label,
         int min_seg_len, int max_seg_len, int stride);
 
-    std::shared_ptr<tensor_tree::vertex> make_tensor_tree();
+    std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
+        std::vector<std::string> const& features);
 
     struct frame_avg_score
         : public scrf::scrf_weight<ilat::fst> {

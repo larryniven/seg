@@ -64,23 +64,46 @@ namespace fscrf {
         return std::make_shared<ilat::fst>(result);
     }
 
-    std::shared_ptr<tensor_tree::vertex> make_tensor_tree()
+    std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
+        std::vector<std::string> const& features)
     {
+        std::unordered_set<std::string> feature_keys { features.begin(), features.end() };
+
         tensor_tree::vertex root { tensor_tree::tensor_t::nil };
 
-        root.children.push_back(tensor_tree::make_matrix("frame avg"));
-        root.children.push_back(tensor_tree::make_matrix("frame samples"));
-        root.children.push_back(tensor_tree::make_matrix("frame samples"));
-        root.children.push_back(tensor_tree::make_matrix("frame samples"));
-        root.children.push_back(tensor_tree::make_matrix("left boundary"));
-        root.children.push_back(tensor_tree::make_matrix("left boundary"));
-        root.children.push_back(tensor_tree::make_matrix("left boundary"));
-        root.children.push_back(tensor_tree::make_matrix("right boundary"));
-        root.children.push_back(tensor_tree::make_matrix("right boundary"));
-        root.children.push_back(tensor_tree::make_matrix("right boundary"));
-        root.children.push_back(tensor_tree::make_matrix("length"));
-        root.children.push_back(tensor_tree::make_matrix("log length"));
-        root.children.push_back(tensor_tree::make_vector("bias"));
+        if (ebt::in(std::string("frame-avg"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_matrix("frame avg"));
+        }
+
+        if (ebt::in(std::string("frame-samples"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_matrix("frame samples"));
+            root.children.push_back(tensor_tree::make_matrix("frame samples"));
+            root.children.push_back(tensor_tree::make_matrix("frame samples"));
+        }
+
+        if (ebt::in(std::string("left-boundary"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_matrix("left boundary"));
+            root.children.push_back(tensor_tree::make_matrix("left boundary"));
+            root.children.push_back(tensor_tree::make_matrix("left boundary"));
+        }
+
+        if (ebt::in(std::string("right-boundary"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_matrix("right boundary"));
+            root.children.push_back(tensor_tree::make_matrix("right boundary"));
+            root.children.push_back(tensor_tree::make_matrix("right boundary"));
+        }
+
+        if (ebt::in(std::string("length-indicator"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_matrix("length"));
+        }
+
+        if (ebt::in(std::string("log-length"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_matrix("log length"));
+        }
+
+        if (ebt::in(std::string("bias"), feature_keys)) {
+            root.children.push_back(tensor_tree::make_vector("bias"));
+        }
 
         return std::make_shared<tensor_tree::vertex>(root);
     }
@@ -405,11 +428,11 @@ namespace fscrf {
             i_args.stride = std::stoi(args.at("stride"));
         }
 
-        i_args.param = make_tensor_tree();
+        i_args.features = ebt::split(args.at("features"), ",");
+
+        i_args.param = make_tensor_tree(i_args.features);
 
         tensor_tree::load_tensor(i_args.param, args.at("param"));
-
-        i_args.features = ebt::split(args.at("features"), ",");
 
         i_args.label_id = util::load_label_id(args.at("label"));
 
@@ -438,7 +461,7 @@ namespace fscrf {
     {
         parse_inference_args(l_args, args);
 
-        l_args.opt_data = make_tensor_tree();
+        l_args.opt_data = make_tensor_tree(l_args.features);
 
         if (ebt::in(std::string("opt-data"), args)) {
             tensor_tree::load_tensor(l_args.opt_data, args.at("opt-data"));
