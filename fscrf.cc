@@ -108,6 +108,81 @@ namespace fscrf {
         return std::make_shared<tensor_tree::vertex>(root);
     }
 
+    std::shared_ptr<scrf::composite_weight<ilat::fst>> make_weights(
+        std::vector<std::string> const& features,
+        std::shared_ptr<tensor_tree::vertex> var_tree,
+        std::shared_ptr<autodiff::op_t> frame_mat)
+    {
+        std::unordered_set<std::string> feature_keys { features.begin(), features.end() };
+
+        scrf::composite_weight<ilat::fst> weight_func;
+
+        int feat_idx = 0;
+
+        if (ebt::in(std::string("frame-avg"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_avg_score>(
+                fscrf::frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
+
+            ++feat_idx;
+        }
+
+        if (ebt::in(std::string("frame-samples"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 1.0 / 2)));
+            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 5.0 / 6)));
+
+            feat_idx += 3;
+        }
+
+        if (ebt::in(std::string("left-boundary"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, -1)));
+            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, -2)));
+            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, -3)));
+
+            feat_idx += 3;
+        }
+
+        if (ebt::in(std::string("left-boundary"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1)));
+            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 2)));
+            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
+
+            feat_idx += 3;
+        }
+
+        if (ebt::in(std::string("length-indicator"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::length_score>(
+                fscrf::length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+            ++feat_idx;
+        }
+
+        if (ebt::in(std::string("log-length"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::log_length_score>(
+                fscrf::log_length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+            ++feat_idx;
+        }
+
+        if (ebt::in(std::string("bias"), feature_keys)) {
+            weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
+                fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+            ++feat_idx;
+        }
+
+        return std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func);
+    }
+
     frame_avg_score::frame_avg_score(std::shared_ptr<autodiff::op_t> param,
             std::shared_ptr<autodiff::op_t> frames)
         : param(param), frames(frames)
@@ -445,7 +520,6 @@ namespace fscrf {
 
     sample::sample(inference_args const& i_args)
     {
-        graph_data.features = std::make_shared<std::vector<std::string>>(i_args.features);
         graph_data.param = i_args.param;
     }
 
@@ -503,7 +577,6 @@ namespace fscrf {
     learning_sample::learning_sample(learning_args const& l_args)
         : sample(l_args)
     {
-        gold_data.features = std::make_shared<std::vector<std::string>>(l_args.features);
         gold_data.param = l_args.param;
     }
 

@@ -37,7 +37,7 @@ namespace util {
     }
 
     std::vector<segcost::segment<int>> load_segments(std::istream& is,
-        std::unordered_map<std::string, int> const& label_id)
+        std::unordered_map<std::string, int> const& label_id, int subsample_freq)
     {
         std::string line;
 
@@ -50,8 +50,8 @@ namespace util {
             auto parts = ebt::split(line);
 
             result.push_back(segcost::segment<int> {
-                 .start_time = std::stoi(parts[0]),
-                 .end_time = std::stoi(parts[1]),
+                 .start_time = std::round(std::stoi(parts[0]) / double(subsample_freq)),
+                 .end_time = std::round(std::stoi(parts[1]) / double(subsample_freq)),
                  .label = label_id.at(parts[2])
             });
         }

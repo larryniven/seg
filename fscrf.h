@@ -16,10 +16,19 @@ namespace fscrf {
         std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight_func;
         std::shared_ptr<scrf::scrf_weight<ilat::fst>> cost_func;
         std::shared_ptr<tensor_tree::vertex> param;
-        std::shared_ptr<std::vector<std::string>> features;
     };
 
     using fscrf_fst = scrf::scrf_fst<fscrf_data>;
+
+    struct fscrf_pair_data {
+        std::shared_ptr<ilat::pair_fst> fst;
+        std::shared_ptr<std::vector<std::tuple<int, int>>> topo_order;
+        std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> weight_func;
+        std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> cost_func;
+        std::shared_ptr<tensor_tree::vertex> param;
+    };
+
+    using fscrf_pair_fst = scrf::scrf_fst<fscrf_pair_data>;
 
 }
 
@@ -35,6 +44,16 @@ namespace scrf {
         using fst = scrf_fst<fscrf::fscrf_data>;
     };
 
+    template <>
+    struct scrf_data_trait<fscrf::fscrf_pair_data> {
+        using base_fst = ilat::pair_fst;
+        using path_maker = ilat::pair_fst_path_maker;
+        using edge = std::tuple<int, int>;
+        using vertex = std::tuple<int, int>;
+        using symbol = std::tuple<int, int>;
+        using fst = scrf_fst<fscrf::fscrf_pair_data>;
+    };
+
 }
 
 namespace fscrf {
@@ -46,6 +65,11 @@ namespace fscrf {
 
     std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
         std::vector<std::string> const& features);
+
+    std::shared_ptr<scrf::composite_weight<ilat::fst>> make_weights(
+        std::vector<std::string> const& features,
+        std::shared_ptr<tensor_tree::vertex> var_tree,
+        std::shared_ptr<autodiff::op_t> frame_mat);
 
     struct frame_avg_score
         : public scrf::scrf_weight<ilat::fst> {
@@ -245,6 +269,29 @@ namespace fscrf {
 
     };
 
+    struct log_loss {
+
+        log_loss(fscrf_data& graph_data);
+
+        double loss() const;
+
+        void grad() const;
+
+    };
+
+    struct mode2_weight
+        : public scrf_weight<ilat::pair_fst> {
+
+        std::shared_ptr<scrf::scrf_weight<ilat::fst> weight;
+
+        virtual double operator()(ilat::pair_fst const& fst,
+            std::tuple<int, int> e) const override;
+
+        virtual void accumulate_grad(double g, ilat::pair_fst const& fst,
+            std::tuple<int, int> e) const override;
+
+        virtual void grad() const override;
+    };
 }
 
 #endif
