@@ -16,6 +16,8 @@ struct learning_env {
 
     fscrf::learning_args l_args;
 
+    int subsample_gt_freq;
+
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
@@ -46,6 +48,7 @@ int main(int argc, char *argv[])
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
+            {"subsample-gt-freq", "", false}
         }
     };
 
@@ -92,6 +95,11 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
+    subsample_gt_freq = 1;
+    if (ebt::in(std::string("subsample-gt-freq"), args)) {
+        subsample_gt_freq = std::stoi(args.at("subsample-gt-freq"));
+    }
+
     fscrf::parse_learning_args(l_args, args);
 }
 
@@ -107,7 +115,7 @@ void learning_env::run()
 
         s.frames = speech::load_frame_batch(frame_batch);
 
-        s.gt_segs = util::load_segments(gt_batch, l_args.label_id);
+        s.gt_segs = util::load_segments(gt_batch, l_args.label_id, subsample_gt_freq);
 
         if (!gt_batch) {
             break;

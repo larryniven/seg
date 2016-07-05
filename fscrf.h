@@ -280,9 +280,9 @@ namespace fscrf {
     };
 
     struct mode2_weight
-        : public scrf_weight<ilat::pair_fst> {
+        : public scrf::scrf_weight<ilat::pair_fst> {
 
-        std::shared_ptr<scrf::scrf_weight<ilat::fst> weight;
+        std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight;
 
         virtual double operator()(ilat::pair_fst const& fst,
             std::tuple<int, int> e) const override;
