@@ -14,6 +14,9 @@ struct learning_env {
     std::string output_param;
     std::string output_opt_data;
 
+    std::string output_nn_param;
+    std::string output_nn_opt_data;
+
     fscrf::learning_args l_args;
 
     int subsample_gt_freq;
@@ -38,6 +41,8 @@ int main(int argc, char *argv[])
             {"max-seg", "", false},
             {"param", "", true},
             {"opt-data", "", true},
+            {"nn-param", "", true},
+            {"nn-opt-data", "", true},
             {"step-size", "", true},
             {"decay", "", false},
             {"momentum", "", false},
@@ -45,10 +50,14 @@ int main(int argc, char *argv[])
             {"save-every", "", false},
             {"output-param", "", false},
             {"output-opt-data", "", false},
+            {"output-nn-param", "", false},
+            {"output-nn-opt-data", "", false},
             {"loss", "", true},
             {"cost-scale", "", false},
             {"label", "", true},
-            {"subsample-gt-freq", "", false}
+            {"subsample-gt-freq", "", false},
+            {"adam-beta1", "", false},
+            {"adam-beta2", "", false},
         }
     };
 
@@ -95,6 +104,16 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_opt_data = args.at("output-opt-data");
     }
 
+    output_nn_param = "nn-param-last";
+    if (ebt::in(std::string("output-nn-param"), args)) {
+        output_nn_param = args.at("output-nn-param");
+    }
+
+    output_nn_opt_data = "nn-opt-data-last";
+    if (ebt::in(std::string("output-nn-opt-data"), args)) {
+        output_nn_opt_data = args.at("output-nn-opt-data");
+    }
+
     subsample_gt_freq = 1;
     if (ebt::in(std::string("subsample-gt-freq"), args)) {
         subsample_gt_freq = std::stoi(args.at("subsample-gt-freq"));
@@ -107,7 +126,7 @@ void learning_env::run()
 {
     ebt::Timer timer;
 
-    int i = 1;
+    int i = 0;
 
     while (1) {
 
@@ -127,12 +146,34 @@ void learning_env::run()
         std::shared_ptr<tensor_tree::vertex> var_tree
             = tensor_tree::make_var_tree(comp_graph, l_args.param);
 
+        std::shared_ptr<tensor_tree::vertex> lstm_var_tree;
+        std::shared_ptr<tensor_tree::vertex> pred_var_tree;
+        if (ebt::in(std::string("nn-param"), args)) {
+            lstm_var_tree = make_var_tree(comp_graph, l_args.nn_param);
+            pred_var_tree = make_var_tree(comp_graph, l_args.pred_param);
+        }
+
+        lstm::stacked_bi_lstm_nn_t nn;
+        rnn::pred_nn_t pred_nn;
+
         std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
         for (int i = 0; i < s.frames.size(); ++i) {
             frame_ops.push_back(comp_graph.var(la::vector<double>(s.frames[i])));
         }
 
-        auto frame_mat = autodiff::col_cat(frame_ops);
+        std::vector<std::shared_ptr<autodiff::op_t>> feat_ops;
+
+        if (ebt::in(std::string("nn-param"), args)) {
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
+            feat_ops = pred_nn.logprob;
+        } else {
+            feat_ops = frame_ops;
+        }
+
+        auto frame_mat = autodiff::col_cat(feat_ops);
+
+        autodiff::eval(frame_mat, autodiff::eval_funcs);
 
         s.graph_data.weight_func = fscrf::make_weights(l_args.features, var_tree, frame_mat);
 
@@ -180,6 +221,10 @@ void learning_env::run()
 #endif
 
         std::shared_ptr<tensor_tree::vertex> param_grad = fscrf::make_tensor_tree(l_args.features);
+        std::shared_ptr<tensor_tree::vertex> nn_param_grad
+            = lstm::make_stacked_bi_lstm_tensor_tree(l_args.layer);
+        std::shared_ptr<tensor_tree::vertex> pred_grad
+            = nn::make_pred_tensor_tree();
 
         if (ell > 0) {
             loss_func.grad();
@@ -192,19 +237,53 @@ void learning_env::run()
 
             std::cout << "analytic grad: " << m(l_args.label_id.at("sil") - 1, 0) << std::endl;
 
+            if (ebt::in(std::string("nn-param"), args)) {
+                autodiff::grad(frame_mat, autodiff::grad_funcs);
+                tensor_tree::copy_grad(nn_param_grad, lstm_var_tree);
+                tensor_tree::copy_grad(pred_grad, pred_var_tree);
+            }
+
             double v1 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
+            double w1 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
             if (ebt::in(std::string("decay"), l_args.args)) {
                 tensor_tree::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.decay, l_args.step_size);
+
+                if (ebt::in(std::string("nn-param"), l_args.args)) {
+                    tensor_tree::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                        l_args.decay, l_args.step_size);
+                    tensor_tree::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        l_args.decay, l_args.step_size);
+                }
+            } else if (ebt::in(std::string("adam-beta1"), l_args.args)) {
+                tensor_tree::adam_update(l_args.param, param_grad, l_args.first_moment, l_args.second_moment,
+                    l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
+
+                if (ebt::in(std::string("nn-param"), l_args.args)) {
+                    tensor_tree::adam_update(l_args.nn_param, nn_param_grad, l_args.nn_first_moment, l_args.nn_second_moment,
+                        l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
+                    tensor_tree::adam_update(l_args.pred_param, pred_grad, l_args.pred_first_moment, l_args.pred_second_moment,
+                        l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
+                }
             } else {
                 tensor_tree::adagrad_update(l_args.param, param_grad, l_args.opt_data,
                     l_args.step_size);
+
+                if (ebt::in(std::string("nn-param"), l_args.args)) {
+                    tensor_tree::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                        l_args.step_size);
+                    tensor_tree::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        l_args.step_size);
+                }
             }
 
             double v2 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
+            double w2 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
             std::cout << "weight: " << v1 << " update: " << v2 - v1 << " ratio: " << (v2 - v1) / v1 << std::endl;
+            std::cout << "weight: " << w1 << " update: " << w2 - w1 << " ratio: " << (w2 - w1) / w1 << std::endl;
+
         }
 
         if (ell < 0) {
@@ -216,9 +295,28 @@ void learning_env::run()
 
         std::cout << std::endl;
 
+        ++i;
+        ++l_args.time;
+
         if (i % save_every == 0) {
             tensor_tree::save_tensor(l_args.param, "param-last");
-            tensor_tree::save_tensor(l_args.opt_data, "opt-data-last");
+
+            if (ebt::in(std::string("nn-param"), args)) {
+                fscrf::save_lstm_param(l_args.nn_param, l_args.pred_param, "nn-param-last");
+            }
+
+            if (ebt::in(std::string("adam-beta1"), args)) {
+                std::ofstream ofs { "opt-last" };
+                ofs << l_args.time << std::endl;
+                tensor_tree::save_tensor(l_args.first_moment, ofs);
+                tensor_tree::save_tensor(l_args.second_moment, ofs);
+            } else {
+                tensor_tree::save_tensor(l_args.opt_data, "opt-data-last");
+
+                if (ebt::in(std::string("nn-param"), args)) {
+                    fscrf::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, "nn-opt-data-last");
+                }
+            }
         }
 
 #if DEBUG_TOP
@@ -227,11 +325,26 @@ void learning_env::run()
         }
 #endif
 
-        ++i;
     }
 
     tensor_tree::save_tensor(l_args.param, output_param);
-    tensor_tree::save_tensor(l_args.opt_data, output_opt_data);
+
+    if (ebt::in(std::string("nn-param"), args)) {
+        fscrf::save_lstm_param(l_args.nn_param, l_args.pred_param, output_nn_param);
+    }
+
+    if (ebt::in(std::string("adam-beta1"), args)) {
+        std::ofstream ofs { output_opt_data };
+        ofs << l_args.time << std::endl;
+        tensor_tree::save_tensor(l_args.first_moment, ofs);
+        tensor_tree::save_tensor(l_args.second_moment, ofs);
+    } else {
+        tensor_tree::save_tensor(l_args.opt_data, output_opt_data);
+
+        if (ebt::in(std::string("nn-param"), args)) {
+            fscrf::save_lstm_param(l_args.nn_opt_data, l_args.pred_opt_data, output_nn_opt_data);
+        }
+    }
 
 }
 

@@ -7,6 +7,8 @@
 #include "scrf/scrf_cost.h"
 #include "autodiff/autodiff.h"
 #include "nn/tensor_tree.h"
+#include "nn/lstm.h"
+#include "nn/pred.h"
 
 namespace fscrf {
 
@@ -204,12 +206,22 @@ namespace fscrf {
         int max_seg;
         int stride;
         std::shared_ptr<tensor_tree::vertex> param;
+        std::shared_ptr<tensor_tree::vertex> nn_param;
+        std::shared_ptr<tensor_tree::vertex> pred_param;
+        int layer;
         std::unordered_map<std::string, int> label_id;
         std::vector<std::string> id_label;
         std::vector<int> labels;
         std::vector<std::string> features;
         std::unordered_map<std::string, std::string> args;
     };
+
+    std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
+    load_lstm_param(std::string filename);
+
+    void save_lstm_param(std::shared_ptr<tensor_tree::vertex> nn_param,
+        std::shared_ptr<tensor_tree::vertex> pred_param,
+        std::string filename);
 
     void parse_inference_args(inference_args& l_args,
         std::unordered_map<std::string, std::string> const& args);
@@ -228,11 +240,22 @@ namespace fscrf {
 
         double cost_scale;
         std::shared_ptr<tensor_tree::vertex> opt_data;
+        std::shared_ptr<tensor_tree::vertex> first_moment;
+        std::shared_ptr<tensor_tree::vertex> second_moment;
+        std::shared_ptr<tensor_tree::vertex> nn_opt_data;
+        std::shared_ptr<tensor_tree::vertex> nn_first_moment;
+        std::shared_ptr<tensor_tree::vertex> nn_second_moment;
+        std::shared_ptr<tensor_tree::vertex> pred_opt_data;
+        std::shared_ptr<tensor_tree::vertex> pred_first_moment;
+        std::shared_ptr<tensor_tree::vertex> pred_second_moment;
         double l2;
         double step_size;
         double momentum;
         double decay;
         std::vector<int> sils;
+        double adam_beta1;
+        double adam_beta2;
+        int time;
     };
 
     void parse_learning_args(learning_args& l_args,

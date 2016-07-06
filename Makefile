@@ -20,7 +20,8 @@ bin = \
     learn-ctc \
     predict-ctc \
     learn-order1-full \
-    predict-order1-full
+    predict-order1-full \
+    loss-order1-full
 
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o util.o
 
@@ -102,6 +103,9 @@ learn-order1-full: learn-order1-full.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 predict-order1-full: predict-order1-full.o fscrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+loss-order1-full: loss-order1-full.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 util.o: util.h

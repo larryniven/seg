@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
             {"min-seg", "", false},
             {"max-seg", "", false},
             {"param", "", true},
+            {"nn-param", "", true},
             {"features", "", true},
             {"label", "", true},
         }
@@ -82,12 +83,33 @@ void prediction_env::run()
         std::shared_ptr<tensor_tree::vertex> var_tree
             = tensor_tree::make_var_tree(comp_graph, i_args.param);
 
+        std::shared_ptr<tensor_tree::vertex> lstm_var_tree;
+        std::shared_ptr<tensor_tree::vertex> pred_var_tree;
+        if (ebt::in(std::string("nn-param"), args)) {
+            lstm_var_tree = make_var_tree(comp_graph, i_args.nn_param);
+            pred_var_tree = make_var_tree(comp_graph, i_args.pred_param);
+        }
+
+        lstm::stacked_bi_lstm_nn_t nn;
+        rnn::pred_nn_t pred_nn;
+
         std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
         for (int i = 0; i < s.frames.size(); ++i) {
             frame_ops.push_back(comp_graph.var(la::vector<double>(s.frames[i])));
         }
 
-        auto frame_mat = autodiff::col_cat(frame_ops);
+        std::vector<std::shared_ptr<autodiff::op_t>> feat_ops;
+
+        if (ebt::in(std::string("nn-param"), args)) {
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
+            feat_ops = pred_nn.logprob;
+        } else {
+            feat_ops = frame_ops;
+        }
+
+        auto frame_mat = autodiff::col_cat(feat_ops);
+        autodiff::eval(frame_mat, autodiff::eval_funcs);
 
         s.graph_data.weight_func = fscrf::make_weights(i_args.features, var_tree, frame_mat);
 

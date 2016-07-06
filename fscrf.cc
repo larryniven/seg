@@ -188,7 +188,7 @@ namespace fscrf {
         : param(param), frames(frames)
     {
         score = autodiff::mmul(param, frames);
-        autodiff::eval(score, autodiff::eval_funcs);
+        autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
     double frame_avg_score::operator()(ilat::fst const& f,
@@ -233,7 +233,7 @@ namespace fscrf {
 
     void frame_avg_score::grad() const
     {
-        autodiff::grad(score, autodiff::grad_funcs);
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
     frame_samples_score::frame_samples_score(std::shared_ptr<autodiff::op_t> param,
@@ -241,7 +241,7 @@ namespace fscrf {
         : param(param), frames(frames), scale(scale)
     {
         score = autodiff::mmul(param, frames);
-        autodiff::eval(score, autodiff::eval_funcs);
+        autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
     double frame_samples_score::operator()(ilat::fst const& f,
@@ -282,7 +282,7 @@ namespace fscrf {
 
     void frame_samples_score::grad() const
     {
-        autodiff::grad(score, autodiff::grad_funcs);
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
     left_boundary_score::left_boundary_score(std::shared_ptr<autodiff::op_t> param,
@@ -290,7 +290,7 @@ namespace fscrf {
         : param(param), frames(frames), shift(shift)
     {
         score = autodiff::mmul(param, frames);
-        autodiff::eval(score, autodiff::eval_funcs);
+        autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
     double left_boundary_score::operator()(ilat::fst const& f,
@@ -327,7 +327,7 @@ namespace fscrf {
 
     void left_boundary_score::grad() const
     {
-        autodiff::grad(score, autodiff::grad_funcs);
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
     right_boundary_score::right_boundary_score(std::shared_ptr<autodiff::op_t> param,
@@ -335,7 +335,7 @@ namespace fscrf {
         : param(param), frames(frames), shift(shift)
     {
         score = autodiff::mmul(param, frames);
-        autodiff::eval(score, autodiff::eval_funcs);
+        autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
     double right_boundary_score::operator()(ilat::fst const& f,
@@ -372,7 +372,7 @@ namespace fscrf {
 
     void right_boundary_score::grad() const
     {
-        autodiff::grad(score, autodiff::grad_funcs);
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
     length_score::length_score(std::shared_ptr<autodiff::op_t> param)
@@ -483,10 +483,77 @@ namespace fscrf {
         v_grad(ell) += g;
     }
 
+    std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
+    load_lstm_param(std::string filename)
+    {
+        std::ifstream ifs { filename };
+        std::string line;
+
+        std::getline(ifs, line);
+        int layer = std::stoi(line);
+
+        std::shared_ptr<tensor_tree::vertex> nn_param
+            = lstm::make_stacked_bi_lstm_tensor_tree(layer);
+        tensor_tree::load_tensor(nn_param, ifs);
+        std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
+        tensor_tree::load_tensor(pred_param, ifs);
+
+        return std::make_tuple(layer, nn_param, pred_param);
+    }
+
+    void save_lstm_param(std::shared_ptr<tensor_tree::vertex> nn_param,
+        std::shared_ptr<tensor_tree::vertex> pred_param,
+        std::string filename)
+    {
+        std::ofstream ofs { filename };
+
+        ofs << nn_param->children.size() << std::endl;
+        tensor_tree::save_tensor(nn_param, ofs);
+        tensor_tree::save_tensor(pred_param, ofs);
+    }
+
+    /*
+    std::vector<std::shared_ptr<autodiff::op_t>>
+    make_feat(autodiff::computation_graph& comp_graph,
+        std::shared_ptr<tensor_tree::vertex> lstm_var_tree,
+        std::shared_ptr<tensor_tree::vertex> pred_var_tree,
+        lstm::stacked_bi_lstm_nn_t& nn,
+        rnn::pred_nn_t& pred_nn,
+        std::vector<std::vector<double>> const& frames,
+        std::default_random_engine& gen,
+        inference_args& i_args)
+    {
+        std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
+        for (auto& f: frames) {
+            frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
+        }
+
+        if (nn_args.dropout == 0) {
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+        } else {
+            nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree,
+                frame_ops, gen, nn_args.dropout);
+        }
+
+        if (nn_args.frame_softmax) {
+            pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
+
+            return pred_nn.logprob;
+        } else {
+            return nn.layer.back().output;
+        }
+    }
+    */
+
     void parse_inference_args(inference_args& i_args,
         std::unordered_map<std::string, std::string> const& args)
     {
         i_args.args = args;
+
+        if (ebt::in(std::string("nn-param"), args)) {
+            std::tie(i_args.layer, i_args.nn_param, i_args.pred_param)
+                = load_lstm_param(args.at("nn-param"));
+        }
 
         i_args.min_seg = 1;
         if (ebt::in(std::string("min-seg"), args)) {
@@ -535,10 +602,30 @@ namespace fscrf {
     {
         parse_inference_args(l_args, args);
 
-        l_args.opt_data = make_tensor_tree(l_args.features);
-
         if (ebt::in(std::string("opt-data"), args)) {
-            tensor_tree::load_tensor(l_args.opt_data, args.at("opt-data"));
+            if (ebt::in(std::string("adam-beta1"), args)) {
+                l_args.first_moment = make_tensor_tree(l_args.features);
+                l_args.second_moment = make_tensor_tree(l_args.features);
+                std::ifstream ifs { args.at("opt-data") };
+                std::string line;
+                std::getline(ifs, line);
+                l_args.time = std::stoi(line);
+                tensor_tree::load_tensor(l_args.first_moment, ifs);
+                tensor_tree::load_tensor(l_args.second_moment, ifs);
+
+            } else {
+                l_args.opt_data = make_tensor_tree(l_args.features);
+                tensor_tree::load_tensor(l_args.opt_data, args.at("opt-data"));
+            }
+        }
+
+        if (ebt::in(std::string("nn-opt-data"), args)) {
+            if (ebt::in(std::string("adam-beta1"), args)) {
+                // TODO
+            } else {
+                std::tie(l_args.layer, l_args.nn_opt_data, l_args.pred_opt_data)
+                    = load_lstm_param(args.at("nn-opt-data"));
+            }
         }
 
         l_args.l2 = 0;
@@ -571,6 +658,14 @@ namespace fscrf {
 
         if (ebt::in(std::string("sil"), l_args.label_id)) {
             l_args.sils.push_back(l_args.label_id.at("sil"));
+        }
+
+        if (ebt::in(std::string("adam-beta1"), args)) {
+            l_args.adam_beta1 = std::stod(args.at("adam-beta1"));
+        }
+
+        if (ebt::in(std::string("adam-beta2"), args)) {
+            l_args.adam_beta2 = std::stod(args.at("adam-beta2"));
         }
     }
 
