@@ -171,7 +171,7 @@ void learning_env::run()
         std::vector<std::shared_ptr<autodiff::op_t>> feat_ops;
 
         if (ebt::in(std::string("nn-param"), args)) {
-            if (ebt::in(std::string("dropout_scale"), args)) {
+            if (ebt::in(std::string("dropout-scale"), args)) {
                 nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, dropout_scale);
             } else { 
                 nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
