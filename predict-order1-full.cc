@@ -10,6 +10,8 @@ struct prediction_env {
 
     fscrf::inference_args i_args;
 
+    double dropout_scale;
+
     std::unordered_map<std::string, std::string> args;
 
     prediction_env(std::unordered_map<std::string, std::string> args);
@@ -31,6 +33,7 @@ int main(int argc, char *argv[])
             {"nn-param", "", true},
             {"features", "", true},
             {"label", "", true},
+            {"dropout-scale", "", false},
         }
     };
 
@@ -58,6 +61,10 @@ prediction_env::prediction_env(std::unordered_map<std::string, std::string> args
 {
     if (ebt::in(std::string("frame-batch"), args)) {
         frame_batch.open(args.at("frame-batch"));
+    }
+
+    if (ebt::in(std::string("dropout-scale"), args)) {
+        dropout_scale = std::stod(args.at("dropout-scale"));
     }
 
     fscrf::parse_inference_args(i_args, args);
@@ -101,7 +108,11 @@ void prediction_env::run()
         std::vector<std::shared_ptr<autodiff::op_t>> feat_ops;
 
         if (ebt::in(std::string("nn-param"), args)) {
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            if (ebt::in(std::string("dropout-scale"), args)) {
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, dropout_scale);
+            } else {
+                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            }
             pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
             feat_ops = pred_nn.logprob;
         } else {

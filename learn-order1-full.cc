@@ -20,6 +20,7 @@ struct learning_env {
     fscrf::learning_args l_args;
 
     int subsample_gt_freq;
+    double dropout_scale;
 
     std::unordered_map<std::string, std::string> args;
 
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
             {"subsample-gt-freq", "", false},
             {"adam-beta1", "", false},
             {"adam-beta2", "", false},
+            {"dropout-scale", "", false}
         }
     };
 
@@ -119,6 +121,11 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         subsample_gt_freq = std::stoi(args.at("subsample-gt-freq"));
     }
 
+    dropout_scale = 0;
+    if (ebt::in(std::string("dropout-scale"), args)) {
+        dropout_scale = std::stod(args.at("dropout-scale"));
+    }
+
     fscrf::parse_learning_args(l_args, args);
 }
 
@@ -164,7 +171,11 @@ void learning_env::run()
         std::vector<std::shared_ptr<autodiff::op_t>> feat_ops;
 
         if (ebt::in(std::string("nn-param"), args)) {
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            if (ebt::in(std::string("dropout_scale"), args)) {
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, dropout_scale);
+            } else { 
+                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            }
             pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
             feat_ops = pred_nn.logprob;
         } else {
