@@ -270,7 +270,15 @@ namespace fscrf {
         learning_sample(learning_args const& args);
     };
 
-    struct hinge_loss {
+    struct loss_func {
+        virtual ~loss_func();
+
+        virtual double loss() const = 0;
+        virtual void grad() const = 0;
+    };
+
+    struct hinge_loss
+        : public loss_func {
 
         fscrf_data& graph_data;
 
@@ -286,15 +294,35 @@ namespace fscrf {
             std::vector<int> const& sils,
             double cost_scale);
 
-        double loss() const;
+        virtual double loss() const override;
 
-        void grad() const;
+        virtual void grad() const override;
 
     };
 
-    struct log_loss {
+    struct log_loss
+        : public loss_func {
 
-        log_loss(fscrf_data& graph_data);
+        fscrf_data& graph_data;
+        fscrf_data gold_path_data;
+        std::vector<segcost::segment<int>> gold_segs;
+
+        fst::forward_log_sum<fscrf_fst> forward;
+        fst::backward_log_sum<fscrf_fst> backward;
+
+        log_loss(fscrf_data& graph_data,
+            std::vector<segcost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct marginal_log_loss {
+
+        marginal_log_loss(fscrf_data& graph_data);
 
         double loss() const;
 
@@ -315,6 +343,7 @@ namespace fscrf {
 
         virtual void grad() const override;
     };
+
 }
 
 #endif

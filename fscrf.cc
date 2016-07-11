@@ -675,6 +675,9 @@ namespace fscrf {
         gold_data.param = l_args.param;
     }
 
+    loss_func::~loss_func()
+    {}
+
     hinge_loss::hinge_loss(fscrf_data& graph_data,
             std::vector<segcost::segment<int>> const& gt_segs,
             std::vector<int> const& sils,
@@ -775,6 +778,119 @@ namespace fscrf {
         for (auto& e: graph_path.edges()) {
             graph_path_data.weight_func->accumulate_grad(1, *graph_path_data.fst, e);
         }
+    }
+
+    log_loss::log_loss(fscrf_data& graph_data,
+        std::vector<segcost::segment<int>> const& gt_segs,
+        std::vector<int> const& sils)
+        : graph_data(graph_data)
+    {
+        auto old_weight_func = graph_data.weight_func;
+        graph_data.weight_func = std::make_shared<scrf::mul<ilat::fst>>(
+            scrf::mul<ilat::fst>(std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(gt_segs, sils)), -1));
+        gold_path_data.fst = scrf::shortest_path(graph_data);
+        graph_data.weight_func = old_weight_func;
+        gold_path_data.weight_func = graph_data.weight_func;
+
+        fscrf_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            int tail_time = gold_path.time(gold_path.tail(e));
+            int head_time = gold_path.time(gold_path.head(e));
+
+            gold_segs.push_back(segcost::segment<int> { tail_time, head_time, gold_path.output(e) });
+        }
+
+        gold_path_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(
+            scrf::mul<ilat::fst>(std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(gold_segs, sils)), 1));
+
+        auto& id_symbol = *graph_data.fst->data->id_symbol;
+
+        double gold_cost = 0;
+        double gold_score = 0;
+        std::cout << "gold:";
+        for (auto& e: gold_path.edges()) {
+            double c = (*gold_path_data.cost_func)(*gold_path_data.fst, e);
+            gold_cost += c;
+            gold_score += gold_path.weight(e);
+
+            std::cout << " " << id_symbol[gold_path.output(e)] << " (" << c << ")";
+        }
+        std::cout << std::endl;
+        std::cout << "gold cost: " << gold_cost << std::endl;
+        std::cout << "gold score: " << gold_score << std::endl;
+
+        fscrf_fst graph { graph_data };
+
+        forward.merge(graph, *graph_data.topo_order);
+
+        auto rev_topo_order = *graph_data.topo_order;
+        std::reverse(rev_topo_order.begin(), rev_topo_order.end());
+
+        backward.merge(graph, rev_topo_order);
+
+        for (auto& f: graph.finals()) {
+            std::cout << "forward: " << forward.extra[f] << std::endl;
+        }
+
+        for (auto& i: graph.initials()) {
+            std::cout << "backward: " << backward.extra[i] << std::endl;
+        }
+    }
+
+    double log_loss::loss() const
+    {
+        double result = 0;
+
+        fscrf_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            result -= gold_path.weight(e);
+        }
+
+        fscrf_fst graph { graph_data };
+
+        result += forward.extra.at(graph.finals().front());
+
+        return result;
+    }
+
+    void log_loss::grad() const
+    {
+        fscrf_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            gold_path_data.weight_func->accumulate_grad(-1, *gold_path_data.fst, e);
+        }
+
+        fscrf_fst graph { graph_data };
+
+        double logZ = forward.extra.at(graph.finals().front());
+
+        for (auto& e: graph.edges()) {
+            graph_data.weight_func->accumulate_grad(
+                std::exp(forward.extra.at(graph.tail(e)) + graph.weight(e)
+                    + backward.extra.at(graph.head(e)) - logZ), *graph_data.fst, e);
+        }
+    }
+
+    double mode2_weight::operator()(ilat::pair_fst const& fst,
+        std::tuple<int, int> e) const
+    {
+        return (*weight)(fst.fst2(), std::get<1>(e));
+    }
+
+    void mode2_weight::accumulate_grad(double g, ilat::pair_fst const& fst,
+        std::tuple<int, int> e) const
+    {
+        weight->accumulate_grad(g, fst.fst2(), std::get<1>(e));
+    }
+
+    void mode2_weight::grad() const
+    {
+        weight->grad();
     }
 
 }

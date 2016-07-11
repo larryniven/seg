@@ -188,9 +188,16 @@ void learning_env::run()
 
         s.graph_data.weight_func = fscrf::make_weights(l_args.features, var_tree, frame_mat);
 
-        fscrf::hinge_loss loss_func { s.graph_data, s.gt_segs, l_args.sils, l_args.cost_scale };
+        std::shared_ptr<fscrf::loss_func> loss_func;
+        if (args.at("loss") == "hinge-loss") {
+            loss_func = std::make_shared<fscrf::hinge_loss>(
+                fscrf::hinge_loss { s.graph_data, s.gt_segs, l_args.sils, l_args.cost_scale });
+        } else if (args.at("loss") == "log-loss") {
+            loss_func = std::make_shared<fscrf::log_loss>(
+                fscrf::log_loss { s.graph_data, s.gt_segs, l_args.sils });
+        }
 
-        double ell = loss_func.loss();
+        double ell = loss_func->loss();
 
         std::cout << "loss: " << ell << std::endl;
 
@@ -238,7 +245,7 @@ void learning_env::run()
             = nn::make_pred_tensor_tree();
 
         if (ell > 0) {
-            loss_func.grad();
+            loss_func->grad();
 
             s.graph_data.weight_func->grad();
 

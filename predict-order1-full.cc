@@ -129,8 +129,11 @@ void prediction_env::run()
 
         fscrf::fscrf_fst graph_path { graph_path_data };
 
+        fscrf::fscrf_fst graph { s.graph_data };
+
         for (auto& e: graph_path.edges()) {
             std::cout << i_args.id_label.at(graph_path.output(e)) << " ";
+            std::cout << "(" << graph_path.time(graph_path.head(e)) << ") ";
         }
         std::cout << "(" << i << ".dot)" << std::endl;
 
