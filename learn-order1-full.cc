@@ -22,6 +22,8 @@ struct learning_env {
     int subsample_gt_freq;
     double dropout_scale;
 
+    double clip;
+
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
@@ -59,7 +61,8 @@ int main(int argc, char *argv[])
             {"subsample-gt-freq", "", false},
             {"adam-beta1", "", false},
             {"adam-beta2", "", false},
-            {"dropout-scale", "", false}
+            {"dropout-scale", "", false},
+            {"clip", "", false}
         }
     };
 
@@ -126,6 +129,10 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         dropout_scale = std::stod(args.at("dropout-scale"));
     }
 
+    if (ebt::in(std::string("clip"), args)) {
+        clip = std::stod(args.at("clip"));
+    }
+
     fscrf::parse_learning_args(l_args, args);
 }
 
@@ -188,13 +195,11 @@ void learning_env::run()
 
         s.graph_data.weight_func = fscrf::make_weights(l_args.features, var_tree, frame_mat);
 
-        std::shared_ptr<fscrf::loss_func> loss_func;
+        fscrf::loss_func *loss_func;
         if (args.at("loss") == "hinge-loss") {
-            loss_func = std::make_shared<fscrf::hinge_loss>(
-                fscrf::hinge_loss { s.graph_data, s.gt_segs, l_args.sils, l_args.cost_scale });
+            loss_func = new fscrf::hinge_loss { s.graph_data, s.gt_segs, l_args.sils, l_args.cost_scale };
         } else if (args.at("loss") == "log-loss") {
-            loss_func = std::make_shared<fscrf::log_loss>(
-                fscrf::log_loss { s.graph_data, s.gt_segs, l_args.sils });
+            loss_func = new fscrf::log_loss { s.graph_data, s.gt_segs, l_args.sils };
         }
 
         double ell = loss_func->loss();
@@ -261,6 +266,22 @@ void learning_env::run()
                 tensor_tree::copy_grad(pred_grad, pred_var_tree);
             }
 
+            if (ebt::in(std::string("clip"), args)) {
+                double n1 = tensor_tree::norm(nn_param_grad);
+                double n2 = tensor_tree::norm(pred_grad);
+                double n3 = tensor_tree::norm(param_grad);
+
+                double n = std::sqrt(n1 * n1 + n2 * n2 + n3 * n3);
+
+                if (n > clip) {
+                    tensor_tree::imul(nn_param_grad, clip / n);
+                    tensor_tree::imul(pred_grad, clip / n);
+                    tensor_tree::imul(param_grad, clip / n);
+
+                    std::cout << "grad norm: " << n << " clip: " << clip << " gradient clipped" << std::endl;
+                }
+            }
+
             double v1 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
             double w1 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
 
@@ -283,6 +304,16 @@ void learning_env::run()
                         l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
                     tensor_tree::adam_update(l_args.pred_param, pred_grad, l_args.pred_first_moment, l_args.pred_second_moment,
                         l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
+                }
+            } else if (ebt::in(std::string("momentum"), l_args.args)) {
+                tensor_tree::const_step_update_momentum(l_args.param, param_grad, l_args.opt_data,
+                    l_args.step_size, l_args.momentum);
+
+                if (ebt::in(std::string("nn-param"), l_args.args)) {
+                    tensor_tree::const_step_update_momentum(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                        l_args.step_size, l_args.momentum);
+                    tensor_tree::const_step_update_momentum(l_args.pred_param, pred_grad, l_args.pred_opt_data,
+                        l_args.step_size, l_args.momentum);
                 }
             } else {
                 tensor_tree::adagrad_update(l_args.param, param_grad, l_args.opt_data,
@@ -336,6 +367,8 @@ void learning_env::run()
                 }
             }
         }
+
+        delete loss_func;
 
 #if DEBUG_TOP
         if (i == DEBUG_TOP) {
