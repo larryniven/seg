@@ -22,6 +22,9 @@ struct learning_env {
     int subsample_gt_freq;
     double dropout_scale;
 
+    double dropout;
+    int dropout_seed;
+
     double clip;
 
     std::unordered_map<std::string, std::string> args;
@@ -62,7 +65,9 @@ int main(int argc, char *argv[])
             {"adam-beta1", "", false},
             {"adam-beta2", "", false},
             {"dropout-scale", "", false},
-            {"clip", "", false}
+            {"clip", "", false},
+            {"dropout", "", false},
+            {"dropout-seed", "", false}
         }
     };
 
@@ -124,9 +129,14 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         subsample_gt_freq = std::stoi(args.at("subsample-gt-freq"));
     }
 
-    dropout_scale = 0;
-    if (ebt::in(std::string("dropout-scale"), args)) {
-        dropout_scale = std::stod(args.at("dropout-scale"));
+    dropout = 0;
+    if (ebt::in(std::string("dropout"), args)) {
+        dropout = std::stod(args.at("dropout"));
+    }
+
+    dropout_seed = 0;
+    if (ebt::in(std::string("dropout-seed"), args)) {
+        dropout_seed = std::stoi(args.at("dropout-seed"));
     }
 
     if (ebt::in(std::string("clip"), args)) {
@@ -141,6 +151,8 @@ void learning_env::run()
     ebt::Timer timer;
 
     int i = 0;
+
+    std::default_random_engine gen { dropout_seed };
 
     while (1) {
 
@@ -180,6 +192,8 @@ void learning_env::run()
         if (ebt::in(std::string("nn-param"), args)) {
             if (ebt::in(std::string("dropout-scale"), args)) {
                 nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, dropout_scale);
+            } else if (ebt::in(std::string("dropout"), args)) {
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, gen, dropout);
             } else { 
                 nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
             }
