@@ -109,9 +109,9 @@ void prediction_env::run()
 
         if (ebt::in(std::string("nn-param"), args)) {
             if (ebt::in(std::string("dropout-scale"), args)) {
-                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, dropout_scale);
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, lstm::lstm_builder{}, dropout_scale);
             } else {
-                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, lstm::lstm_builder{});
             }
             pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
             feat_ops = pred_nn.logprob;

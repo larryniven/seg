@@ -876,6 +876,138 @@ namespace fscrf {
         }
     }
 
+    ilat::fst make_label_fst(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ilat::fst_data data;
+
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int u = 0;
+        ilat::add_vertex(data, u, ilat::vertex_data { u });
+
+        for (int i = 0; i < label_seq.size(); ++i) {
+            int v = data.vertices.size();
+            ilat::add_vertex(data, v, ilat::vertex_data { v });
+
+            int e = data.edges.size();
+            ilat::add_edge(data, e, ilat::edge_data { u, v, 0,
+                label_seq[i], label_seq[i] });
+
+            u = v;
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(data.vertices.size() - 1);
+
+        ilat::fst f;
+        f.data = std::make_shared<ilat::fst_data>(data);
+
+        return f;
+    }
+
+    marginal_log_loss::marginal_log_loss(fscrf_data& graph_data,
+        std::vector<int> const& label_seq)
+        : graph_data(graph_data)
+    {
+        fscrf_fst graph { graph_data };
+
+        forward_graph.merge(graph, *graph_data.topo_order);
+
+        auto rev_topo_order = *graph_data.topo_order;
+        std::reverse(rev_topo_order.begin(), rev_topo_order.end());
+
+        backward_graph.merge(graph, rev_topo_order);
+
+        for (auto& f: graph.finals()) {
+            std::cout << "forward: " << forward_graph.extra[f] << std::endl;
+        }
+
+        for (auto& i: graph.initials()) {
+            std::cout << "backward: " << backward_graph.extra[i] << std::endl;
+        }
+
+        ilat::fst& graph_fst = *graph_data.fst;
+        auto& label_id = *graph_fst.data->symbol_id;
+        auto& id_label = *graph_fst.data->id_symbol;
+
+        ilat::fst label_fst = make_label_fst(label_seq, label_id, id_label);
+
+        ilat::lazy_pair_mode1 composed_fst { label_fst, graph_fst };
+
+        pair_data.fst = std::make_shared<ilat::lazy_pair_mode1>(composed_fst);
+        pair_data.weight_func = std::make_shared<mode2_weight>(
+            mode2_weight { graph_data.weight_func });
+        pair_data.topo_order = std::make_shared<std::vector<std::tuple<int, int>>>(
+            fst::topo_order(composed_fst));
+
+        fscrf_pair_fst pair { pair_data };
+
+        forward_label.merge(pair, *pair_data.topo_order);
+
+        std::vector<std::tuple<int, int>> rev_pair_topo_order = *pair_data.topo_order;
+        std::reverse(rev_pair_topo_order.begin(), rev_pair_topo_order.end());
+        backward_label.merge(pair, rev_pair_topo_order);
+
+        for (auto& f: pair.finals()) {
+            std::cout << "forward: " << forward_label.extra[f] << std::endl;
+        }
+
+        for (auto& i: pair.initials()) {
+            std::cout << "backward: " << backward_label.extra[i] << std::endl;
+        }
+
+    }
+
+    double marginal_log_loss::loss() const
+    {
+        double result = 0;
+
+        fscrf_pair_fst pair { pair_data };
+
+        result -= forward_label.extra.at(pair.finals().front());
+
+        fscrf_fst graph { graph_data };
+
+        result += forward_graph.extra.at(graph.finals().front());
+
+        return result;
+    }
+
+    void marginal_log_loss::grad() const
+    {
+        fscrf_pair_fst pair { pair_data };
+
+        double logZ1 = forward_label.extra.at(pair.finals().front());
+
+        for (auto& e: pair.edges()) {
+            if (!ebt::in(pair.tail(e), forward_label.extra) ||
+                    !ebt::in(pair.head(e), backward_label.extra)) {
+                continue;
+            }
+
+            pair_data.weight_func->accumulate_grad(
+                -std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
+                    + backward_label.extra.at(pair.head(e)) - logZ1), *pair_data.fst, e);
+        }
+
+        fscrf_fst graph { graph_data };
+
+        double logZ2 = forward_graph.extra.at(graph.finals().front());
+
+        for (auto& e: graph.edges()) {
+            graph_data.weight_func->accumulate_grad(
+                std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
+                    + backward_graph.extra.at(graph.head(e)) - logZ2), *graph_data.fst, e);
+        }
+    }
+
+    mode2_weight::mode2_weight(std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight)
+        : weight(weight)
+    {}
+
     double mode2_weight::operator()(ilat::pair_fst const& fst,
         std::tuple<int, int> e) const
     {

@@ -191,11 +191,11 @@ void learning_env::run()
 
         if (ebt::in(std::string("nn-param"), args)) {
             if (ebt::in(std::string("dropout-scale"), args)) {
-                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, dropout_scale);
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, lstm::lstm_builder{}, dropout_scale);
             } else if (ebt::in(std::string("dropout"), args)) {
-                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, gen, dropout);
+                nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree, frame_ops, lstm::lstm_builder{}, gen, dropout);
             } else { 
-                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+                nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, lstm::lstm_builder{});
             }
             pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
             feat_ops = pred_nn.logprob;
@@ -214,6 +214,14 @@ void learning_env::run()
             loss_func = new fscrf::hinge_loss { s.graph_data, s.gt_segs, l_args.sils, l_args.cost_scale };
         } else if (args.at("loss") == "log-loss") {
             loss_func = new fscrf::log_loss { s.graph_data, s.gt_segs, l_args.sils };
+        } else if (args.at("loss") == "marginal-log-loss") {
+            std::vector<int> label_seq;
+
+            for (int i = 0; i < s.gt_segs.size(); ++i) {
+                label_seq.push_back(s.gt_segs[i].label);
+            }
+
+            loss_func = new fscrf::marginal_log_loss { s.graph_data, label_seq };
         }
 
         double ell = loss_func->loss();

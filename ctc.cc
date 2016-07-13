@@ -204,10 +204,10 @@ namespace ctc {
         }
 
         if (nn_args.dropout == 0) {
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, lstm::lstm_builder{});
         } else {
             nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree,
-                frame_ops, gen, nn_args.dropout);
+                frame_ops, lstm::lstm_builder{}, gen, nn_args.dropout);
         }
 
         pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);

@@ -320,13 +320,29 @@ namespace fscrf {
 
     };
 
-    struct marginal_log_loss {
+    ilat::fst make_label_fst(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
 
-        marginal_log_loss(fscrf_data& graph_data);
+    struct marginal_log_loss
+        : public loss_func {
 
-        double loss() const;
+        fscrf_data& graph_data;
 
-        void grad() const;
+        fst::forward_log_sum<fscrf_fst> forward_graph;
+        fst::backward_log_sum<fscrf_fst> backward_graph;
+
+        fscrf_pair_data pair_data;
+
+        fst::forward_log_sum<fscrf_pair_fst> forward_label;
+        fst::backward_log_sum<fscrf_pair_fst> backward_label;
+
+        marginal_log_loss(fscrf_data& graph_data,
+            std::vector<int> const& label_seq);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
 
     };
 
@@ -334,6 +350,8 @@ namespace fscrf {
         : public scrf::scrf_weight<ilat::pair_fst> {
 
         std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight;
+
+        mode2_weight(std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight);
 
         virtual double operator()(ilat::pair_fst const& fst,
             std::tuple<int, int> e) const override;
