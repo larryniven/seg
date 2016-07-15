@@ -124,6 +124,11 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         output_nn_opt_data = args.at("output-nn-opt-data");
     }
 
+    dropout_scale = 0;
+    if (ebt::in(std::string("dropout-scale"), args)) {
+        dropout_scale = std::stod(args.at("dropout-scale"));
+    }
+
     subsample_gt_freq = 1;
     if (ebt::in(std::string("subsample-gt-freq"), args)) {
         subsample_gt_freq = std::stoi(args.at("subsample-gt-freq"));
