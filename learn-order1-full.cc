@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
             {"max-seg", "", false},
             {"param", "", true},
             {"opt-data", "", true},
-            {"nn-param", "", true},
-            {"nn-opt-data", "", true},
+            {"nn-param", "", false},
+            {"nn-opt-data", "", false},
             {"step-size", "", true},
             {"decay", "", false},
             {"momentum", "", false},
@@ -67,7 +67,8 @@ int main(int argc, char *argv[])
             {"dropout-scale", "", false},
             {"clip", "", false},
             {"dropout", "", false},
-            {"dropout-seed", "", false}
+            {"dropout-seed", "", false},
+            {"freeze-encoder", "", false},
         }
     };
 
@@ -271,10 +272,13 @@ void learning_env::run()
 #endif
 
         std::shared_ptr<tensor_tree::vertex> param_grad = fscrf::make_tensor_tree(l_args.features);
-        std::shared_ptr<tensor_tree::vertex> nn_param_grad
-            = lstm::make_stacked_bi_lstm_tensor_tree(l_args.layer);
-        std::shared_ptr<tensor_tree::vertex> pred_grad
-            = nn::make_pred_tensor_tree();
+        std::shared_ptr<tensor_tree::vertex> nn_param_grad;
+        std::shared_ptr<tensor_tree::vertex> pred_grad;
+
+        if (ebt::in(std::string("nn-param"), args)) {
+            nn_param_grad = lstm::make_stacked_bi_lstm_tensor_tree(l_args.layer);
+            pred_grad = nn::make_pred_tensor_tree();
+        }
 
         if (ell > 0) {
             loss_func->grad();
@@ -310,7 +314,11 @@ void learning_env::run()
             }
 
             double v1 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
-            double w1 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+            double w1 = 0;
+
+            if (ebt::in(std::string("nn-param"), args)) {
+                w1 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+            }
 
             if (ebt::in(std::string("decay"), l_args.args)) {
                 tensor_tree::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
@@ -355,10 +363,17 @@ void learning_env::run()
             }
 
             double v2 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
-            double w2 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+            double w2 = 0;
+
+            if (ebt::in(std::string("nn-param"), args)) {
+                w2 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+            }
 
             std::cout << "weight: " << v1 << " update: " << v2 - v1 << " ratio: " << (v2 - v1) / v1 << std::endl;
-            std::cout << "weight: " << w1 << " update: " << w2 - w1 << " ratio: " << (w2 - w1) / w1 << std::endl;
+
+            if (ebt::in(std::string("nn-param"), args)) {
+                std::cout << "weight: " << w1 << " update: " << w2 - w1 << " ratio: " << (w2 - w1) / w1 << std::endl;
+            }
 
         }
 
