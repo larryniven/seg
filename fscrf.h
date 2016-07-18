@@ -52,7 +52,7 @@ namespace scrf {
         using path_maker = ilat::pair_fst_path_maker;
         using edge = std::tuple<int, int>;
         using vertex = std::tuple<int, int>;
-        using symbol = std::tuple<int, int>;
+        using symbol = int;
         using fst = scrf_fst<fscrf::fscrf_pair_data>;
     };
 
@@ -339,6 +339,30 @@ namespace fscrf {
 
         marginal_log_loss(fscrf_data& graph_data,
             std::vector<int> const& label_seq);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct latent_hinge_loss
+        : public loss_func {
+
+        fscrf_data& graph_data;
+        fscrf_data graph_path_data;
+
+        fscrf_pair_data pair_data;
+        fscrf_pair_data gold_path_data;
+
+        std::vector<segcost::segment<int>> gold_segs;
+        std::vector<int> const& sils;
+        double cost_scale;
+
+        latent_hinge_loss(fscrf_data& graph_data,
+            std::vector<int> const& label_seq,
+            std::vector<int> const& sils,
+            double cost_scale);
 
         virtual double loss() const override;
 

@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
             {"min-seg", "", false},
             {"max-seg", "", false},
             {"param", "", true},
-            {"nn-param", "", true},
+            {"nn-param", "", false},
             {"features", "", true},
             {"label", "", true},
             {"dropout-scale", "", false},

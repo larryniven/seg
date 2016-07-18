@@ -1004,6 +1004,117 @@ namespace fscrf {
         }
     }
 
+    latent_hinge_loss::latent_hinge_loss(fscrf_data& graph_data,
+            std::vector<int> const& label_seq,
+            std::vector<int> const& sils,
+            double cost_scale)
+        : graph_data(graph_data), sils(sils), cost_scale(cost_scale)
+    {
+        ilat::fst& graph_fst = *graph_data.fst;
+        auto& label_id = *graph_fst.data->symbol_id;
+        auto& id_label = *graph_fst.data->id_symbol;
+
+        ilat::fst label_fst = make_label_fst(label_seq, label_id, id_label);
+
+        ilat::lazy_pair_mode1 composed_fst { label_fst, graph_fst };
+
+        pair_data.fst = std::make_shared<ilat::lazy_pair_mode1>(composed_fst);
+        pair_data.weight_func = std::make_shared<mode2_weight>(
+            mode2_weight { graph_data.weight_func });
+        pair_data.topo_order = std::make_shared<std::vector<std::tuple<int, int>>>(
+            fst::topo_order(composed_fst));
+
+        fscrf_pair_fst pair { pair_data };
+
+        gold_path_data.fst = scrf::shortest_path(pair_data);
+        gold_path_data.weight_func = pair_data.weight_func;
+
+        fscrf_fst graph { graph_data };
+        fscrf_pair_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            int tail_time = graph.time(std::get<1>(gold_path.tail(e)));
+            int head_time = graph.time(std::get<1>(gold_path.head(e)));
+
+            gold_segs.push_back(segcost::segment<int> { tail_time, head_time, gold_path.output(e) });
+        }
+
+        graph_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(
+            scrf::mul<ilat::fst>(std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(gold_segs, sils)), cost_scale));
+
+        double gold_score = 0;
+        std::cout << "gold:";
+        for (auto& e: gold_path.edges()) {
+            gold_score += gold_path.weight(e);
+
+            std::cout << " " << id_label[gold_path.output(e)]
+                << " (" << graph.time(std::get<1>(gold_path.head(e))) << ")";
+        }
+        std::cout << std::endl;
+        std::cout << "gold score: " << gold_score << std::endl;
+
+        scrf::composite_weight<ilat::fst> weight_cost;
+        weight_cost.weights.push_back(graph_data.cost_func);
+        weight_cost.weights.push_back(graph_data.weight_func);
+        graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_cost);
+        graph_path_data.fst = scrf::shortest_path(graph_data);
+        graph_path_data.weight_func = graph_data.weight_func;
+
+        fscrf_fst graph_path { graph_path_data };
+
+        double cost_aug_cost = 0;
+        double cost_aug_score = 0;
+        std::cout << "cost aug:";
+        for (auto& e: graph_path.edges()) {
+            cost_aug_cost += (*graph_data.cost_func)(*graph_path_data.fst, e);
+            cost_aug_score += graph_path.weight(e);
+
+            std::cout << " " << id_label[graph_path.output(e)];
+        }
+        std::cout << std::endl;
+        std::cout << "cost aug cost: " << cost_aug_cost << std::endl;
+        std::cout << "cost aug score: " << cost_aug_score << std::endl;
+    }
+
+    double latent_hinge_loss::loss() const
+    {
+        double gold_score = 0;
+
+        fscrf_pair_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            gold_score += gold_path.weight(e);
+        }
+
+        fscrf_fst graph_path { graph_path_data };
+
+        double graph_score = 0;
+
+        for (auto& e: graph_path.edges()) {
+            graph_score += graph_path.weight(e);
+        }
+
+        std::cout << "debug loss: " << -gold_score + graph_score << std::endl;
+
+        return -gold_score + graph_score;
+    }
+
+    void latent_hinge_loss::grad() const
+    {
+        fscrf_pair_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            gold_path_data.weight_func->accumulate_grad(-1, *gold_path.data.fst, e);
+        }
+
+        fscrf_fst graph_path { graph_path_data };
+
+        for (auto& e: graph_path.edges()) {
+            graph_path_data.weight_func->accumulate_grad(1, *graph_path.data.fst, e);
+        }
+    }
+
     mode2_weight::mode2_weight(std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight)
         : weight(weight)
     {}

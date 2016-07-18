@@ -172,6 +172,8 @@ void learning_env::run()
             break;
         }
 
+        std::cout << "sample: " << i + 1 << std::endl;
+
         fscrf::make_graph(s, l_args);
 
         autodiff::computation_graph comp_graph;
@@ -220,6 +222,14 @@ void learning_env::run()
             loss_func = new fscrf::hinge_loss { s.graph_data, s.gt_segs, l_args.sils, l_args.cost_scale };
         } else if (args.at("loss") == "log-loss") {
             loss_func = new fscrf::log_loss { s.graph_data, s.gt_segs, l_args.sils };
+        } else if (args.at("loss") == "latent-hinge") {
+            std::vector<int> label_seq;
+
+            for (int i = 0; i < s.gt_segs.size(); ++i) {
+                label_seq.push_back(s.gt_segs[i].label);
+            }
+
+            loss_func = new fscrf::latent_hinge_loss { s.graph_data, label_seq, l_args.sils, l_args.cost_scale };
         } else if (args.at("loss") == "marginal-log-loss") {
             std::vector<int> label_seq;
 
