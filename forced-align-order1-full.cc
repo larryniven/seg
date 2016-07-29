@@ -36,6 +36,8 @@ int main(int argc, char *argv[])
             {"features", "", true},
             {"label", "", true},
             {"dropout-scale", "", false},
+            {"frames", "", false},
+            {"segs", "", false}
         }
     };
 
@@ -165,11 +167,33 @@ void forced_alignment_env::run()
 
         fscrf::fscrf_fst graph { s.graph_data };
 
-        for (auto& e: edges) {
-            std::cout << l_args.id_label.at(pair.output(e)) << " "
-                << "(" << graph.time(graph.head(std::get<1>(e))) << ") ";
+        if (ebt::in(std::string("frames"), args)) {
+            std::cout << i + 1 << ".phn" << std::endl;
+            int t = 0;
+            for (auto& e: edges) {
+                int head_time = graph.time(graph.head(std::get<1>(e)));
+                for (int j = t; j < head_time; ++j) {
+                    std::cout << l_args.id_label.at(pair.output(e)) << std::endl;
+                }
+                t = head_time;
+            }
+            std::cout << "." << std::endl;
+        } else if (ebt::in(std::string("segs"), args)) {
+            std::cout << i + 1 << ".phn" << std::endl;
+            for (auto& e: edges) {
+                int tail_time = graph.time(graph.tail(std::get<1>(e)));
+                int head_time = graph.time(graph.head(std::get<1>(e)));
+
+                std::cout << tail_time << " " << head_time << " " << l_args.id_label.at(pair.output(e)) << std::endl;
+            }
+            std::cout << "." << std::endl;
+        } else {
+            for (auto& e: edges) {
+                std::cout << l_args.id_label.at(pair.output(e)) << " "
+                    << "(" << graph.time(graph.head(std::get<1>(e))) << ") ";
+            }
+            std::cout << std::endl;
         }
-        std::cout << std::endl;
 
         ++i;
 
