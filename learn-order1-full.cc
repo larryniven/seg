@@ -27,6 +27,8 @@ struct learning_env {
 
     double clip;
 
+    int mini_batch;
+
     std::unordered_map<std::string, std::string> args;
 
     learning_env(std::unordered_map<std::string, std::string> args);
@@ -69,6 +71,7 @@ int main(int argc, char *argv[])
             {"dropout", "", false},
             {"dropout-seed", "", false},
             {"freeze-encoder", "", false},
+            {"mini-batch", "", false}
         }
     };
 
@@ -149,6 +152,11 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
         clip = std::stod(args.at("clip"));
     }
 
+    mini_batch = 1;
+    if (ebt::in(std::string("mini-batch"), args)) {
+        mini_batch = std::stoi(args.at("mini-batch"));
+    }
+
     fscrf::parse_learning_args(l_args, args);
 }
 
@@ -159,6 +167,21 @@ void learning_env::run()
     int i = 0;
 
     std::default_random_engine gen { dropout_seed };
+
+    std::shared_ptr<tensor_tree::vertex> accu_param_grad
+        = fscrf::make_tensor_tree(l_args.features);
+    std::shared_ptr<tensor_tree::vertex> accu_nn_param_grad;
+    std::shared_ptr<tensor_tree::vertex> accu_pred_grad;
+
+    tensor_tree::resize_as(accu_param_grad, l_args.param);
+
+    if (ebt::in(std::string("nn-param"), args)) {
+        accu_nn_param_grad = lstm::make_stacked_bi_lstm_tensor_tree(l_args.layer);
+        accu_pred_grad = nn::make_pred_tensor_tree();
+
+        tensor_tree::resize_as(accu_nn_param_grad, l_args.nn_param);
+        tensor_tree::resize_as(accu_pred_grad, l_args.pred_param);
+    }
 
     while (1) {
 
@@ -323,66 +346,88 @@ void learning_env::run()
                 }
             }
 
-            double v1 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
-            double w1 = 0;
-
+            tensor_tree::iadd(accu_param_grad, param_grad);
             if (ebt::in(std::string("nn-param"), args)) {
-                w1 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+                tensor_tree::iadd(accu_nn_param_grad, nn_param_grad);
+                tensor_tree::iadd(accu_pred_grad, pred_grad);
             }
 
-            if (ebt::in(std::string("decay"), l_args.args)) {
-                tensor_tree::rmsprop_update(l_args.param, param_grad, l_args.opt_data,
-                    l_args.decay, l_args.step_size);
+            if ((i + 1) % mini_batch == 0) {
 
-                if (ebt::in(std::string("nn-param"), l_args.args)) {
-                    tensor_tree::rmsprop_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                tensor_tree::imul(accu_param_grad, 1.0 / mini_batch);
+                if (ebt::in(std::string("nn-param"), args)) {
+                    tensor_tree::imul(accu_nn_param_grad, 1.0 / mini_batch);
+                    tensor_tree::imul(accu_pred_grad, 1.0 / mini_batch);
+                }
+
+                double v1 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
+                double w1 = 0;
+
+                if (ebt::in(std::string("nn-param"), args)) {
+                    w1 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+                }
+
+                if (ebt::in(std::string("decay"), l_args.args)) {
+                    tensor_tree::rmsprop_update(l_args.param, accu_param_grad, l_args.opt_data,
                         l_args.decay, l_args.step_size);
-                    tensor_tree::rmsprop_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                        l_args.decay, l_args.step_size);
-                }
-            } else if (ebt::in(std::string("adam-beta1"), l_args.args)) {
-                tensor_tree::adam_update(l_args.param, param_grad, l_args.first_moment, l_args.second_moment,
-                    l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
 
-                if (ebt::in(std::string("nn-param"), l_args.args)) {
-                    tensor_tree::adam_update(l_args.nn_param, nn_param_grad, l_args.nn_first_moment, l_args.nn_second_moment,
+                    if (ebt::in(std::string("nn-param"), l_args.args)) {
+                        tensor_tree::rmsprop_update(l_args.nn_param, accu_nn_param_grad, l_args.nn_opt_data,
+                            l_args.decay, l_args.step_size);
+                        tensor_tree::rmsprop_update(l_args.pred_param, accu_pred_grad, l_args.pred_opt_data,
+                            l_args.decay, l_args.step_size);
+                    }
+                } else if (ebt::in(std::string("adam-beta1"), l_args.args)) {
+                    tensor_tree::adam_update(l_args.param, accu_param_grad, l_args.first_moment, l_args.second_moment,
                         l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
-                    tensor_tree::adam_update(l_args.pred_param, pred_grad, l_args.pred_first_moment, l_args.pred_second_moment,
-                        l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
-                }
-            } else if (ebt::in(std::string("momentum"), l_args.args)) {
-                tensor_tree::const_step_update_momentum(l_args.param, param_grad, l_args.opt_data,
-                    l_args.step_size, l_args.momentum);
 
-                if (ebt::in(std::string("nn-param"), l_args.args)) {
-                    tensor_tree::const_step_update_momentum(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                    if (ebt::in(std::string("nn-param"), l_args.args)) {
+                        tensor_tree::adam_update(l_args.nn_param, accu_nn_param_grad, l_args.nn_first_moment, l_args.nn_second_moment,
+                            l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
+                        tensor_tree::adam_update(l_args.pred_param, accu_pred_grad, l_args.pred_first_moment, l_args.pred_second_moment,
+                            l_args.time, l_args.step_size, l_args.adam_beta1, l_args.adam_beta2);
+                    }
+                } else if (ebt::in(std::string("momentum"), l_args.args)) {
+                    tensor_tree::const_step_update_momentum(l_args.param, accu_param_grad, l_args.opt_data,
                         l_args.step_size, l_args.momentum);
-                    tensor_tree::const_step_update_momentum(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                        l_args.step_size, l_args.momentum);
-                }
-            } else {
-                tensor_tree::adagrad_update(l_args.param, param_grad, l_args.opt_data,
-                    l_args.step_size);
 
-                if (ebt::in(std::string("nn-param"), l_args.args)) {
-                    tensor_tree::adagrad_update(l_args.nn_param, nn_param_grad, l_args.nn_opt_data,
+                    if (ebt::in(std::string("nn-param"), l_args.args)) {
+                        tensor_tree::const_step_update_momentum(l_args.nn_param, accu_nn_param_grad, l_args.nn_opt_data,
+                            l_args.step_size, l_args.momentum);
+                        tensor_tree::const_step_update_momentum(l_args.pred_param, accu_pred_grad, l_args.pred_opt_data,
+                            l_args.step_size, l_args.momentum);
+                    }
+                } else {
+                    tensor_tree::adagrad_update(l_args.param, accu_param_grad, l_args.opt_data,
                         l_args.step_size);
-                    tensor_tree::adagrad_update(l_args.pred_param, pred_grad, l_args.pred_opt_data,
-                        l_args.step_size);
+
+                    if (ebt::in(std::string("nn-param"), l_args.args)) {
+                        tensor_tree::adagrad_update(l_args.nn_param, accu_nn_param_grad, l_args.nn_opt_data,
+                            l_args.step_size);
+                        tensor_tree::adagrad_update(l_args.pred_param, accu_pred_grad, l_args.pred_opt_data,
+                            l_args.step_size);
+                    }
                 }
-            }
 
-            double v2 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
-            double w2 = 0;
+                double v2 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
+                double w2 = 0;
 
-            if (ebt::in(std::string("nn-param"), args)) {
-                w2 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
-            }
+                if (ebt::in(std::string("nn-param"), args)) {
+                    w2 = tensor_tree::get_matrix(l_args.nn_param->children[0]->children[0]->children[0])(0, 0);
+                }
 
-            std::cout << "weight: " << v1 << " update: " << v2 - v1 << " ratio: " << (v2 - v1) / v1 << std::endl;
+                std::cout << "weight: " << v1 << " update: " << v2 - v1 << " ratio: " << (v2 - v1) / v1 << std::endl;
 
-            if (ebt::in(std::string("nn-param"), args)) {
-                std::cout << "weight: " << w1 << " update: " << w2 - w1 << " ratio: " << (w2 - w1) / w1 << std::endl;
+                if (ebt::in(std::string("nn-param"), args)) {
+                    std::cout << "weight: " << w1 << " update: " << w2 - w1 << " ratio: " << (w2 - w1) / w1 << std::endl;
+                }
+
+                tensor_tree::zero(accu_param_grad);
+                if (ebt::in(std::string("nn-param"), args)) {
+                    tensor_tree::zero(accu_nn_param_grad);
+                    tensor_tree::zero(accu_pred_grad);
+                }
+
             }
 
         }
