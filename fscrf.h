@@ -201,6 +201,23 @@ namespace fscrf {
 
     };
 
+    struct external_score
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::vector<int> indices;
+        std::shared_ptr<autodiff::op_t> param;
+
+        external_score(std::shared_ptr<autodiff::op_t> param,
+            std::vector<int> indices);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+    };
+
     struct inference_args {
         int min_seg;
         int max_seg;

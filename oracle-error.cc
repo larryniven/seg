@@ -12,6 +12,8 @@ struct oracle_env {
 
     iscrf::inference_args i_args;
 
+    std::vector<std::string> ignored;
+
     std::unordered_map<std::string, std::string> args;
 
     oracle_env(std::unordered_map<std::string, std::string> args);
@@ -35,6 +37,8 @@ int main(int argc, char *argv[])
             {"label-batch", "", true},
             {"lattice-batch", "", true},
             {"label", "", true},
+            {"print-path", "", false},
+            {"ignore", "", false},
         }
     };
 
@@ -58,7 +62,10 @@ int main(int argc, char *argv[])
 }
 
 oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
+    : args(args)
 {
+    i_args.args = args;
+
     label_batch.open(args.at("label-batch"));
 
     lattice_batch.open(args.at("lattice-batch"));
@@ -69,6 +76,10 @@ oracle_env::oracle_env(std::unordered_map<std::string, std::string> args)
     for (auto& p: i_args.label_id) {
         i_args.labels.push_back(p.second);
         i_args.id_label[p.second] = p.first;
+    }
+
+    if (ebt::in(std::string("ignore"), args)) {
+        ignored = ebt::split(args.at("ignore"));
     }
 }
 
@@ -84,6 +95,8 @@ void oracle_env::run()
     int total_ins = 0;
     int total_del = 0;
     int total_sub = 0;
+
+    double total_density = 0;
 
     while (1) {
 
@@ -111,6 +124,10 @@ void oracle_env::run()
 
         ilat::fst label_fst = make_label_fst(label_seq, i_args.label_id);
 
+        for (auto& ig: ignored) {
+            ilat::add_eps_loops(label_fst, i_args.label_id.at(ig));
+        }
+
         ilat::lazy_pair_mode1 composed_fst { lat, label_fst };
 
         auto topo_order = fst::topo_order(composed_fst);
@@ -122,31 +139,53 @@ void oracle_env::run()
         one_best.merge(composed_fst, topo_order);
         std::vector<std::tuple<int, int>> best_edges = one_best.best_path(composed_fst);
 
-        int ins = 0;
-        int del = 0;
-        int sub = 0;
-        int length = 0;
+        if (ebt::in(std::string("print-path"), args)) {
+            std::cout << lat.data->name << std::endl;
 
-        std::tie(ins, del, sub, length) = error_analysis(best_edges, composed_fst);
+            for (auto& e: best_edges) {
+                int tail = std::get<0>(composed_fst.tail(e));
+                int head = std::get<0>(composed_fst.head(e));
 
-        std::cout << i << ": edges: " << lat.edges().size() << " density: " << lat.edges().size() / length << std::endl;
+                std::cout << lat.time(tail) << " " << lat.time(head)
+                    << " " << i_args.id_label.at(composed_fst.input(e))
+                    << std::endl;
+            }
 
-        std::cout << "best ins: " << ins << " del: " << del << " sub: " << sub << " len: " << length
-            << " er: " << double(ins + del + sub) / length << std::endl;
+            std::cout << "." << std::endl;
 
-        total_ins += ins;
-        total_del += del;
-        total_sub += sub;
-        total_len += length;
+        } else {
+            int ins = 0;
+            int del = 0;
+            int sub = 0;
+            int length = 0;
+
+            std::tie(ins, del, sub, length) = error_analysis(best_edges, composed_fst);
+
+            std::cout << lat.data->name << ": edges: " << lat.edges().size()
+                << " density: " << lat.edges().size() / length << std::endl;
+
+            std::cout << "ins: " << ins << " del: " << del << " sub: " << sub << " len: " << length
+                << " er: " << double(ins + del + sub) / length << std::endl;
+
+            total_ins += ins;
+            total_del += del;
+            total_sub += sub;
+            total_len += length;
+
+            total_density += lat.edges().size() / length;
+        }
 
         ++i;
     }
 
-    std::cout << "total ins: " << total_ins
-        << " total del: " << total_del
-        << " total sub: " << total_sub
-        << " total len: " << total_len
-        << " er: " << double(total_ins + total_del + total_sub) / total_len << std::endl;
+    if (!ebt::in(std::string("print-path"), args)) {
+        std::cout << "total ins: " << total_ins
+            << " total del: " << total_del
+            << " total sub: " << total_sub
+            << " total len: " << total_len
+            << " er: " << double(total_ins + total_del + total_sub) / total_len << std::endl;
+        std::cout << "avg density: " << total_density / (i - 1) << std::endl;
+    }
 }
 
 ilat::fst make_label_fst(std::vector<std::string> const& label_seq,

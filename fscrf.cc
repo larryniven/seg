@@ -105,6 +105,29 @@ namespace fscrf {
             root.children.push_back(tensor_tree::make_vector("bias"));
         }
 
+        for (auto& k: features) {
+            if (ebt::startswith(k, "external")) {
+                auto parts = ebt::split(k, ":");
+                parts = ebt::split(parts[1], "+");
+                std::vector<int> dims;
+
+                for (auto& p: parts) {
+                    std::vector<std::string> range = ebt::split(p, "-");
+                    if (range.size() == 2) {
+                        for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                            dims.push_back(i);
+                        }
+                    } else if (range.size() == 1) {
+                        dims.push_back(std::stoi(p));
+                    } else {
+                        std::cerr << "unknown external feature format: " << k << std::endl;
+                    }
+                }
+
+                root.children.push_back(tensor_tree::make_vector("external"));
+            }
+        }
+
         return std::make_shared<tensor_tree::vertex>(root);
     }
 
@@ -178,6 +201,32 @@ namespace fscrf {
                 fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
             ++feat_idx;
+        }
+
+        for (auto& k: features) {
+            if (ebt::startswith(k, "external")) {
+                auto parts = ebt::split(k, ":");
+                parts = ebt::split(parts[1], "+");
+                std::vector<int> dims;
+
+                for (auto& p: parts) {
+                    std::vector<std::string> range = ebt::split(p, "-");
+                    if (range.size() == 2) {
+                        for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                            dims.push_back(i);
+                        }
+                    } else if (range.size() == 1) {
+                        dims.push_back(std::stoi(p));
+                    } else {
+                        std::cerr << "unknown external feature format: " << k << std::endl;
+                    }
+                }
+
+                weight_func.weights.push_back(std::make_shared<fscrf::external_score>(
+                    fscrf::external_score { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+
+                ++feat_idx;
+            }
         }
 
         return std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func);
@@ -481,6 +530,50 @@ namespace fscrf {
         int ell = f.output(e) - 1;
 
         v_grad(ell) += g;
+    }
+
+    external_score::external_score(std::shared_ptr<autodiff::op_t> param,
+            std::vector<int> indices)
+        : param(param), indices(indices)
+    {}
+
+    double external_score::operator()(ilat::fst const& f,
+        int e) const
+    {
+        auto& feat = f.data->feats.at(e);
+
+        la::matrix<double>& m = autodiff::get_output<la::matrix<double>>(param);
+
+        assert(indices.size() <= m.cols());
+
+        double sum = 0;
+        for (int i = 0; i < indices.size(); ++i) {
+            sum += m(f.output(e), i) * feat.at(indices.at(i));
+        }
+
+        return sum;
+    }
+
+    void external_score::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        auto& feat = f.data->feats.at(e);
+
+        if (param->grad == nullptr) {
+            la::matrix<double>& m = autodiff::get_output<la::matrix<double>>(param);
+
+            la::matrix<double> g_mat;
+            g_mat.resize(m.rows(), m.cols());
+            param->grad = std::make_shared<la::matrix<double>>(g_mat);
+        }
+
+        la::matrix<double>& g_mat = autodiff::get_grad<la::matrix<double>>(param);
+
+        assert(indices.size() <= g_mat.cols());
+
+        for (int i = 0; i < indices.size(); ++i) {
+            g_mat(f.output(e), i) += g * feat.at(indices.at(i));
+        }
     }
 
     std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
