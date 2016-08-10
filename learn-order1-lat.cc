@@ -4,11 +4,6 @@
 #include "scrf/util.h"
 #include <fstream>
 
-std::shared_ptr<tensor_tree::vertex> make_tensor_tree();
-std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_weights(
-    std::vector<std::string> const& feature,
-    std::shared_ptr<tensor_tree::vertex> var_tree);
-
 struct learning_env {
 
     std::ifstream lat_batch;
@@ -84,69 +79,6 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
-    std::vector<std::string> const& features)
-{
-    tensor_tree::vertex v { tensor_tree::tensor_t::nil };
-
-    for (auto& k: features) {
-        if (ebt::startswith(k, "external")) {
-            v.children.push_back(tensor_tree::make_matrix());
-        } else if (k == "bias") {
-            v.children.push_back(tensor_tree::make_vector());
-        } else {
-            std::cout << "unknown feature: " << k << std::endl;
-            exit(1);
-        }
-    }
-
-    return std::make_shared<tensor_tree::vertex>(v);
-}
-
-std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_weights(
-    std::vector<std::string> const& features,
-    std::shared_ptr<tensor_tree::vertex> var_tree)
-{
-    scrf::composite_weight<ilat::fst> weight_func;
-    int feat_idx = 0;
-
-    for (auto& k: features) {
-        if (ebt::startswith(k, "external")) {
-            auto parts = ebt::split(k, ":");
-            parts = ebt::split(parts[1], "+");
-            std::vector<int> dims;
-
-            for (auto& p: parts) {
-                std::vector<std::string> range = ebt::split(p, "-");
-                if (range.size() == 2) {
-                    for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
-                        dims.push_back(i);
-                    }
-                } else if (range.size() == 1) {
-                    dims.push_back(std::stoi(p));
-                } else {
-                    std::cerr << "unknown external feature format: " << k << std::endl;
-                }
-            }
-
-            weight_func.weights.push_back(std::make_shared<fscrf::external_score>(
-                fscrf::external_score { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
-
-            ++feat_idx;
-        } else if (k == "bias") {
-            weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
-                fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
-
-            ++feat_idx;
-        } else {
-            std::cout << "unknown feature: " << k << std::endl;
-            exit(1);
-        }
-    }
-
-    return std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func);
-}
-
 learning_env::learning_env(std::unordered_map<std::string, std::string> args)
     : args(args)
 {
@@ -170,9 +102,9 @@ learning_env::learning_env(std::unordered_map<std::string, std::string> args)
 
     features = ebt::split(args.at("features"), ",");
 
-    param = make_tensor_tree(features);
+    param = fscrf::lat::make_tensor_tree(features);
     tensor_tree::load_tensor(param, args.at("param"));
-    opt_data = make_tensor_tree(features);
+    opt_data = fscrf::lat::make_tensor_tree(features);
     tensor_tree::load_tensor(opt_data, args.at("opt-data"));
 
     step_size = std::stod(args.at("step-size"));
@@ -227,7 +159,7 @@ void learning_env::run()
         autodiff::computation_graph comp_graph;
         std::shared_ptr<tensor_tree::vertex> var_tree = tensor_tree::make_var_tree(comp_graph, param);
 
-        graph_data.weight_func = make_weights(features, var_tree);
+        graph_data.weight_func = fscrf::lat::make_weights(features, var_tree);
 
         fscrf::loss_func *loss_func;
 
@@ -241,7 +173,7 @@ void learning_env::run()
 
         std::cout << "loss: " << ell << std::endl;
 
-        std::shared_ptr<tensor_tree::vertex> param_grad = make_tensor_tree(features);
+        std::shared_ptr<tensor_tree::vertex> param_grad = fscrf::lat::make_tensor_tree(features);
 
         if (ell > 0) {
             loss_func->grad();

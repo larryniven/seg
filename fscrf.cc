@@ -1229,4 +1229,70 @@ namespace fscrf {
         weight->grad();
     }
 
+    namespace lat {
+
+        std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
+            std::vector<std::string> const& features)
+        {
+            tensor_tree::vertex v { tensor_tree::tensor_t::nil };
+        
+            for (auto& k: features) {
+                if (ebt::startswith(k, "external")) {
+                    v.children.push_back(tensor_tree::make_matrix());
+                } else if (k == "bias") {
+                    v.children.push_back(tensor_tree::make_vector());
+                } else {
+                    std::cout << "unknown feature: " << k << std::endl;
+                    exit(1);
+                }
+            }
+        
+            return std::make_shared<tensor_tree::vertex>(v);
+        }
+        
+        std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_weights(
+            std::vector<std::string> const& features,
+            std::shared_ptr<tensor_tree::vertex> var_tree)
+        {
+            scrf::composite_weight<ilat::fst> weight_func;
+            int feat_idx = 0;
+        
+            for (auto& k: features) {
+                if (ebt::startswith(k, "external")) {
+                    auto parts = ebt::split(k, ":");
+                    parts = ebt::split(parts[1], "+");
+                    std::vector<int> dims;
+        
+                    for (auto& p: parts) {
+                        std::vector<std::string> range = ebt::split(p, "-");
+                        if (range.size() == 2) {
+                            for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                                dims.push_back(i);
+                            }
+                        } else if (range.size() == 1) {
+                            dims.push_back(std::stoi(p));
+                        } else {
+                            std::cerr << "unknown external feature format: " << k << std::endl;
+                        }
+                    }
+        
+                    weight_func.weights.push_back(std::make_shared<fscrf::external_score>(
+                        fscrf::external_score { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+        
+                    ++feat_idx;
+                } else if (k == "bias") {
+                    weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
+                        fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+        
+                    ++feat_idx;
+                } else {
+                    std::cout << "unknown feature: " << k << std::endl;
+                    exit(1);
+                }
+            }
+        
+            return std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func);
+        }
+
+    }
 }

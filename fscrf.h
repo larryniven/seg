@@ -403,6 +403,17 @@ namespace fscrf {
         virtual void grad() const override;
     };
 
+    namespace lat {
+
+        std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
+            std::vector<std::string> const& features);
+
+        std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_weights(
+            std::vector<std::string> const& feature,
+            std::shared_ptr<tensor_tree::vertex> var_tree);
+
+    }
+
 }
 
 #endif

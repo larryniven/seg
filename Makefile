@@ -23,6 +23,7 @@ bin = \
     predict-order1-full \
     loss-order1-full \
     learn-order1-lat \
+    predict-order1-lat \
     forced-align-order1-full
 
 obj = segfeat.o fst.o scrf.o scrf_feat.o ilat.o iscrf.o util.o
@@ -114,6 +115,9 @@ forced-align-order1-full: forced-align-order1-full.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 learn-order1-lat: learn-order1-lat.o fscrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+predict-order1-lat: predict-order1-lat.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 util.o: util.h
