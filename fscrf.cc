@@ -101,10 +101,6 @@ namespace fscrf {
             root.children.push_back(tensor_tree::make_matrix("log length"));
         }
 
-        if (ebt::in(std::string("bias"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_vector("bias"));
-        }
-
         for (auto& k: features) {
             if (ebt::startswith(k, "external")) {
                 auto parts = ebt::split(k, ":");
@@ -124,7 +120,9 @@ namespace fscrf {
                     }
                 }
 
-                root.children.push_back(tensor_tree::make_vector("external"));
+                root.children.push_back(tensor_tree::make_matrix("external"));
+            } else if (k == "bias") {
+                root.children.push_back(tensor_tree::make_vector("bias"));
             }
         }
 
@@ -196,13 +194,6 @@ namespace fscrf {
             ++feat_idx;
         }
 
-        if (ebt::in(std::string("bias"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
-                fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
-
-            ++feat_idx;
-        }
-
         for (auto& k: features) {
             if (ebt::startswith(k, "external")) {
                 auto parts = ebt::split(k, ":");
@@ -224,6 +215,11 @@ namespace fscrf {
 
                 weight_func.weights.push_back(std::make_shared<fscrf::external_score>(
                     fscrf::external_score { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+
+                ++feat_idx;
+            } else if (k == "bias") {
+                weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
+                    fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
                 ++feat_idx;
             }
@@ -544,11 +540,12 @@ namespace fscrf {
 
         la::matrix<double>& m = autodiff::get_output<la::matrix<double>>(param);
 
-        assert(indices.size() <= m.cols());
+        assert(indices.size() == m.cols());
+        assert(f.output(e) - 1 < m.rows());
 
         double sum = 0;
         for (int i = 0; i < indices.size(); ++i) {
-            sum += m(f.output(e), i) * feat.at(indices.at(i));
+            sum += m(f.output(e) - 1, i) * feat.at(indices.at(i));
         }
 
         return sum;
@@ -569,10 +566,11 @@ namespace fscrf {
 
         la::matrix<double>& g_mat = autodiff::get_grad<la::matrix<double>>(param);
 
-        assert(indices.size() <= g_mat.cols());
+        assert(indices.size() == g_mat.cols());
+        assert(f.output(e) - 1 < g_mat.rows());
 
         for (int i = 0; i < indices.size(); ++i) {
-            g_mat(f.output(e), i) += g * feat.at(indices.at(i));
+            g_mat(f.output(e) - 1, i) += g * feat.at(indices.at(i));
         }
     }
 

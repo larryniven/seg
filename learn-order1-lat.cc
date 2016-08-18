@@ -197,6 +197,8 @@ void learning_env::run()
             std::cout << "loss is less than zero.  skipping." << std::endl;
         }
 
+        delete loss_func;
+
         std::cout << std::endl;
 
         ++i;
@@ -205,8 +207,6 @@ void learning_env::run()
             tensor_tree::save_tensor(param, "param-last");
             tensor_tree::save_tensor(opt_data, "opt-data-last");
         }
-
-        delete loss_func;
 
 #if DEBUG_TOP
         if (i == DEBUG_TOP) {

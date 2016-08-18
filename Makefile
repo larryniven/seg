@@ -21,6 +21,7 @@ bin = \
     predict-ctc \
     learn-order1-full \
     predict-order1-full \
+    prune-order1-full \
     loss-order1-full \
     learn-order1-lat \
     predict-order1-lat \
@@ -106,6 +107,9 @@ learn-order1-full: learn-order1-full.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 predict-order1-full: predict-order1-full.o fscrf.o $(obj)
+	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
+
+prune-order1-full: prune-order1-full.o fscrf.o $(obj)
 	$(CXX) $(CXXFLAGS) -o $@ $^ -lspeech -lnn -lautodiff -lopt -lla -lebt -lblas
 
 loss-order1-full: loss-order1-full.o fscrf.o $(obj)

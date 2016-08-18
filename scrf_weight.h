@@ -23,6 +23,21 @@ namespace scrf {
     };
 
     template <class fst>
+    struct cached_weight
+        : public scrf_weight<fst> {
+
+        std::shared_ptr<scrf_weight<fst>> weight_func;
+
+        mutable std::unordered_map<typename fst::edge, double> weights;
+
+        cached_weight(std::shared_ptr<scrf_weight<fst>> weight_func);
+
+        virtual double operator()(fst const& f,
+            typename fst::edge e) const override;
+
+    };
+
+    template <class fst>
     struct mul
         : public scrf_weight<fst> {
 
@@ -91,6 +106,22 @@ namespace scrf {
         for (auto& w: weights) {
             w->grad();
         }
+    }
+
+    template <class fst>
+    cached_weight<fst>::cached_weight(std::shared_ptr<scrf_weight<fst>> weight_func)
+        : weight_func(weight_func)
+    {}
+
+    template <class fst>
+    double cached_weight<fst>::operator()(fst const& f,
+        typename fst::edge e) const
+    {
+        if (!ebt::in(e, weights)) {
+            weights[e] = (*weight_func)(f, e);
+        }
+
+        return weights[e];
     }
 
     template <class fst>
