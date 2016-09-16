@@ -53,9 +53,7 @@ namespace ilat {
             data.edges[e] = e_data;
             data.in_edges[e_data.head].push_back(e);
             data.out_edges[e_data.tail].push_back(e);
-            data.in_edges_map[e_data.head].resize(data.symbol_id->size());
             data.in_edges_map[e_data.head][e_data.input].push_back(e);
-            data.out_edges_map[e_data.tail].resize(data.symbol_id->size());
             data.out_edges_map[e_data.tail][e_data.input].push_back(e);
             data.edge_attrs.resize(size);
             data.feats.resize(size);
@@ -89,12 +87,12 @@ namespace ilat {
         return data->out_edges.at(v);
     }
 
-    std::vector<std::vector<int>> const& fst::in_edges_map(int v) const
+    std::unordered_map<int, std::vector<int>> const& fst::in_edges_map(int v) const
     {
         return data->in_edges_map.at(v);
     }
 
-    std::vector<std::vector<int>> const& fst::out_edges_map(int v) const
+    std::unordered_map<int, std::vector<int>> const& fst::out_edges_map(int v) const
     {
         return data->out_edges_map.at(v);
     }

@@ -67,60 +67,32 @@ namespace fscrf {
     std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
         std::vector<std::string> const& features)
     {
-        std::unordered_set<std::string> feature_keys { features.begin(), features.end() };
-
         tensor_tree::vertex root { tensor_tree::tensor_t::nil };
 
-        if (ebt::in(std::string("frame-avg"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_matrix("frame avg"));
-        }
-
-        if (ebt::in(std::string("frame-samples"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_matrix("frame samples"));
-            root.children.push_back(tensor_tree::make_matrix("frame samples"));
-            root.children.push_back(tensor_tree::make_matrix("frame samples"));
-        }
-
-        if (ebt::in(std::string("left-boundary"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_matrix("left boundary"));
-            root.children.push_back(tensor_tree::make_matrix("left boundary"));
-            root.children.push_back(tensor_tree::make_matrix("left boundary"));
-        }
-
-        if (ebt::in(std::string("right-boundary"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_matrix("right boundary"));
-            root.children.push_back(tensor_tree::make_matrix("right boundary"));
-            root.children.push_back(tensor_tree::make_matrix("right boundary"));
-        }
-
-        if (ebt::in(std::string("length-indicator"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_matrix("length"));
-        }
-
-        if (ebt::in(std::string("log-length"), feature_keys)) {
-            root.children.push_back(tensor_tree::make_matrix("log length"));
-        }
-
         for (auto& k: features) {
-            if (ebt::startswith(k, "external")) {
-                auto parts = ebt::split(k, ":");
-                parts = ebt::split(parts[1], "+");
-                std::vector<int> dims;
-
-                for (auto& p: parts) {
-                    std::vector<std::string> range = ebt::split(p, "-");
-                    if (range.size() == 2) {
-                        for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
-                            dims.push_back(i);
-                        }
-                    } else if (range.size() == 1) {
-                        dims.push_back(std::stoi(p));
-                    } else {
-                        std::cerr << "unknown external feature format: " << k << std::endl;
-                    }
-                }
-
-                root.children.push_back(tensor_tree::make_matrix("external"));
+            if (ebt::startswith(k, "ext0")) {
+                root.children.push_back(tensor_tree::make_vector("ext0"));
+            } else if (ebt::startswith(k, "ext1")) {
+                root.children.push_back(tensor_tree::make_matrix("ext1"));
+            } else if (ebt::startswith(k, "frame-avg")) {
+                root.children.push_back(tensor_tree::make_matrix("frame avg"));
+            } else if (ebt::startswith(k, "frame-att")) {
+                root.children.push_back(tensor_tree::make_matrix("frame att"));
+                root.children.push_back(tensor_tree::make_matrix("frame att"));
+            } else if (ebt::startswith(k, "frame-samples")) {
+                root.children.push_back(tensor_tree::make_matrix("frame samples"));
+                root.children.push_back(tensor_tree::make_matrix("frame samples"));
+                root.children.push_back(tensor_tree::make_matrix("frame samples"));
+            } else if (ebt::startswith(k, "left-boundary")) {
+                root.children.push_back(tensor_tree::make_matrix("left boundary"));
+                root.children.push_back(tensor_tree::make_matrix("left boundary"));
+                root.children.push_back(tensor_tree::make_matrix("left boundary"));
+            } else if (ebt::startswith(k, "right-boundary")) {
+                root.children.push_back(tensor_tree::make_matrix("right boundary"));
+                root.children.push_back(tensor_tree::make_matrix("right boundary"));
+                root.children.push_back(tensor_tree::make_matrix("right boundary"));
+            } else if (ebt::startswith(k, "length-indicator")) {
+                root.children.push_back(tensor_tree::make_matrix("length"));
             } else if (k == "bias") {
                 root.children.push_back(tensor_tree::make_vector("bias"));
             }
@@ -134,51 +106,9 @@ namespace fscrf {
         std::shared_ptr<tensor_tree::vertex> var_tree,
         std::shared_ptr<autodiff::op_t> frame_mat)
     {
-        std::unordered_set<std::string> feature_keys { features.begin(), features.end() };
-
         scrf::composite_weight<ilat::fst> weight_func;
 
         int feat_idx = 0;
-
-        if (ebt::in(std::string("frame-samples"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
-                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
-            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
-                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 1.0 / 2)));
-            weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
-                fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 5.0 / 6)));
-
-            feat_idx += 3;
-        }
-
-        if (ebt::in(std::string("left-boundary"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
-                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, -1)));
-            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
-                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, -2)));
-            weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
-                fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, -3)));
-
-            feat_idx += 3;
-        }
-
-        if (ebt::in(std::string("left-boundary"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
-                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1)));
-            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
-                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 2)));
-            weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
-                fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
-
-            feat_idx += 3;
-        }
-
-        if (ebt::in(std::string("log-length"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::log_length_score>(
-                fscrf::log_length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
-
-            ++feat_idx;
-        }
 
         for (auto& k: features) {
             if (ebt::startswith(k, "frame-avg")) {
@@ -186,6 +116,40 @@ namespace fscrf {
                     fscrf::frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
 
                 ++feat_idx;
+            } else if (ebt::startswith(k, "frame-att")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::frame_weighted_avg_score>(
+                    fscrf::frame_weighted_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]),
+                        tensor_tree::get_var(var_tree->children[feat_idx + 1]),
+                        frame_mat)));
+
+                feat_idx += 2;
+            } else if (ebt::startswith(k, "frame-samples")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                    fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
+                weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                    fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 1.0 / 2)));
+                weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
+                    fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 5.0 / 6)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "left-boundary")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                    fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, -1)));
+                weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                    fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, -2)));
+                weight_func.weights.push_back(std::make_shared<fscrf::left_boundary_score>(
+                    fscrf::left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, -3)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "right-boundary")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                    fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1)));
+                weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                    fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 2)));
+                weight_func.weights.push_back(std::make_shared<fscrf::right_boundary_score>(
+                    fscrf::right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
+
+                feat_idx += 3;
             } else if (ebt::startswith(k, "length-indicator")) {
                 weight_func.weights.push_back(std::make_shared<fscrf::length_score>(
                     fscrf::length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
@@ -306,15 +270,18 @@ namespace fscrf {
     {
         score = autodiff::mmul(param, frames);
         autodiff::eval_vertex(score, autodiff::eval_funcs);
+
         att = autodiff::mmul(att_param, frames);
+        att_exp = autodiff::mexp(att);
         autodiff::eval_vertex(att, autodiff::eval_funcs);
+        autodiff::eval_vertex(att_exp, autodiff::eval_funcs);
     }
 
     double frame_weighted_avg_score::operator()(ilat::fst const& f,
         int e) const
     {
         auto& m = autodiff::get_output<la::matrix<double>>(score);
-        auto& n = autodiff::get_output<la::matrix<double>>(att);
+        auto& n = autodiff::get_output<la::matrix<double>>(att_exp);
 
         double sum = 0;
 
@@ -322,13 +289,27 @@ namespace fscrf {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
+        int start = std::max<int>(0, tail_time - 30);
+        int end = std::min<int>(head_time + 30, n.cols());
+
+        /*
         double logZ = -std::numeric_limits<double>::infinity();
-        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+        for (int t = start; t < end; ++t) {
             logZ = ebt::log_add(logZ, n(ell, t));
         }
 
-        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+        for (int t = start; t < end; ++t) {
             sum += std::exp(n(ell, t) - logZ) * m(ell, t);
+        }
+        */
+
+        double Z = 0;
+        for (int t = start; t < end; ++t) {
+            Z += n(ell, t);
+        }
+
+        for (int t = start; t < end; ++t) {
+            sum += n(ell, t) * m(ell, t) / Z;
         }
 
         return sum;
@@ -338,7 +319,7 @@ namespace fscrf {
         int e) const
     {
         auto& m = autodiff::get_output<la::matrix<double>>(score);
-        auto& n = autodiff::get_output<la::matrix<double>>(att);
+        auto& n = autodiff::get_output<la::matrix<double>>(att_exp);
 
         if (score->grad == nullptr) {
             la::matrix<double> m_grad;
@@ -346,25 +327,29 @@ namespace fscrf {
             score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
         }
 
-        if (att->grad == nullptr) {
+        if (att_exp->grad == nullptr) {
             la::matrix<double> n_grad;
             n_grad.resize(n.rows(), n.cols());
-            att->grad = std::make_shared<la::matrix<double>>(std::move(n_grad));
+            att_exp->grad = std::make_shared<la::matrix<double>>(std::move(n_grad));
         }
 
         auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
-        auto& n_grad = autodiff::get_grad<la::matrix<double>>(att);
+        auto& n_grad = autodiff::get_grad<la::matrix<double>>(att_exp);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
+        int start = std::max<int>(0, tail_time - 30);
+        int end = std::min<int>(head_time + 30, n.cols());
+
+        /*
         double logZ = -std::numeric_limits<double>::infinity();
         for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
             logZ = ebt::log_add(logZ, n(ell, t));
         }
 
-        double gradZ = -std::numeric_limits<double>::infinity();
+        double gradZ = 0;
         for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
             gradZ += std::exp(n(ell, t) - logZ) * m(ell, t);
         }
@@ -373,11 +358,23 @@ namespace fscrf {
             m_grad(ell, t) += g * std::exp(n(ell, t) - logZ);
             n_grad(ell, t) += std::exp(n(ell, t) - logZ) * g * (m(ell, t) - gradZ);
         }
+        */
+
+        double Z = 0;
+        for (int t = start; t < end; ++t) {
+            Z += n(ell, t);
+        }
+
+        for (int t = start; t < end; ++t) {
+            m_grad(ell, t) += g * n(ell, t) / Z;
+            n_grad(ell, t) += g * m(ell, t) * (1 - n(ell, t) / Z) / Z;
+        }
     }
 
     void frame_weighted_avg_score::grad() const
     {
         autodiff::eval_vertex(score, autodiff::grad_funcs);
+        autodiff::eval_vertex(att_exp, autodiff::grad_funcs);
         autodiff::eval_vertex(att, autodiff::grad_funcs);
     }
 

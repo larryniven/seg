@@ -100,6 +100,7 @@ namespace fscrf {
         std::shared_ptr<autodiff::op_t> att_param;
         std::shared_ptr<autodiff::op_t> frames;
         std::shared_ptr<autodiff::op_t> att;
+        std::shared_ptr<autodiff::op_t> att_exp;
         std::shared_ptr<autodiff::op_t> score;
 
         frame_weighted_avg_score(std::shared_ptr<autodiff::op_t> param,

@@ -47,8 +47,8 @@ namespace ilat {
         std::vector<std::vector<int>> in_edges;
         std::vector<std::vector<int>> out_edges;
 
-        std::vector<std::vector<std::vector<int>>> in_edges_map;
-        std::vector<std::vector<std::vector<int>>> out_edges_map;
+        std::vector<std::unordered_map<int, std::vector<int>>> in_edges_map;
+        std::vector<std::unordered_map<int, std::vector<int>>> out_edges_map;
 
         std::vector<std::vector<std::pair<std::string, std::string>>> vertex_attrs;
         std::vector<std::vector<std::pair<std::string, std::string>>> edge_attrs;
@@ -92,8 +92,8 @@ namespace ilat {
 
         virtual long time(int v) const override;
 
-        virtual std::vector<std::vector<int>> const& in_edges_map(int v) const;
-        virtual std::vector<std::vector<int>> const& out_edges_map(int v) const;
+        virtual std::unordered_map<int, std::vector<int>> const& in_edges_map(int v) const;
+        virtual std::unordered_map<int, std::vector<int>> const& out_edges_map(int v) const;
     };
 
     /*
