@@ -146,6 +146,10 @@ void oracle_env::run()
                 int tail = std::get<0>(composed_fst.tail(e));
                 int head = std::get<0>(composed_fst.head(e));
 
+                if (tail == head) {
+                    continue;
+                }
+
                 std::cout << lat.time(tail) << " " << lat.time(head)
                     << " " << i_args.id_label.at(composed_fst.input(e))
                     << std::endl;

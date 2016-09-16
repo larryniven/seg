@@ -93,6 +93,29 @@ namespace fscrf {
 
     };
 
+    struct frame_weighted_avg_score
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<autodiff::op_t> att_param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> att;
+        std::shared_ptr<autodiff::op_t> score;
+
+        frame_weighted_avg_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> att_param,
+            std::shared_ptr<autodiff::op_t> frame);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
     struct frame_samples_score
         : public scrf::scrf_weight<ilat::fst> {
 
@@ -201,13 +224,30 @@ namespace fscrf {
 
     };
 
-    struct external_score
+    struct external_score_order0
         : public scrf::scrf_weight<ilat::fst> {
 
         std::vector<int> indices;
         std::shared_ptr<autodiff::op_t> param;
 
-        external_score(std::shared_ptr<autodiff::op_t> param,
+        external_score_order0(std::shared_ptr<autodiff::op_t> param,
+            std::vector<int> indices);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+    };
+
+    struct external_score_order1
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::vector<int> indices;
+        std::shared_ptr<autodiff::op_t> param;
+
+        external_score_order1(std::shared_ptr<autodiff::op_t> param,
             std::vector<int> indices);
 
         virtual double operator()(ilat::fst const& f,

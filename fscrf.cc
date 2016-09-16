@@ -140,13 +140,6 @@ namespace fscrf {
 
         int feat_idx = 0;
 
-        if (ebt::in(std::string("frame-avg"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::frame_avg_score>(
-                fscrf::frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
-
-            ++feat_idx;
-        }
-
         if (ebt::in(std::string("frame-samples"), feature_keys)) {
             weight_func.weights.push_back(std::make_shared<fscrf::frame_samples_score>(
                 fscrf::frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
@@ -180,13 +173,6 @@ namespace fscrf {
             feat_idx += 3;
         }
 
-        if (ebt::in(std::string("length-indicator"), feature_keys)) {
-            weight_func.weights.push_back(std::make_shared<fscrf::length_score>(
-                fscrf::length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
-
-            ++feat_idx;
-        }
-
         if (ebt::in(std::string("log-length"), feature_keys)) {
             weight_func.weights.push_back(std::make_shared<fscrf::log_length_score>(
                 fscrf::log_length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
@@ -195,7 +181,17 @@ namespace fscrf {
         }
 
         for (auto& k: features) {
-            if (ebt::startswith(k, "external")) {
+            if (ebt::startswith(k, "frame-avg")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::frame_avg_score>(
+                    fscrf::frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "length-indicator")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::length_score>(
+                    fscrf::length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "ext0")) {
                 auto parts = ebt::split(k, ":");
                 parts = ebt::split(parts[1], "+");
                 std::vector<int> dims;
@@ -213,8 +209,30 @@ namespace fscrf {
                     }
                 }
 
-                weight_func.weights.push_back(std::make_shared<fscrf::external_score>(
-                    fscrf::external_score { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+                weight_func.weights.push_back(std::make_shared<fscrf::external_score_order0>(
+                    fscrf::external_score_order0 { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "ext1")) {
+                auto parts = ebt::split(k, ":");
+                parts = ebt::split(parts[1], "+");
+                std::vector<int> dims;
+
+                for (auto& p: parts) {
+                    std::vector<std::string> range = ebt::split(p, "-");
+                    if (range.size() == 2) {
+                        for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                            dims.push_back(i);
+                        }
+                    } else if (range.size() == 1) {
+                        dims.push_back(std::stoi(p));
+                    } else {
+                        std::cerr << "unknown external feature format: " << k << std::endl;
+                    }
+                }
+
+                weight_func.weights.push_back(std::make_shared<fscrf::external_score_order1>(
+                    fscrf::external_score_order1 { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
 
                 ++feat_idx;
             } else if (k == "bias") {
@@ -279,6 +297,88 @@ namespace fscrf {
     void frame_avg_score::grad() const
     {
         autodiff::eval_vertex(score, autodiff::grad_funcs);
+    }
+
+    frame_weighted_avg_score::frame_weighted_avg_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> att_param,
+            std::shared_ptr<autodiff::op_t> frames)
+        : param(param), att_param(att_param), frames(frames)
+    {
+        score = autodiff::mmul(param, frames);
+        autodiff::eval_vertex(score, autodiff::eval_funcs);
+        att = autodiff::mmul(att_param, frames);
+        autodiff::eval_vertex(att, autodiff::eval_funcs);
+    }
+
+    double frame_weighted_avg_score::operator()(ilat::fst const& f,
+        int e) const
+    {
+        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& n = autodiff::get_output<la::matrix<double>>(att);
+
+        double sum = 0;
+
+        int ell = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        double logZ = -std::numeric_limits<double>::infinity();
+        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+            logZ = ebt::log_add(logZ, n(ell, t));
+        }
+
+        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+            sum += std::exp(n(ell, t) - logZ) * m(ell, t);
+        }
+
+        return sum;
+    }
+
+    void frame_weighted_avg_score::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& n = autodiff::get_output<la::matrix<double>>(att);
+
+        if (score->grad == nullptr) {
+            la::matrix<double> m_grad;
+            m_grad.resize(m.rows(), m.cols());
+            score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+        }
+
+        if (att->grad == nullptr) {
+            la::matrix<double> n_grad;
+            n_grad.resize(n.rows(), n.cols());
+            att->grad = std::make_shared<la::matrix<double>>(std::move(n_grad));
+        }
+
+        auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
+        auto& n_grad = autodiff::get_grad<la::matrix<double>>(att);
+
+        int ell = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        double logZ = -std::numeric_limits<double>::infinity();
+        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+            logZ = ebt::log_add(logZ, n(ell, t));
+        }
+
+        double gradZ = -std::numeric_limits<double>::infinity();
+        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+            gradZ += std::exp(n(ell, t) - logZ) * m(ell, t);
+        }
+
+        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
+            m_grad(ell, t) += g * std::exp(n(ell, t) - logZ);
+            n_grad(ell, t) += std::exp(n(ell, t) - logZ) * g * (m(ell, t) - gradZ);
+        }
+    }
+
+    void frame_weighted_avg_score::grad() const
+    {
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
+        autodiff::eval_vertex(att, autodiff::grad_funcs);
     }
 
     frame_samples_score::frame_samples_score(std::shared_ptr<autodiff::op_t> param,
@@ -528,30 +628,76 @@ namespace fscrf {
         v_grad(ell) += g;
     }
 
-    external_score::external_score(std::shared_ptr<autodiff::op_t> param,
+    external_score_order0::external_score_order0(std::shared_ptr<autodiff::op_t> param,
             std::vector<int> indices)
         : param(param), indices(indices)
     {}
 
-    double external_score::operator()(ilat::fst const& f,
+    double external_score_order0::operator()(ilat::fst const& f,
+        int e) const
+    {
+        auto& feat = f.data->feats.at(e);
+
+        la::vector<double>& v = autodiff::get_output<la::vector<double>>(param);
+
+        assert(indices.size() == v.size());
+
+        double sum = 0;
+        for (int i = 0; i < indices.size(); ++i) {
+            sum += v(i) * feat.at(indices.at(i));
+        }
+
+        return sum;
+    }
+
+    void external_score_order0::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        auto& feat = f.data->feats.at(e);
+
+        if (param->grad == nullptr) {
+            la::vector<double>& v = autodiff::get_output<la::vector<double>>(param);
+
+            la::vector<double> g_v;
+            g_v.resize(v.size());
+            param->grad = std::make_shared<la::vector<double>>(g_v);
+        }
+
+        la::vector<double>& g_v = autodiff::get_grad<la::vector<double>>(param);
+
+        assert(indices.size() == g_v.size());
+
+        for (int i = 0; i < indices.size(); ++i) {
+            g_v(i) += g * feat.at(indices.at(i));
+        }
+    }
+
+    external_score_order1::external_score_order1(std::shared_ptr<autodiff::op_t> param,
+            std::vector<int> indices)
+        : param(param), indices(indices)
+    {}
+
+    double external_score_order1::operator()(ilat::fst const& f,
         int e) const
     {
         auto& feat = f.data->feats.at(e);
 
         la::matrix<double>& m = autodiff::get_output<la::matrix<double>>(param);
 
+        int ell = f.output(e) - 1;
+
         assert(indices.size() == m.cols());
-        assert(f.output(e) - 1 < m.rows());
+        assert(ell < m.rows());
 
         double sum = 0;
         for (int i = 0; i < indices.size(); ++i) {
-            sum += m(f.output(e) - 1, i) * feat.at(indices.at(i));
+            sum += m(ell, i) * feat.at(indices.at(i));
         }
 
         return sum;
     }
 
-    void external_score::accumulate_grad(double g, ilat::fst const& f,
+    void external_score_order1::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
         auto& feat = f.data->feats.at(e);
@@ -566,11 +712,13 @@ namespace fscrf {
 
         la::matrix<double>& g_mat = autodiff::get_grad<la::matrix<double>>(param);
 
+        int ell = f.output(e) - 1;
+
         assert(indices.size() == g_mat.cols());
-        assert(f.output(e) - 1 < g_mat.rows());
+        assert(ell < g_mat.rows());
 
         for (int i = 0; i < indices.size(); ++i) {
-            g_mat(f.output(e) - 1, i) += g * feat.at(indices.at(i));
+            g_mat(ell, i) += g * feat.at(indices.at(i));
         }
     }
 
@@ -1235,7 +1383,9 @@ namespace fscrf {
             tensor_tree::vertex v { tensor_tree::tensor_t::nil };
         
             for (auto& k: features) {
-                if (ebt::startswith(k, "external")) {
+                if (ebt::startswith(k, "ext0")) {
+                    v.children.push_back(tensor_tree::make_vector());
+                } else if (ebt::startswith(k, "ext1")) {
                     v.children.push_back(tensor_tree::make_matrix());
                 } else if (k == "bias") {
                     v.children.push_back(tensor_tree::make_vector());
@@ -1256,7 +1406,7 @@ namespace fscrf {
             int feat_idx = 0;
         
             for (auto& k: features) {
-                if (ebt::startswith(k, "external")) {
+                if (ebt::startswith(k, "ext0")) {
                     auto parts = ebt::split(k, ":");
                     parts = ebt::split(parts[1], "+");
                     std::vector<int> dims;
@@ -1274,8 +1424,30 @@ namespace fscrf {
                         }
                     }
         
-                    weight_func.weights.push_back(std::make_shared<fscrf::external_score>(
-                        fscrf::external_score { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+                    weight_func.weights.push_back(std::make_shared<fscrf::external_score_order0>(
+                        fscrf::external_score_order0 { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
+        
+                    ++feat_idx;
+                } else if (ebt::startswith(k, "ext1")) {
+                    auto parts = ebt::split(k, ":");
+                    parts = ebt::split(parts[1], "+");
+                    std::vector<int> dims;
+        
+                    for (auto& p: parts) {
+                        std::vector<std::string> range = ebt::split(p, "-");
+                        if (range.size() == 2) {
+                            for (int i = std::stoi(range[0]); i <= std::stoi(range[1]); ++i) {
+                                dims.push_back(i);
+                            }
+                        } else if (range.size() == 1) {
+                            dims.push_back(std::stoi(p));
+                        } else {
+                            std::cerr << "unknown external feature format: " << k << std::endl;
+                        }
+                    }
+        
+                    weight_func.weights.push_back(std::make_shared<fscrf::external_score_order1>(
+                        fscrf::external_score_order1 { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
         
                     ++feat_idx;
                 } else if (k == "bias") {
