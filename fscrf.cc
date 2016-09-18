@@ -308,8 +308,22 @@ namespace fscrf {
             Z += n(ell, t);
         }
 
-        for (int t = start; t < end; ++t) {
-            sum += n(ell, t) * m(ell, t) / Z;
+        if (false /* std::abs(Z) < 1e-300 */) {
+            auto& logn = autodiff::get_output<la::matrix<double>>(att);
+
+            double logZ = -std::numeric_limits<double>::infinity();
+
+            for (int t = start; t < end; ++t) {
+                logZ = ebt::log_add(logZ, logn(ell, t));
+            }
+
+            for (int t = start; t < end; ++t) {
+                sum += std::exp(logn(ell, t) - logZ) * m(ell, t);
+            }
+        } else {
+            for (int t = start; t < end; ++t) {
+                sum += n(ell, t) * m(ell, t) / Z;
+            }
         }
 
         return sum;
@@ -365,10 +379,52 @@ namespace fscrf {
             Z += n(ell, t);
         }
 
-        for (int t = start; t < end; ++t) {
-            m_grad(ell, t) += g * n(ell, t) / Z;
-            n_grad(ell, t) += g * m(ell, t) * (1 - n(ell, t) / Z) / Z;
+        if (false /* std::abs(Z) < 1e-300 */) {
+            auto& logn = autodiff::get_output<la::matrix<double>>(att);
+
+            double logZ = -std::numeric_limits<double>::infinity();
+
+            for (int t = start; t < end; ++t) {
+                logZ = ebt::log_add(logZ, logn(ell, t));
+            }
+
+            double sum = 0;
+            for (int t = start; t < end; ++t) {
+                sum += n(ell, t) * m(ell, t);
+            }
+
+            for (int t = start; t < end; ++t) {
+                m_grad(ell, t) += g * std::exp(logn(ell, t) - logZ);
+                n_grad(ell, t) += g * std::exp(std::log(m(ell, t) * std::exp(logZ) - sum) - 2 * logZ);
+
+                if (std::isnan(m_grad(ell, t))) {
+                    std::cout << "log: m_grad has nan" << std::endl;
+                }
+
+                if (std::isnan(n_grad(ell, t))) {
+                    std::cout << "log: n_grad has nan" << std::endl;
+                }
+            }
+        } else {
+            double sum = 0;
+            for (int t = start; t < end; ++t) {
+                sum += n(ell, t) * m(ell, t) / Z;
+            }
+
+            for (int t = start; t < end; ++t) {
+                m_grad(ell, t) += g * n(ell, t) / Z;
+                n_grad(ell, t) += g * (m(ell, t) / Z - sum) / Z;
+
+                if (std::isnan(m_grad(ell, t))) {
+                    std::cout << "m_grad has nan" << std::endl;
+                }
+
+                if (std::isnan(n_grad(ell, t))) {
+                    std::cout << "n_grad has nan" << std::endl;
+                }
+            }
         }
+
     }
 
     void frame_weighted_avg_score::grad() const

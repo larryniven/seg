@@ -360,6 +360,9 @@ void learning_env::run()
                     tensor_tree::imul(accu_pred_grad, 1.0 / mini_batch);
                 }
 
+                std::shared_ptr<tensor_tree::vertex> param_bak = tensor_tree::copy_tree(l_args.param);
+                std::shared_ptr<tensor_tree::vertex> opt_data_bak = tensor_tree::copy_tree(l_args.opt_data);
+
                 double v1 = tensor_tree::get_matrix(l_args.param->children[0])(l_args.label_id.at("sil") - 1, 0);
                 double w1 = 0;
 
@@ -420,6 +423,24 @@ void learning_env::run()
 
                 if (ebt::in(std::string("nn-param"), args)) {
                     std::cout << "weight: " << w1 << " update: " << w2 - w1 << " ratio: " << (w2 - w1) / w1 << std::endl;
+                }
+
+                if (tensor_tree::has_nan(l_args.opt_data)) {
+
+                    if (tensor_tree::has_nan(accu_param_grad)) {
+                        std::cout << "grad has nan" << std::endl;
+                    }
+
+                    std::ofstream ofs;
+                    ofs.open("param-debug");
+                    tensor_tree::save_tensor(param_bak, ofs);
+                    ofs.close();
+
+                    ofs.open("opt-data-debug");
+                    tensor_tree::save_tensor(opt_data_bak, ofs);
+                    ofs.close();
+
+                    exit(1);
                 }
 
                 tensor_tree::zero(accu_param_grad);
