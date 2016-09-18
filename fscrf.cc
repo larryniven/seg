@@ -292,38 +292,13 @@ namespace fscrf {
         int start = std::max<int>(0, tail_time - 30);
         int end = std::min<int>(head_time + 30, n.cols());
 
-        /*
-        double logZ = -std::numeric_limits<double>::infinity();
-        for (int t = start; t < end; ++t) {
-            logZ = ebt::log_add(logZ, n(ell, t));
-        }
-
-        for (int t = start; t < end; ++t) {
-            sum += std::exp(n(ell, t) - logZ) * m(ell, t);
-        }
-        */
-
         double Z = 0;
         for (int t = start; t < end; ++t) {
-            Z += n(ell, t);
+            Z += n(ell, t) + 0.01;
         }
 
-        if (false /* std::abs(Z) < 1e-300 */) {
-            auto& logn = autodiff::get_output<la::matrix<double>>(att);
-
-            double logZ = -std::numeric_limits<double>::infinity();
-
-            for (int t = start; t < end; ++t) {
-                logZ = ebt::log_add(logZ, logn(ell, t));
-            }
-
-            for (int t = start; t < end; ++t) {
-                sum += std::exp(logn(ell, t) - logZ) * m(ell, t);
-            }
-        } else {
-            for (int t = start; t < end; ++t) {
-                sum += n(ell, t) * m(ell, t) / Z;
-            }
+        for (int t = start; t < end; ++t) {
+            sum += (n(ell, t) + 0.01) * m(ell, t) / Z;
         }
 
         return sum;
@@ -357,71 +332,26 @@ namespace fscrf {
         int start = std::max<int>(0, tail_time - 30);
         int end = std::min<int>(head_time + 30, n.cols());
 
-        /*
-        double logZ = -std::numeric_limits<double>::infinity();
-        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
-            logZ = ebt::log_add(logZ, n(ell, t));
-        }
-
-        double gradZ = 0;
-        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
-            gradZ += std::exp(n(ell, t) - logZ) * m(ell, t);
-        }
-
-        for (int t = std::max<int>(0, tail_time - 30); t < std::min<int>(head_time + 30, n.cols()); ++t) {
-            m_grad(ell, t) += g * std::exp(n(ell, t) - logZ);
-            n_grad(ell, t) += std::exp(n(ell, t) - logZ) * g * (m(ell, t) - gradZ);
-        }
-        */
-
         double Z = 0;
         for (int t = start; t < end; ++t) {
-            Z += n(ell, t);
+            Z += n(ell, t) + 0.01;
         }
 
-        if (false /* std::abs(Z) < 1e-300 */) {
-            auto& logn = autodiff::get_output<la::matrix<double>>(att);
+        double sum = 0;
+        for (int t = start; t < end; ++t) {
+            sum += (n(ell, t) + 0.01) * m(ell, t) / Z;
+        }
 
-            double logZ = -std::numeric_limits<double>::infinity();
+        for (int t = start; t < end; ++t) {
+            m_grad(ell, t) += g * (n(ell, t) + 0.01) / Z;
+            n_grad(ell, t) += g * (m(ell, t) / Z - sum);
 
-            for (int t = start; t < end; ++t) {
-                logZ = ebt::log_add(logZ, logn(ell, t));
+            if (std::isnan(m_grad(ell, t))) {
+                std::cout << "m_grad has nan" << std::endl;
             }
 
-            double sum = 0;
-            for (int t = start; t < end; ++t) {
-                sum += n(ell, t) * m(ell, t);
-            }
-
-            for (int t = start; t < end; ++t) {
-                m_grad(ell, t) += g * std::exp(logn(ell, t) - logZ);
-                n_grad(ell, t) += g * std::exp(std::log(m(ell, t) * std::exp(logZ) - sum) - 2 * logZ);
-
-                if (std::isnan(m_grad(ell, t))) {
-                    std::cout << "log: m_grad has nan" << std::endl;
-                }
-
-                if (std::isnan(n_grad(ell, t))) {
-                    std::cout << "log: n_grad has nan" << std::endl;
-                }
-            }
-        } else {
-            double sum = 0;
-            for (int t = start; t < end; ++t) {
-                sum += n(ell, t) * m(ell, t) / Z;
-            }
-
-            for (int t = start; t < end; ++t) {
-                m_grad(ell, t) += g * n(ell, t) / Z;
-                n_grad(ell, t) += g * (m(ell, t) / Z - sum) / Z;
-
-                if (std::isnan(m_grad(ell, t))) {
-                    std::cout << "m_grad has nan" << std::endl;
-                }
-
-                if (std::isnan(n_grad(ell, t))) {
-                    std::cout << "n_grad has nan" << std::endl;
-                }
+            if (std::isnan(n_grad(ell, t))) {
+                std::cout << "n_grad has nan" << std::endl;
             }
         }
 
