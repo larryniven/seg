@@ -344,7 +344,7 @@ namespace fscrf {
 
         for (int t = start; t < end; ++t) {
             m_grad(ell, t) += g * (n(ell, t) + 0.01) / Z;
-            n_grad(ell, t) += g * (m(ell, t) / Z - sum);
+            n_grad(ell, t) += g * (m(ell, t) - sum) / Z;
 
             if (std::isnan(m_grad(ell, t))) {
                 std::cout << "m_grad has nan" << std::endl;
