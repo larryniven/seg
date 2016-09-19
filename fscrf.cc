@@ -1,7 +1,7 @@
-#include "scrf/fscrf.h"
-#include "scrf/scrf_weight.h"
-#include "scrf/util.h"
-#include "scrf/scrf.h"
+#include "seg/fscrf.h"
+#include "seg/scrf_weight.h"
+#include "seg/util.h"
+#include "seg/scrf.h"
 #include <fstream>
 
 namespace fscrf {

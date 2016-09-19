@@ -1,5 +1,5 @@
-#include "scrf/segnn.h"
-#include "scrf/iscrf.h"
+#include "seg/segnn.h"
+#include "seg/iscrf.h"
 #include "opt/opt.h"
 #include <fstream>
 

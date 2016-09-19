@@ -3,7 +3,7 @@
 
 #include <unordered_map>
 #include <vector>
-#include "scrf/segcost.h"
+#include "seg/segcost.h"
 
 namespace util {
 

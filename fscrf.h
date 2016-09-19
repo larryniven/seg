@@ -1,10 +1,10 @@
 #ifndef FSCRF_H
 #define FSCRF_H
 
-#include "scrf/scrf.h"
-#include "scrf/scrf_weight.h"
-#include "scrf/segcost.h"
-#include "scrf/scrf_cost.h"
+#include "seg/scrf.h"
+#include "seg/scrf_weight.h"
+#include "seg/segcost.h"
+#include "seg/scrf_cost.h"
 #include "autodiff/autodiff.h"
 #include "nn/tensor_tree.h"
 #include "nn/lstm.h"

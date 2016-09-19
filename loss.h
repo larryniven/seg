@@ -1,7 +1,7 @@
 #ifndef LOSS_H
 #define LOSS_H
 
-#include "scrf/scrf.h"
+#include "seg/scrf.h"
 
 namespace scrf {
 

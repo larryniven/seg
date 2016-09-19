@@ -1,4 +1,4 @@
-#include "scrf/iscrf_e2e.h"
+#include "seg/iscrf_e2e.h"
 #include <fstream>
 
 namespace iscrf {

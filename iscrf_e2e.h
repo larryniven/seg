@@ -1,7 +1,7 @@
 #ifndef ISCRF_E2E_H
 #define ISCRF_E2E_H
 
-#include "scrf/iscrf.h"
+#include "seg/iscrf.h"
 #include "nn/tensor_tree.h"
 
 namespace iscrf {

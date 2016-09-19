@@ -1,7 +1,7 @@
 #ifndef ISCRF_E2E_FF_H
 #define ISCRF_E2E_FF_H
 
-#include "scrf/iscrf.h"
+#include "seg/iscrf.h"
 #include "nn/residual.h"
 
 namespace iscrf {

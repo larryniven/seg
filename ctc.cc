@@ -1,5 +1,5 @@
-#include "scrf/ctc.h"
-#include "scrf/util.h"
+#include "seg/ctc.h"
+#include "seg/util.h"
 #include <fstream>
 
 namespace ctc {

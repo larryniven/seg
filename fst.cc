@@ -1,4 +1,4 @@
-#include "scrf/fst.h"
+#include "seg/fst.h"
 
 namespace fst {
 

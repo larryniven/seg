@@ -1,8 +1,8 @@
 #ifndef ISCRF_SEGNN_H
 #define ISCRF_SEGNN_H
 
-#include "scrf/segnn.h"
-#include "scrf/iscrf.h"
+#include "seg/segnn.h"
+#include "seg/iscrf.h"
 
 namespace iscrf {
 

@@ -1,9 +1,9 @@
 #ifndef ALIGN_H
 #define ALIGN_H
 
-#include "scrf/ilat.h"
-#include "scrf/iscrf.h"
-#include "scrf/pair_scrf.h"
+#include "seg/ilat.h"
+#include "seg/iscrf.h"
+#include "seg/pair_scrf.h"
 
 namespace iscrf {
 

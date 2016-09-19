@@ -1,7 +1,7 @@
 #ifndef CTC_H
 #define CTC_H
 
-#include "scrf/ilat.h"
+#include "seg/ilat.h"
 #include "la/la.h"
 #include "nn/tensor_tree.h"
 #include "nn/lstm.h"

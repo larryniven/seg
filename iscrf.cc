@@ -1,6 +1,6 @@
-#include "scrf/iscrf.h"
-#include "scrf/scrf_weight.h"
-#include "scrf/util.h"
+#include "seg/iscrf.h"
+#include "seg/scrf_weight.h"
+#include "seg/util.h"
 #include <fstream>
 
 namespace iscrf {

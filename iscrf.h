@@ -1,10 +1,10 @@
 #ifndef ISCRF_H
 #define ISCRF_H
 
-#include "scrf/scrf.h"
-#include "scrf/scrf_feat.h"
-#include "scrf/scrf_cost.h"
-#include "scrf/scrf_weight.h"
+#include "seg/scrf.h"
+#include "seg/scrf_feat.h"
+#include "seg/scrf_cost.h"
+#include "seg/scrf_weight.h"
 #include "nn/lstm.h"
 #include "nn/pred.h"
 

@@ -1,8 +1,8 @@
 #ifndef FEAT_H
 #define FEAT_H
 
-#include "scrf/scrf.h"
-#include "scrf/segfeat.h"
+#include "seg/scrf.h"
+#include "seg/segfeat.h"
 
 namespace scrf {
 

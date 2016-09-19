@@ -1,7 +1,7 @@
 #ifndef ISCRF_E2E_LSTM2D_H
 #define ISCRF_E2E_LSTM2D_H
 
-#include "scrf/iscrf.h"
+#include "seg/iscrf.h"
 #include "nn/lstm.h"
 
 namespace iscrf {

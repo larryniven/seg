@@ -1,8 +1,8 @@
-#include "scrf/align.h"
-#include "scrf/scrf_feat.h"
-#include "scrf/iscrf.h"
-#include "scrf/segcost.h"
-#include "scrf/scrf.h"
+#include "seg/align.h"
+#include "seg/scrf_feat.h"
+#include "seg/iscrf.h"
+#include "seg/segcost.h"
+#include "seg/scrf.h"
 
 namespace iscrf {
 
