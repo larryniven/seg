@@ -814,7 +814,8 @@ namespace fscrf {
 
     void make_graph(sample& s, inference_args const& i_args)
     {
-        s.graph_data.fst = make_graph(s.frames.size(), i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride);
+        s.graph_data.fst = make_graph(s.frames.size(),
+            i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride);
         s.graph_data.topo_order = std::make_shared<std::vector<int>>(
             ::fst::topo_order(*s.graph_data.fst));
     }

@@ -485,7 +485,7 @@ namespace ilat {
             for (int e1: fst1_.in_edges(std::get<0>(v))) {
                 auto& edge_map = fst2_.in_edges_map(std::get<1>(v));
 
-                if (edge_map.size() == 0) {
+                if (edge_map.size() == 0 || !ebt::in(fst1_.output(e1), edge_map)) {
                     continue;
                 }
 
@@ -511,7 +511,7 @@ namespace ilat {
             for (int e1: fst1_.out_edges(std::get<0>(v))) {
                 auto& edge_map = fst2_.out_edges_map(std::get<1>(v));
 
-                if (edge_map.size() == 0) {
+                if (edge_map.size() == 0 || !ebt::in(fst1_.output(e1), edge_map)) {
                     continue;
                 }
 
