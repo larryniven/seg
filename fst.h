@@ -423,7 +423,7 @@ namespace fst {
         // When extra[v].deck.size() == 0, v is a deadend.
 
         for (auto& v: f.initials()) {
-            vertex_extra[v].deck.push_back({ edge_trait<typename fst::edge>::null, -1, 0 });
+            vertex_extra[v].deck.push_back(std::make_tuple(edge_trait<typename fst::edge>::null, -1, 0));
             vertex_extra[v].bottom_out = true;
         }
 
