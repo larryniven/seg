@@ -1361,27 +1361,6 @@ namespace fscrf {
 
     namespace lat {
 
-        std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
-            std::vector<std::string> const& features)
-        {
-            tensor_tree::vertex v { tensor_tree::tensor_t::nil };
-        
-            for (auto& k: features) {
-                if (ebt::startswith(k, "ext0")) {
-                    v.children.push_back(tensor_tree::make_vector());
-                } else if (ebt::startswith(k, "ext1")) {
-                    v.children.push_back(tensor_tree::make_matrix());
-                } else if (k == "bias") {
-                    v.children.push_back(tensor_tree::make_vector());
-                } else {
-                    std::cout << "unknown feature: " << k << std::endl;
-                    exit(1);
-                }
-            }
-        
-            return std::make_shared<tensor_tree::vertex>(v);
-        }
-        
         std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_weights(
             std::vector<std::string> const& features,
             std::shared_ptr<tensor_tree::vertex> var_tree)
