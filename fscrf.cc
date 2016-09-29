@@ -263,7 +263,8 @@ namespace fscrf {
         autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
-    frame_weighted_avg_score::frame_weighted_avg_score(std::shared_ptr<autodiff::op_t> param,
+    frame_weighted_avg_score::frame_weighted_avg_score(
+            std::shared_ptr<autodiff::op_t> param,
             std::shared_ptr<autodiff::op_t> att_param,
             std::shared_ptr<autodiff::op_t> frames)
         : param(param), att_param(att_param), frames(frames)
@@ -289,8 +290,8 @@ namespace fscrf {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        int start = std::max<int>(0, tail_time - 30);
-        int end = std::min<int>(head_time + 30, n.cols());
+        int start = std::max<int>(0, tail_time);
+        int end = std::min<int>(head_time, n.cols());
 
         double Z = 0;
         for (int t = start; t < end; ++t) {
@@ -329,8 +330,8 @@ namespace fscrf {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        int start = std::max<int>(0, tail_time - 30);
-        int end = std::min<int>(head_time + 30, n.cols());
+        int start = std::max<int>(0, tail_time);
+        int end = std::min<int>(head_time, n.cols());
 
         double Z = 0;
         for (int t = start; t < end; ++t) {
@@ -354,7 +355,6 @@ namespace fscrf {
                 std::cout << "n_grad has nan" << std::endl;
             }
         }
-
     }
 
     void frame_weighted_avg_score::grad() const
