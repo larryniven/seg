@@ -233,7 +233,7 @@ namespace fscrf {
             sum += m(ell, t);
         }
 
-        return sum / (head_time - tail_time);
+        return (head_time <= tail_time ? 0 : sum / (head_time - tail_time));
     }
 
     void frame_avg_score::accumulate_grad(double g, ilat::fst const& f,
@@ -792,11 +792,15 @@ namespace fscrf {
             i_args.stride = std::stoi(args.at("stride"));
         }
 
-        i_args.features = ebt::split(args.at("features"), ",");
+        if (ebt::in(std::string("features"), args)) {
+            i_args.features = ebt::split(args.at("features"), ",");
+        }
 
-        i_args.param = make_tensor_tree(i_args.features);
+        if (ebt::in(std::string("param"), args)) {
+            i_args.param = make_tensor_tree(i_args.features);
 
-        tensor_tree::load_tensor(i_args.param, args.at("param"));
+            tensor_tree::load_tensor(i_args.param, args.at("param"));
+        }
 
         i_args.label_id = util::load_label_id(args.at("label"));
 
@@ -989,6 +993,118 @@ namespace fscrf {
     }
 
     void hinge_loss::grad() const
+    {
+        fscrf_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            gold_path_data.weight_func->accumulate_grad(-1, *gold_path_data.fst, e);
+        }
+
+        fscrf_fst graph_path { graph_path_data };
+
+        for (auto& e: graph_path.edges()) {
+            graph_path_data.weight_func->accumulate_grad(1, *graph_path_data.fst, e);
+        }
+    }
+
+    hinge_loss_gt::hinge_loss_gt(fscrf_data& graph_data,
+            std::vector<segcost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils,
+            double cost_scale)
+        : graph_data(graph_data), sils(sils), cost_scale(cost_scale)
+    {
+        gold_path_data.weight_func = graph_data.weight_func;
+
+        ilat::fst_data gold_data;
+        gold_data.symbol_id = graph_data.fst->data->symbol_id;
+        gold_data.id_symbol = graph_data.fst->data->id_symbol;
+
+        int v = 0;
+        int e = 0;
+
+        for (int i = 0; i < gt_segs.size(); ++i) {
+            ilat::add_vertex(gold_data, v, ilat::vertex_data { gt_segs[i].start_time });
+            ++v;
+
+            ilat::add_vertex(gold_data, v, ilat::vertex_data { gt_segs[i].end_time });
+            ++v;
+
+            ilat::add_edge(gold_data, e, ilat::edge_data { v - 2, v - 1, 0, gt_segs[i].label, gt_segs[i].label });
+            ++e;
+        }
+
+        ilat::fst gold_fst;
+        gold_fst.data = std::make_shared<ilat::fst_data>(gold_data);
+
+        gold_path_data.fst = std::make_shared<ilat::fst>(gold_fst);
+
+        graph_data.cost_func = std::make_shared<scrf::mul<ilat::fst>>(
+            scrf::mul<ilat::fst>(std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(gt_segs, sils)), cost_scale));
+
+        gold_path_data.cost_func = graph_data.cost_func;
+
+        fscrf_fst gold_path { gold_path_data };
+
+        auto& id_symbol = *graph_data.fst->data->id_symbol;
+
+        double gold_cost = 0;
+        double gold_score = 0;
+        std::cout << "gold:";
+        for (auto& e: gold_path.edges()) {
+            double c = (*gold_path_data.cost_func)(*gold_path_data.fst, e);
+            gold_cost += c;
+            gold_score += gold_path.weight(e);
+
+            std::cout << " " << id_symbol[gold_path.output(e)] << " (" << c << ")";
+        }
+        std::cout << std::endl;
+        std::cout << "gold cost: " << gold_cost << std::endl;
+        std::cout << "gold score: " << gold_score << std::endl;
+
+        scrf::composite_weight<ilat::fst> weight_cost;
+        weight_cost.weights.push_back(graph_data.cost_func);
+        weight_cost.weights.push_back(graph_data.weight_func);
+        graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::fst>>(weight_cost);
+        graph_path_data.fst = scrf::shortest_path(graph_data);
+        graph_path_data.weight_func = graph_data.weight_func;
+
+        fscrf_fst graph_path { graph_path_data };
+
+        double cost_aug_cost = 0;
+        double cost_aug_score = 0;
+        std::cout << "cost aug:";
+        for (auto& e: graph_path.edges()) {
+            cost_aug_cost += (*graph_data.cost_func)(*graph_path_data.fst, e);
+            cost_aug_score += graph_path.weight(e);
+
+            std::cout << " " << id_symbol[graph_path.output(e)];
+        }
+        std::cout << std::endl;
+        std::cout << "cost aug cost: " << cost_aug_cost << std::endl;
+        std::cout << "cost aug score: " << cost_aug_score << std::endl;
+    }
+
+    double hinge_loss_gt::loss() const
+    {
+        double result = 0;
+
+        fscrf_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            result -= gold_path.weight(e);
+        }
+
+        fscrf_fst graph_path { graph_path_data };
+
+        for (auto& e: graph_path.edges()) {
+            result += graph_path.weight(e);
+        }
+
+        return result;
+    }
+
+    void hinge_loss_gt::grad() const
     {
         fscrf_fst gold_path { gold_path_data };
 

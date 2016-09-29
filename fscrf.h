@@ -358,6 +358,29 @@ namespace fscrf {
 
     };
 
+    struct hinge_loss_gt
+        : public loss_func {
+
+        fscrf_data& graph_data;
+
+        fscrf_data graph_path_data;
+        fscrf_data gold_path_data;
+
+        std::vector<int> const& sils;
+        std::vector<segcost::segment<int>> gold_segs;
+        double cost_scale;
+
+        hinge_loss_gt(fscrf_data& graph_data,
+            std::vector<segcost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils,
+            double cost_scale);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
+
+    };
+
     struct log_loss
         : public loss_func {
 
