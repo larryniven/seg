@@ -64,6 +64,72 @@ namespace fscrf {
         return std::make_shared<ilat::fst>(result);
     }
 
+    std::shared_ptr<ilat::fst> make_random_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride,
+        double prob,
+        std::default_random_engine& gen)
+    {
+        assert(stride >= 1);
+        assert(min_seg_len >= 1);
+        assert(max_seg_len >= min_seg_len);
+
+        ilat::fst_data data;
+
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int i = 0;
+        int v = -1;
+        for (i = 0; i < frames + 1; i += stride) {
+            ++v;
+            ilat::add_vertex(data, v, ilat::vertex_data { i });
+        }
+
+        if (frames % stride != 0) {
+            ++v;
+            ilat::add_vertex(data, v, ilat::vertex_data { frames });
+        }
+
+        std::bernoulli_distribution dist { prob };
+
+        data.initials.push_back(0);
+        data.finals.push_back(v);
+
+        for (int u = 0; u < data.vertices.size(); ++u) {
+            for (int v = u + 1; v < data.vertices.size(); ++v) {
+                int duration = data.vertices[v].time - data.vertices[u].time;
+
+                if (duration < min_seg_len) {
+                    continue;
+                }
+
+                if (duration > max_seg_len) {
+                    break;
+                }
+
+                for (auto& p: label_id) {
+                    if (p.second == 0) {
+                        continue;
+                    }
+
+                    if (!dist(gen)) {
+                        continue;
+                    }
+
+                    ilat::add_edge(data, data.edges.size(),
+                        ilat::edge_data { u, v, 0, p.second, p.second });
+                }
+            }
+        }
+
+        ilat::fst result;
+        result.data = std::make_shared<ilat::fst_data>(std::move(data));
+
+        return std::make_shared<ilat::fst>(result);
+    }
+
     std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
         std::vector<std::string> const& features)
     {
@@ -809,6 +875,10 @@ namespace fscrf {
             i_args.labels.push_back(p.second);
             i_args.id_label[p.second] = p.first;
         }
+
+        if (ebt::in(std::string("seed"), args)) {
+           i_args.gen = std::default_random_engine { std::stoul(args.at("seed")) };
+        }
     }
 
     sample::sample(inference_args const& i_args)
@@ -816,12 +886,20 @@ namespace fscrf {
         graph_data.param = i_args.param;
     }
 
-    void make_graph(sample& s, inference_args const& i_args)
+    void make_graph(sample& s, inference_args& i_args)
     {
-        s.graph_data.fst = make_graph(s.frames.size(),
-            i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride);
-        s.graph_data.topo_order = std::make_shared<std::vector<int>>(
-            ::fst::topo_order(*s.graph_data.fst));
+        if (ebt::in(std::string("edge-drop"), i_args.args)) {
+            s.graph_data.fst = make_random_graph(s.frames.size(),
+                i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride,
+                std::stod(i_args.args.at("edge-drop")), i_args.gen);
+            s.graph_data.topo_order = std::make_shared<std::vector<int>>(
+                ::fst::topo_order(*s.graph_data.fst));
+        } else {
+            s.graph_data.fst = make_graph(s.frames.size(),
+                i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride);
+            s.graph_data.topo_order = std::make_shared<std::vector<int>>(
+                ::fst::topo_order(*s.graph_data.fst));
+        }
     }
 
     void parse_learning_args(learning_args& l_args,

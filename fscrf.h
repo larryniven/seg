@@ -9,6 +9,7 @@
 #include "nn/tensor_tree.h"
 #include "nn/lstm.h"
 #include "nn/pred.h"
+#include <random>
 
 namespace fscrf {
 
@@ -61,6 +62,11 @@ namespace scrf {
 namespace fscrf {
 
     std::shared_ptr<ilat::fst> make_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride);
+
+    std::shared_ptr<ilat::fst> make_random_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
         int min_seg_len, int max_seg_len, int stride);
@@ -272,6 +278,8 @@ namespace fscrf {
         std::vector<int> labels;
         std::vector<std::string> features;
         std::unordered_map<std::string, std::string> args;
+
+        std::default_random_engine gen;
     };
 
     std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
@@ -291,7 +299,7 @@ namespace fscrf {
         sample(inference_args const& i_args);
     };
 
-    void make_graph(sample& s, inference_args const& i_args);
+    void make_graph(sample& s, inference_args& i_args);
 
     struct learning_args
         : public inference_args {
