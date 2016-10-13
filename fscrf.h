@@ -265,6 +265,21 @@ namespace fscrf {
 
     };
 
+    struct edge_weight
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+
+        edge_weight(std::shared_ptr<autodiff::op_t> param);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+    };
+
     struct inference_args {
         int min_seg;
         int max_seg;
@@ -457,6 +472,22 @@ namespace fscrf {
 
         virtual void grad() const override;
 
+    };
+
+    struct mode1_weight
+        : public scrf::scrf_weight<ilat::pair_fst> {
+
+        std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight;
+
+        mode1_weight(std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight);
+
+        virtual double operator()(ilat::pair_fst const& fst,
+            std::tuple<int, int> e) const override;
+
+        virtual void accumulate_grad(double g, ilat::pair_fst const& fst,
+            std::tuple<int, int> e) const override;
+
+        virtual void grad() const override;
     };
 
     struct mode2_weight

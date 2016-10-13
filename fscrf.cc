@@ -771,6 +771,34 @@ namespace fscrf {
         }
     }
 
+    edge_weight::edge_weight(std::shared_ptr<autodiff::op_t> param)
+        : param(param)
+    {}
+
+    double edge_weight::operator()(ilat::fst const& f,
+        int e) const
+    {
+        auto& v = autodiff::get_output<la::vector<double>>(param);
+
+        return v(0) * f.weight(e);
+    }
+
+    void edge_weight::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        auto& v = autodiff::get_output<la::vector<double>>(param);
+
+        if (param->grad == nullptr) {
+            la::vector<double> v_grad;
+            v_grad.resize(v.size());
+            param->grad = std::make_shared<la::vector<double>>(std::move(v_grad));
+        }
+
+        auto& v_grad = autodiff::get_grad<la::vector<double>>(param);
+
+        v_grad(0) += g * f.weight(e);
+    }
+
     std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
     load_lstm_param(std::string filename)
     {
@@ -1530,6 +1558,27 @@ namespace fscrf {
         for (auto& e: graph_path.edges()) {
             graph_path_data.weight_func->accumulate_grad(1, *graph_path.data.fst, e);
         }
+    }
+
+    mode1_weight::mode1_weight(std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight)
+        : weight(weight)
+    {}
+
+    double mode1_weight::operator()(ilat::pair_fst const& fst,
+        std::tuple<int, int> e) const
+    {
+        return (*weight)(fst.fst1(), std::get<0>(e));
+    }
+
+    void mode1_weight::accumulate_grad(double g, ilat::pair_fst const& fst,
+        std::tuple<int, int> e) const
+    {
+        weight->accumulate_grad(g, fst.fst1(), std::get<0>(e));
+    }
+
+    void mode1_weight::grad() const
+    {
+        weight->grad();
     }
 
     mode2_weight::mode2_weight(std::shared_ptr<scrf::scrf_weight<ilat::fst>> weight)
