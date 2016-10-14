@@ -506,13 +506,13 @@ namespace fscrf {
         virtual void grad() const override;
     };
 
-    namespace lat {
+    std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_lat_weights(
+        std::vector<std::string> const& feature,
+        std::shared_ptr<tensor_tree::vertex> var_tree);
 
-        std::shared_ptr<scrf::scrf_weight<ilat::fst>> make_weights(
-            std::vector<std::string> const& feature,
-            std::shared_ptr<tensor_tree::vertex> var_tree);
-
-    }
+    std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> make_pair_weights(
+        std::vector<std::string> const& features,
+        std::shared_ptr<tensor_tree::vertex> var_tree);
 
 }
 
