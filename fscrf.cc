@@ -612,6 +612,33 @@ namespace fscrf {
             }
             frames_cat.push_back(graph.var(la::vector<double>{v}));
         }
+
+        label_embedding1 = autodiff::row_at(tensor_tree::get_var(param->children[1]), 0);
+        label_embedding2 = autodiff::row_at(tensor_tree::get_var(param->children[2]), 0);
+        input = graph.var();
+
+        score = autodiff::dot(tensor_tree::get_var(param->children[3]),
+            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                autodiff::mul(tensor_tree::get_var(param->children[0]), input),
+                label_embedding1,
+                label_embedding2,
+            }));
+
+        std::vector<std::shared_ptr<autodiff::op_t>> tmp_topo_order = autodiff::topo_order(score);
+
+        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude;
+        for (int i = 0; i <= 3; ++i) {
+            exclude.insert(tensor_tree::get_var(param->children[i]));
+        }
+
+        for (auto& t: tmp_topo_order) {
+            if (ebt::in(t, exclude)) {
+                continue;
+            }
+
+            topo_order.push_back(t);
+        }
+
     }
 
     double left_boundary_order2_score::operator()(ilat::pair_fst const& f,
@@ -622,14 +649,11 @@ namespace fscrf {
         int label1 = f.output(e);
         int label2 = std::get<1>(f.tail(e));
 
-        std::shared_ptr<autodiff::op_t> score = autodiff::dot(tensor_tree::get_var(param->children[3]),
-            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                autodiff::mul(tensor_tree::get_var(param->children[0]), frames_cat.at(time)),
-                autodiff::row_at(tensor_tree::get_var(param->children[1]), label1),
-                autodiff::row_at(tensor_tree::get_var(param->children[2]), label2),
-            }));
+        label_embedding1->data = std::make_shared<int>(label1);
+        label_embedding2->data = std::make_shared<int>(label2);
+        input->output = frames_cat.at(time)->output;
 
-        autodiff::eval(score, autodiff::eval_funcs);
+        autodiff::eval(topo_order, autodiff::eval_funcs);
 
         return autodiff::get_output<double>(score);
     }
@@ -642,14 +666,13 @@ namespace fscrf {
         int label1 = f.output(e);
         int label2 = std::get<1>(f.tail(e));
 
-        std::shared_ptr<autodiff::op_t> score = autodiff::dot(tensor_tree::get_var(param->children[3]),
-            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                autodiff::mul(tensor_tree::get_var(param->children[0]), frames_cat.at(time)),
-                autodiff::row_at(tensor_tree::get_var(param->children[1]), label1),
-                autodiff::row_at(tensor_tree::get_var(param->children[2]), label2),
-            }));
+        label_embedding1->data = std::make_shared<int>(label1);
+        label_embedding2->data = std::make_shared<int>(label2);
+        input->output = frames_cat.at(time)->output;
 
-        autodiff::eval(score, autodiff::eval_funcs);
+        autodiff::eval(topo_order, autodiff::eval_funcs);
+
+        autodiff::clear_grad(topo_order);
 
         score->grad = std::make_shared<double>(g);
 

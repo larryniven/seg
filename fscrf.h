@@ -194,6 +194,12 @@ namespace fscrf {
         std::vector<std::shared_ptr<autodiff::op_t>> frames_cat;
         int context;
 
+        std::shared_ptr<autodiff::op_t> score;
+        std::shared_ptr<autodiff::op_t> input;
+        std::shared_ptr<autodiff::op_t> label_embedding1;
+        std::shared_ptr<autodiff::op_t> label_embedding2;
+        std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
+
         left_boundary_order2_score(std::shared_ptr<tensor_tree::vertex> param,
             std::vector<std::vector<double>> const& frames, int context);
 
