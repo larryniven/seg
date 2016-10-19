@@ -186,6 +186,25 @@ namespace fscrf {
 
     };
 
+    struct left_boundary_order2_score
+        : public scrf::scrf_weight<ilat::pair_fst> {
+
+        std::shared_ptr<tensor_tree::vertex> param;
+        std::vector<std::vector<double>> const& frames;
+        std::vector<std::shared_ptr<autodiff::op_t>> frames_cat;
+        int context;
+
+        left_boundary_order2_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::vector<std::vector<double>> const& frames, int context);
+
+        virtual double operator()(ilat::pair_fst const& f,
+            std::tuple<int, int> e) const;
+
+        virtual void accumulate_grad(double g, ilat::pair_fst const& f,
+            std::tuple<int, int> e) const override;
+
+    };
+
     struct log_length_score
         : public scrf::scrf_weight<ilat::fst> {
 
@@ -216,12 +235,27 @@ namespace fscrf {
 
     };
 
-    struct bias_score
+    struct bias0_score
         : public scrf::scrf_weight<ilat::fst> {
 
         std::shared_ptr<autodiff::op_t> param;
 
-        bias_score(std::shared_ptr<autodiff::op_t> param);
+        bias0_score(std::shared_ptr<autodiff::op_t> param);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+    };
+
+    struct bias1_score
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+
+        bias1_score(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ilat::fst const& f,
             int e) const;
@@ -512,7 +546,31 @@ namespace fscrf {
 
     std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> make_pair_weights(
         std::vector<std::string> const& features,
-        std::shared_ptr<tensor_tree::vertex> var_tree);
+        std::shared_ptr<tensor_tree::vertex> var_tree,
+        std::vector<std::vector<double>> const& frames);
+
+    struct hinge_loss_pair
+        : public loss_func {
+
+        fscrf_pair_data& graph_data;
+
+        fscrf_pair_data graph_path_data;
+        fscrf_pair_data gold_path_data;
+
+        std::vector<int> const& sils;
+        std::vector<segcost::segment<int>> gold_segs;
+        double cost_scale;
+
+        hinge_loss_pair(fscrf_pair_data& graph_data,
+            std::vector<segcost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils,
+            double cost_scale);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
+
+    };
 
 }
 

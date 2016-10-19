@@ -159,8 +159,24 @@ namespace fscrf {
                 root.children.push_back(tensor_tree::make_matrix("right boundary"));
             } else if (ebt::startswith(k, "length-indicator")) {
                 root.children.push_back(tensor_tree::make_matrix("length"));
-            } else if (k == "bias") {
-                root.children.push_back(tensor_tree::make_vector("bias"));
+            } else if (k == "lm") {
+                root.children.push_back(tensor_tree::make_vector("lm"));
+            } else if (k == "lat-weight") {
+                root.children.push_back(tensor_tree::make_vector("lat-weight"));
+            } else if (k == "bias0") {
+                root.children.push_back(tensor_tree::make_vector("bias0"));
+            } else if (k == "bias1") {
+                root.children.push_back(tensor_tree::make_vector("bias1"));
+            } else if (k == "boundary2") {
+                tensor_tree::vertex v { tensor_tree::tensor_t::nil };
+                v.children.push_back(tensor_tree::make_matrix("left boundary order2 acoustic embedding"));
+                v.children.push_back(tensor_tree::make_matrix("left boundary order2 label1 embedding"));
+                v.children.push_back(tensor_tree::make_matrix("left boundary order2 label2 embedding"));
+                v.children.push_back(tensor_tree::make_vector("left boundary order2 weight"));
+                root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
+            } else {
+                std::cout << "unknown feature " << k << std::endl;
+                exit(1);
             }
         }
 
@@ -265,9 +281,14 @@ namespace fscrf {
                     fscrf::external_score_order1 { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
 
                 ++feat_idx;
-            } else if (k == "bias") {
-                weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
-                    fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+            } else if (k == "bias0") {
+                weight_func.weights.push_back(std::make_shared<fscrf::bias0_score>(
+                    fscrf::bias0_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
+            } else if (k == "bias1") {
+                weight_func.weights.push_back(std::make_shared<fscrf::bias1_score>(
+                    fscrf::bias1_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
                 ++feat_idx;
             }
@@ -569,6 +590,72 @@ namespace fscrf {
         autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
+    left_boundary_order2_score::left_boundary_order2_score(
+            std::shared_ptr<tensor_tree::vertex> param,
+            std::vector<std::vector<double>> const& frames,
+            int context)
+        : param(param), frames(frames), context(context)
+    {
+        std::vector<double> zero;
+        zero.resize(frames[0].size());
+
+        autodiff::computation_graph& graph = *tensor_tree::get_var(param->children[0])->graph;
+
+        for (int i = 0; i < frames.size(); ++i) {
+            std::vector<double> v;
+            for (int j = i - context; j <= i + context; ++j) {
+                if (j < 0 || j >= frames.size()) {
+                    v.insert(v.end(), zero.begin(), zero.end());
+                } else {
+                    v.insert(v.end(), frames[j].begin(), frames[j].end());
+                }
+            }
+            frames_cat.push_back(graph.var(la::vector<double>{v}));
+        }
+    }
+
+    double left_boundary_order2_score::operator()(ilat::pair_fst const& f,
+        std::tuple<int, int> e) const
+    {
+        int time = std::min<int>(std::max<int>(0, f.time(f.tail(e))), frames_cat.size() - 1);
+
+        int label1 = f.output(e);
+        int label2 = std::get<1>(f.tail(e));
+
+        std::shared_ptr<autodiff::op_t> score = autodiff::dot(tensor_tree::get_var(param->children[3]),
+            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                autodiff::mul(tensor_tree::get_var(param->children[0]), frames_cat.at(time)),
+                autodiff::row_at(tensor_tree::get_var(param->children[1]), label1),
+                autodiff::row_at(tensor_tree::get_var(param->children[2]), label2),
+            }));
+
+        autodiff::eval(score, autodiff::eval_funcs);
+
+        return autodiff::get_output<double>(score);
+    }
+
+    void left_boundary_order2_score::accumulate_grad(double g, ilat::pair_fst const& f,
+        std::tuple<int, int> e) const
+    {
+        int time = std::min<int>(std::max<int>(0, f.time(f.tail(e))), frames_cat.size() - 1);
+
+        int label1 = f.output(e);
+        int label2 = std::get<1>(f.tail(e));
+
+        std::shared_ptr<autodiff::op_t> score = autodiff::dot(tensor_tree::get_var(param->children[3]),
+            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                autodiff::mul(tensor_tree::get_var(param->children[0]), frames_cat.at(time)),
+                autodiff::row_at(tensor_tree::get_var(param->children[1]), label1),
+                autodiff::row_at(tensor_tree::get_var(param->children[2]), label2),
+            }));
+
+        autodiff::eval(score, autodiff::eval_funcs);
+
+        score->grad = std::make_shared<double>(g);
+
+        autodiff::grad(score, autodiff::grad_funcs);
+    }
+
     length_score::length_score(std::shared_ptr<autodiff::op_t> param)
         : param(param)
     {}
@@ -645,11 +732,39 @@ namespace fscrf {
         m_grad(ell, 1) += g * logd * logd;
     }
 
-    bias_score::bias_score(std::shared_ptr<autodiff::op_t> param)
+    bias0_score::bias0_score(std::shared_ptr<autodiff::op_t> param)
         : param(param)
     {}
 
-    double bias_score::operator()(ilat::fst const& f,
+    double bias0_score::operator()(ilat::fst const& f,
+        int e) const
+    {
+        auto& v = autodiff::get_output<la::vector<double>>(param);
+
+        return v(0);
+    }
+
+    void bias0_score::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        auto& v = autodiff::get_output<la::vector<double>>(param);
+
+        if (param->grad == nullptr) {
+            la::vector<double> v_grad;
+            v_grad.resize(v.size());
+            param->grad = std::make_shared<la::vector<double>>(std::move(v_grad));
+        }
+
+        auto& v_grad = autodiff::get_grad<la::vector<double>>(param);
+
+        v_grad(0) += g;
+    }
+
+    bias1_score::bias1_score(std::shared_ptr<autodiff::op_t> param)
+        : param(param)
+    {}
+
+    double bias1_score::operator()(ilat::fst const& f,
         int e) const
     {
         int ell = f.output(e) - 1;
@@ -659,7 +774,7 @@ namespace fscrf {
         return v(ell);
     }
 
-    void bias_score::accumulate_grad(double g, ilat::fst const& f,
+    void bias1_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
         auto& v = autodiff::get_output<la::vector<double>>(param);
@@ -1654,9 +1769,14 @@ namespace fscrf {
                     fscrf::external_score_order1 { tensor_tree::get_var(var_tree->children[feat_idx]), dims }));
     
                 ++feat_idx;
-            } else if (k == "bias") {
-                weight_func.weights.push_back(std::make_shared<fscrf::bias_score>(
-                    fscrf::bias_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+            } else if (k == "bias0") {
+                weight_func.weights.push_back(std::make_shared<fscrf::bias0_score>(
+                    fscrf::bias0_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+    
+                ++feat_idx;
+            } else if (k == "bias1") {
+                weight_func.weights.push_back(std::make_shared<fscrf::bias1_score>(
+                    fscrf::bias1_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
     
                 ++feat_idx;
             } else {
@@ -1670,7 +1790,8 @@ namespace fscrf {
 
     std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> make_pair_weights(
         std::vector<std::string> const& features,
-        std::shared_ptr<tensor_tree::vertex> var_tree)
+        std::shared_ptr<tensor_tree::vertex> var_tree,
+        std::vector<std::vector<double>> const& frames)
     {
         scrf::composite_weight<ilat::pair_fst> weight_func;
         int feat_idx = 0;
@@ -1682,6 +1803,20 @@ namespace fscrf {
                 }));
 
                 ++feat_idx;
+            } else if (k == "lat-weight") {
+                weight_func.weights.push_back(std::make_shared<mode1_weight>(mode1_weight {
+                    std::make_shared<edge_weight>(edge_weight { tensor_tree::get_var(var_tree->children[feat_idx]) })
+                }));
+
+                ++feat_idx;
+            } else if (k == "boundary2") {
+                weight_func.weights.push_back(std::make_shared<left_boundary_order2_score>(left_boundary_order2_score {
+                    var_tree->children[feat_idx],
+                    frames,
+                    3
+                }));
+
+                ++feat_idx;
             } else {
                 std::cout << "unknown feature: " << k << std::endl;
                 exit(1);
@@ -1690,4 +1825,113 @@ namespace fscrf {
     
         return std::make_shared<scrf::composite_weight<ilat::pair_fst>>(weight_func);
     }
+
+    hinge_loss_pair::hinge_loss_pair(fscrf_pair_data& graph_data,
+            std::vector<segcost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils,
+            double cost_scale)
+        : graph_data(graph_data), sils(sils), cost_scale(cost_scale)
+    {
+        auto old_weight_func = graph_data.weight_func;
+
+        graph_data.weight_func = std::make_shared<mode1_weight>(
+            mode1_weight { std::make_shared<scrf::mul<ilat::fst>>(
+            scrf::mul<ilat::fst>(std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(gt_segs, sils)), -1)) });
+
+        gold_path_data.fst = scrf::shortest_path(graph_data);
+        graph_data.weight_func = old_weight_func;
+        gold_path_data.weight_func = graph_data.weight_func;
+
+        auto& id_symbol = *graph_data.fst->fst1().data->id_symbol;
+
+        fscrf_pair_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            int tail_time = gold_path.time(gold_path.tail(e));
+            int head_time = gold_path.time(gold_path.head(e));
+
+            gold_segs.push_back(segcost::segment<int> { tail_time, head_time, gold_path.output(e) });
+        }
+
+        std::cout << std::endl;
+
+        graph_data.cost_func = std::make_shared<mode1_weight>(
+            mode1_weight { std::make_shared<scrf::mul<ilat::fst>>(
+            scrf::mul<ilat::fst>(std::make_shared<scrf::seg_cost<ilat::fst>>(
+                scrf::make_overlap_cost<ilat::fst>(gold_segs, sils)), cost_scale)) });
+
+        gold_path_data.cost_func = graph_data.cost_func;
+
+        double gold_cost = 0;
+        double gold_score = 0;
+        std::cout << "gold:";
+        for (auto& e: gold_path.edges()) {
+            double c = (*gold_path_data.cost_func)(*gold_path_data.fst, e);
+            gold_cost += c;
+            gold_score += gold_path.weight(e);
+
+            std::cout << " " << id_symbol[gold_path.output(e)] << " (" << c << ")";
+        }
+        std::cout << std::endl;
+        std::cout << "gold cost: " << gold_cost << std::endl;
+        std::cout << "gold score: " << gold_score << std::endl;
+
+        scrf::composite_weight<ilat::pair_fst> weight_cost;
+        weight_cost.weights.push_back(graph_data.cost_func);
+        weight_cost.weights.push_back(graph_data.weight_func);
+        graph_data.weight_func = std::make_shared<scrf::composite_weight<ilat::pair_fst>>(weight_cost);
+        graph_path_data.fst = scrf::shortest_path(graph_data);
+        graph_path_data.weight_func = graph_data.weight_func;
+
+        fscrf_pair_fst graph_path { graph_path_data };
+
+        double cost_aug_cost = 0;
+        double cost_aug_score = 0;
+        std::cout << "cost aug:";
+        for (auto& e: graph_path.edges()) {
+            cost_aug_cost += (*graph_data.cost_func)(*graph_path_data.fst, e);
+            cost_aug_score += graph_path.weight(e);
+
+            std::cout << " " << id_symbol[graph_path.output(e)];
+        }
+        std::cout << std::endl;
+        std::cout << "cost aug cost: " << cost_aug_cost << std::endl;
+        std::cout << "cost aug score: " << cost_aug_score << std::endl;
+    }
+
+    double hinge_loss_pair::loss() const
+    {
+        double result = 0;
+
+        fscrf_pair_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            result -= gold_path.weight(e);
+        }
+
+        fscrf_pair_fst graph_path { graph_path_data };
+
+        for (auto& e: graph_path.edges()) {
+            result += graph_path.weight(e);
+        }
+
+        return result;
+    }
+
+    void hinge_loss_pair::grad() const
+    {
+        fscrf_pair_fst gold_path { gold_path_data };
+
+        for (auto& e: gold_path.edges()) {
+            gold_path_data.weight_func->accumulate_grad(-1, *gold_path_data.fst, e);
+        }
+
+        fscrf_pair_fst graph_path { graph_path_data };
+
+        for (auto& e: graph_path.edges()) {
+            graph_path_data.weight_func->accumulate_grad(1, *graph_path_data.fst, e);
+        }
+    }
+
 }

@@ -122,6 +122,10 @@ namespace segcost {
     double overlap_cost<symbol>::operator()(std::vector<segment<symbol>> const& gold_segs,
         segment<symbol> const& e) const
     {
+        if (e.start_time == e.end_time && e.label == 0) {
+            return 0.01;
+        }
+
         if (e.start_time == e.end_time) {
             return 0;
         }
