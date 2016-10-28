@@ -172,7 +172,17 @@ namespace fscrf {
                 v.children.push_back(tensor_tree::make_matrix("left boundary order2 acoustic embedding"));
                 v.children.push_back(tensor_tree::make_matrix("left boundary order2 label1 embedding"));
                 v.children.push_back(tensor_tree::make_matrix("left boundary order2 label2 embedding"));
+                v.children.push_back(tensor_tree::make_matrix("left boundary order2 weight"));
                 v.children.push_back(tensor_tree::make_vector("left boundary order2 weight"));
+                root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
+            } else if (k == "segrnn") {
+                tensor_tree::vertex v { tensor_tree::tensor_t::nil };
+                v.children.push_back(tensor_tree::make_matrix("segrnn left embedding"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn right embedding"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn weight"));
+                v.children.push_back(tensor_tree::make_vector("segrnn weight"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
@@ -291,6 +301,19 @@ namespace fscrf {
                     fscrf::bias1_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
                 ++feat_idx;
+            } else if (k == "lat-weight") {
+                weight_func.weights.push_back(std::make_shared<edge_weight>(edge_weight {
+                    tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "segrnn")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::segrnn_score>(
+                    fscrf::segrnn_score(var_tree->children[feat_idx], frame_mat)));
+
+                ++feat_idx;
+            } else {
+                std::cout << "unknown feature: " << k << std::endl;
+                exit(1);
             }
         }
 
@@ -301,7 +324,7 @@ namespace fscrf {
             std::shared_ptr<autodiff::op_t> frames)
         : param(param), frames(frames)
     {
-        score = autodiff::mmul(param, frames);
+        score = autodiff::rtmul(param, frames);
         autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
@@ -356,10 +379,10 @@ namespace fscrf {
             std::shared_ptr<autodiff::op_t> frames)
         : param(param), att_param(att_param), frames(frames)
     {
-        score = autodiff::mmul(param, frames);
+        score = autodiff::rtmul(param, frames);
         autodiff::eval_vertex(score, autodiff::eval_funcs);
 
-        att = autodiff::mmul(att_param, frames);
+        att = autodiff::rtmul(att_param, frames);
         att_exp = autodiff::mexp(att);
         autodiff::eval_vertex(att, autodiff::eval_funcs);
         autodiff::eval_vertex(att_exp, autodiff::eval_funcs);
@@ -455,7 +478,7 @@ namespace fscrf {
             std::shared_ptr<autodiff::op_t> frames, double scale)
         : param(param), frames(frames), scale(scale)
     {
-        score = autodiff::mmul(param, frames);
+        score = autodiff::rtmul(param, frames);
         autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
@@ -504,7 +527,7 @@ namespace fscrf {
             std::shared_ptr<autodiff::op_t> frames, int shift)
         : param(param), frames(frames), shift(shift)
     {
-        score = autodiff::mmul(param, frames);
+        score = autodiff::rtmul(param, frames);
         autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
@@ -549,7 +572,7 @@ namespace fscrf {
             std::shared_ptr<autodiff::op_t> frames, int shift)
         : param(param), frames(frames), shift(shift)
     {
-        score = autodiff::mmul(param, frames);
+        score = autodiff::rtmul(param, frames);
         autodiff::eval_vertex(score, autodiff::eval_funcs);
     }
 
@@ -590,6 +613,96 @@ namespace fscrf {
         autodiff::eval_vertex(score, autodiff::grad_funcs);
     }
 
+    segrnn_score::segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
+        std::shared_ptr<autodiff::op_t> frames)
+        : param(param), frames(frames)
+    {
+        autodiff::computation_graph& graph = *frames->graph;
+
+        std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
+
+        left_embedding = autodiff::row_at(frames_tmp, 0);
+        right_embedding = autodiff::row_at(frames_tmp, 0);
+        label_embedding = autodiff::row_at(tensor_tree::get_var(param->children[2]), 0);
+        length_embedding = autodiff::row_at(tensor_tree::get_var(param->children[3]), 0);
+
+        score = autodiff::dot(tensor_tree::get_var(param->children[5]),
+            autodiff::relu(autodiff::mul(
+                tensor_tree::get_var(param->children[4]),
+                autodiff::relu(
+                    autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                        autodiff::mul(tensor_tree::get_var(param->children[0]), left_embedding),
+                        autodiff::mul(tensor_tree::get_var(param->children[1]), right_embedding),
+                        label_embedding,
+                        length_embedding
+                    })
+                )
+            )));
+
+        std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
+
+        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude;
+        for (int i = 0; i <= 4; ++i) {
+            exclude.insert(tensor_tree::get_var(param->children[i]));
+        }
+        exclude.insert(frames_tmp);
+
+        for (auto& i: topo_order_tmp) {
+            if (ebt::in(i, exclude)) {
+                continue;
+            }
+
+            topo_order.push_back(i);
+        }
+
+        graph.adj[left_embedding->id][0] = frames->id;
+        graph.adj[right_embedding->id][0] = frames->id;
+    }
+
+    double segrnn_score::operator()(ilat::fst const& f,
+        int e) const
+    {
+        auto& m = autodiff::get_output<la::matrix<double>>(frames);
+        auto& length_param = autodiff::get_output<la::matrix<double>>(tensor_tree::get_var(param->children[3]));
+
+        int ell = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        left_embedding->data = std::make_shared<int>(std::max<int>(0, tail_time));
+        right_embedding->data = std::make_shared<int>(std::min<int>(m.rows() - 1, head_time));
+        label_embedding->data = std::make_shared<int>(ell);
+        length_embedding->data = std::make_shared<int>(std::min<int>(head_time - tail_time - 1, length_param.rows()));
+
+        autodiff::eval(topo_order, autodiff::eval_funcs);
+
+        return autodiff::get_output<double>(score);
+    }
+
+    void segrnn_score::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        auto& m = autodiff::get_output<la::matrix<double>>(frames);
+        auto& length_param = autodiff::get_output<la::matrix<double>>(tensor_tree::get_var(param->children[3]));
+
+        int ell = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        left_embedding->data = std::make_shared<int>(std::max<int>(0, tail_time));
+        right_embedding->data = std::make_shared<int>(std::min<int>(m.rows() - 1, head_time));
+        label_embedding->data = std::make_shared<int>(ell);
+        length_embedding->data = std::make_shared<int>(std::min<int>(head_time - tail_time - 1, length_param.rows()));
+
+        autodiff::eval(topo_order, autodiff::eval_funcs);
+
+        autodiff::clear_grad(topo_order);
+
+        score->grad = std::make_shared<double>(g);
+
+        autodiff::grad(topo_order, autodiff::grad_funcs);
+    }
+
     left_boundary_order2_score::left_boundary_order2_score(
             std::shared_ptr<tensor_tree::vertex> param,
             std::vector<std::vector<double>> const& frames,
@@ -617,17 +730,18 @@ namespace fscrf {
         label_embedding2 = autodiff::row_at(tensor_tree::get_var(param->children[2]), 0);
         input = graph.var();
 
-        score = autodiff::dot(tensor_tree::get_var(param->children[3]),
-            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+        score = autodiff::dot(tensor_tree::get_var(param->children[4]),
+            autodiff::relu(autodiff::mul(tensor_tree::get_var(param->children[3]),
+            autodiff::relu(autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                 autodiff::mul(tensor_tree::get_var(param->children[0]), input),
                 label_embedding1,
                 label_embedding2,
-            }));
+            })))));
 
         std::vector<std::shared_ptr<autodiff::op_t>> tmp_topo_order = autodiff::topo_order(score);
 
         std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude;
-        for (int i = 0; i <= 3; ++i) {
+        for (int i = 0; i <= 4; ++i) {
             exclude.insert(tensor_tree::get_var(param->children[i]));
         }
 

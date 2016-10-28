@@ -186,6 +186,31 @@ namespace fscrf {
 
     };
 
+    struct segrnn_score
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::shared_ptr<tensor_tree::vertex> param;
+        std::shared_ptr<autodiff::op_t> frames;
+
+        std::shared_ptr<autodiff::op_t> left_embedding;
+        std::shared_ptr<autodiff::op_t> right_embedding;
+        std::shared_ptr<autodiff::op_t> label_embedding;
+        std::shared_ptr<autodiff::op_t> length_embedding;
+        std::shared_ptr<autodiff::op_t> score;
+
+        std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
+
+        segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::shared_ptr<autodiff::op_t> frames);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+    };
+
     struct left_boundary_order2_score
         : public scrf::scrf_weight<ilat::pair_fst> {
 
