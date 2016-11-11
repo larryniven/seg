@@ -1166,20 +1166,25 @@ namespace fscrf {
         graph_data.param = i_args.param;
     }
 
-    void make_graph(sample& s, inference_args& i_args)
+    void make_graph(sample& s, inference_args& i_args, int frames)
     {
         if (ebt::in(std::string("edge-drop"), i_args.args)) {
-            s.graph_data.fst = make_random_graph(s.frames.size(),
+            s.graph_data.fst = make_random_graph(frames,
                 i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride,
                 std::stod(i_args.args.at("edge-drop")), i_args.gen);
             s.graph_data.topo_order = std::make_shared<std::vector<int>>(
                 ::fst::topo_order(*s.graph_data.fst));
         } else {
-            s.graph_data.fst = make_graph(s.frames.size(),
+            s.graph_data.fst = make_graph(frames,
                 i_args.label_id, i_args.id_label, i_args.min_seg, i_args.max_seg, i_args.stride);
             s.graph_data.topo_order = std::make_shared<std::vector<int>>(
                 ::fst::topo_order(*s.graph_data.fst));
         }
+    }
+
+    void make_graph(sample& s, inference_args& i_args)
+    {
+        make_graph(s, i_args, s.frames.size());
     }
 
     void parse_learning_args(learning_args& l_args,
@@ -1188,29 +1193,13 @@ namespace fscrf {
         parse_inference_args(l_args, args);
 
         if (ebt::in(std::string("opt-data"), args)) {
-            if (ebt::in(std::string("adam-beta1"), args)) {
-                l_args.first_moment = make_tensor_tree(l_args.features);
-                l_args.second_moment = make_tensor_tree(l_args.features);
-                std::ifstream ifs { args.at("opt-data") };
-                std::string line;
-                std::getline(ifs, line);
-                l_args.time = std::stoi(line);
-                tensor_tree::load_tensor(l_args.first_moment, ifs);
-                tensor_tree::load_tensor(l_args.second_moment, ifs);
-
-            } else {
-                l_args.opt_data = make_tensor_tree(l_args.features);
-                tensor_tree::load_tensor(l_args.opt_data, args.at("opt-data"));
-            }
+            l_args.opt_data = make_tensor_tree(l_args.features);
+            tensor_tree::load_tensor(l_args.opt_data, args.at("opt-data"));
         }
 
         if (ebt::in(std::string("nn-opt-data"), args)) {
-            if (ebt::in(std::string("adam-beta1"), args)) {
-                // TODO
-            } else {
-                std::tie(l_args.layer, l_args.nn_opt_data, l_args.pred_opt_data)
-                    = load_lstm_param(args.at("nn-opt-data"));
-            }
+            std::tie(l_args.layer, l_args.nn_opt_data, l_args.pred_opt_data)
+                = load_lstm_param(args.at("nn-opt-data"));
         }
 
         l_args.l2 = 0;
@@ -1953,6 +1942,14 @@ namespace fscrf {
                     3
                 }));
 
+                ++feat_idx;
+            } else if (k == "bias0") {
+                weight_func.weights.push_back(std::make_shared<mode1_weight>(mode1_weight {
+                    std::make_shared<fscrf::bias0_score>(fscrf::bias0_score {
+                        tensor_tree::get_var(var_tree->children[feat_idx])
+                    })
+                }));
+    
                 ++feat_idx;
             } else {
                 std::cout << "unknown feature: " << k << std::endl;

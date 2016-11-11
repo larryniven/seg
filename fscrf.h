@@ -380,6 +380,7 @@ namespace fscrf {
     };
 
     void make_graph(sample& s, inference_args& i_args);
+    void make_graph(sample& s, inference_args& i_args, int frames);
 
     struct learning_args
         : public inference_args {

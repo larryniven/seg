@@ -38,6 +38,14 @@ namespace scrf {
     }
 
     template <class fst>
+    seg_cost<fst> make_hit_cost(
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs)
+    {
+        return seg_cost<fst> { std::make_shared<segcost::hit_cost<typename fst::symbol>>(
+            segcost::hit_cost<typename fst::symbol>{}), gold_segs };
+    }
+
+    template <class fst>
     seg_cost<fst> make_overlap_cost(
         std::vector<segcost::segment<typename fst::symbol>> const& gold_segs,
         std::vector<typename fst::symbol> sils)
@@ -47,11 +55,21 @@ namespace scrf {
     }
 
     template <class fst>
-    seg_cost<fst> make_hit_cost(
-        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs)
+    seg_cost<fst> make_overlap_portion_cost(
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs,
+        std::vector<typename fst::symbol> sils)
     {
-        return seg_cost<fst> { std::make_shared<segcost::hit_cost<typename fst::symbol>>(
-            segcost::hit_cost<typename fst::symbol>{}), gold_segs };
+        return seg_cost<fst> { std::make_shared<segcost::overlap_portion_cost<typename fst::symbol>>(
+            segcost::overlap_portion_cost<typename fst::symbol>{ sils }), gold_segs };
+    }
+
+    template <class fst>
+    seg_cost<fst> make_cover_cost(
+        std::vector<segcost::segment<typename fst::symbol>> const& gold_segs,
+        std::vector<typename fst::symbol> sils)
+    {
+        return seg_cost<fst> { std::make_shared<segcost::cover_cost<typename fst::symbol>>(
+            segcost::cover_cost<typename fst::symbol>{ sils }), gold_segs };
     }
 
 }

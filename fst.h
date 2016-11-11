@@ -472,21 +472,25 @@ namespace fst {
 
         while (1) {
             typename fst::edge e = std::get<0>(vertex_extra[v].deck[m - 1]);
-            int i = std::get<1>(vertex_extra[v].deck[m - 1]);
-            typename fst::vertex tail = f.tail(e);
 
             if (e == edge_trait<typename fst::edge>::null) {
                 break;
-            } else if (vertex_extra[tail].deck.size() == 0) {
+            }
+
+            int i = std::get<1>(vertex_extra[v].deck[m - 1]);
+            typename fst::vertex tail = f.tail(e);
+
+            // std::cout << "v=" << v << " tail=" << tail << " deck=" << vertex_extra[tail].deck.size() << " i=" << i << std::endl;
+
+            if (vertex_extra[tail].deck.size() == 0) {
                 break;
             } else if (i == vertex_extra[tail].deck.size() - 1 && vertex_extra[tail].bottom_out) {
+                stack.push_back(v);
                 break;
-            } else if (i == vertex_extra[tail].deck.size() - 1) {
+            } else if (i <= vertex_extra[tail].deck.size() - 1) {
                 stack.push_back(v);
                 v = tail;
                 m = i + 1;
-            } else if (i < vertex_extra[tail].deck.size() - 1) {
-                break;
             }
         }
 
@@ -497,6 +501,8 @@ namespace fst {
                 return -1;
             }
         };
+
+        // std::cout << stack << std::endl;
 
         while (stack.size() > 0) {
             v = stack.back();

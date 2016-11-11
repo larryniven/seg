@@ -204,10 +204,13 @@ namespace ctc {
         }
 
         if (nn_args.dropout == 0) {
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, lstm::lstm_builder{});
+            lstm::bi_lstm_input_scaling builder { nn_args.dropout,
+                std::make_shared<lstm::bi_lstm_builder>(lstm::bi_lstm_builder{}) };
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, builder);
         } else {
-            nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree,
-                frame_ops, lstm::lstm_builder{}, gen, nn_args.dropout);
+            lstm::bi_lstm_input_dropout builder { gen, nn_args.dropout,
+                std::make_shared<lstm::bi_lstm_builder>(lstm::bi_lstm_builder{}) };
+            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, builder);
         }
 
         pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);

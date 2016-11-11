@@ -36,6 +36,27 @@ namespace util {
         return parts;
     }
 
+    std::vector<int> load_label_seq(std::istream& is,
+        std::unordered_map<std::string, int> const& label_id)
+    {
+        std::string line;
+        std::getline(is, line);
+
+        std::vector<std::string> parts;
+
+        if (is) {
+            parts = ebt::split(line);
+            parts.pop_back();
+        }
+
+        std::vector<int> result;
+        for (auto& s: parts) {
+            result.push_back(label_id.at(s));
+        }
+
+        return result;
+    }
+
     std::vector<segcost::segment<int>> load_segments(std::istream& is,
         std::unordered_map<std::string, int> const& label_id, int subsample_freq)
     {

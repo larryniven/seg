@@ -11,6 +11,9 @@ namespace util {
 
     std::vector<std::string> load_label_seq(std::istream& is);
 
+    std::vector<int> load_label_seq(std::istream& is,
+        std::unordered_map<std::string, int> const& label_id);
+
     std::vector<segcost::segment<int>> load_segments(std::istream& is,
         std::unordered_map<std::string, int> const& label_id, int subsample_freq=1);
 
