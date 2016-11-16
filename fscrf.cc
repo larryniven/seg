@@ -180,9 +180,13 @@ namespace fscrf {
                 v.children.push_back(tensor_tree::make_matrix("segrnn left embedding"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn right embedding"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn weight"));
-                v.children.push_back(tensor_tree::make_vector("segrnn weight"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
+                v.children.push_back(tensor_tree::make_vector("segrnn bias1"));
+                v.children.push_back(tensor_tree::make_matrix("segrnn weight1"));
+                v.children.push_back(tensor_tree::make_vector("segrnn bias2"));
+                v.children.push_back(tensor_tree::make_vector("segrnn weight2"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
@@ -621,86 +625,151 @@ namespace fscrf {
 
         std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
 
-        left_embedding = autodiff::row_at(frames_tmp, 0);
-        right_embedding = autodiff::row_at(frames_tmp, 0);
-        label_embedding = autodiff::row_at(tensor_tree::get_var(param->children[2]), 0);
-        length_embedding = autodiff::row_at(tensor_tree::get_var(param->children[3]), 0);
+        pre_left = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[0]));
+        pre_right = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[1]));
+        pre_label = autodiff::mmul(tensor_tree::get_var(param->children[2]),
+            tensor_tree::get_var(param->children[3]));
+        pre_length = autodiff::mmul(tensor_tree::get_var(param->children[4]),
+            tensor_tree::get_var(param->children[5]));
 
-        score = autodiff::dot(tensor_tree::get_var(param->children[5]),
-            autodiff::relu(autodiff::mul(
-                tensor_tree::get_var(param->children[4]),
-                autodiff::relu(
-                    autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                        autodiff::mul(tensor_tree::get_var(param->children[0]), left_embedding),
-                        autodiff::mul(tensor_tree::get_var(param->children[1]), right_embedding),
-                        label_embedding,
-                        length_embedding
-                    })
-                )
-            )));
+        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
+            pre_left, pre_right, pre_label, pre_length, frames_tmp };
 
-        std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
-
-        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude;
-        for (int i = 0; i <= 4; ++i) {
+        for (int i = 0; i <= 9; ++i) {
             exclude.insert(tensor_tree::get_var(param->children[i]));
         }
-        exclude.insert(frames_tmp);
+
+        auto left_embedding = autodiff::row_at(pre_left, 0);
+        auto right_embedding = autodiff::row_at(pre_right, 0);
+        auto label_embedding = autodiff::row_at(pre_label, 0);
+        auto length_embedding = autodiff::row_at(pre_length, 0);
+
+        score = autodiff::dot(tensor_tree::get_var(param->children[9]),
+            autodiff::tanh(
+                autodiff::add(
+                    tensor_tree::get_var(param->children[8]),
+                    autodiff::mul(
+                        tensor_tree::get_var(param->children[7]),
+                        autodiff::relu(
+                            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                                left_embedding,
+                                right_embedding,
+                                label_embedding,
+                                length_embedding,
+                                tensor_tree::get_var(param->children[6])
+                            })
+                        )
+                    )
+                )
+            ));
+
+        std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
 
         for (auto& i: topo_order_tmp) {
             if (ebt::in(i, exclude)) {
                 continue;
             }
 
-            topo_order.push_back(i);
+            topo_order_shift.push_back(i->id);
         }
 
-        graph.adj[left_embedding->id][0] = frames->id;
-        graph.adj[right_embedding->id][0] = frames->id;
+        graph.adj[pre_left->id][0] = frames->id;
+        graph.adj[pre_right->id][0] = frames->id;
+
+        autodiff::eval_vertex(pre_left, autodiff::eval_funcs);
+        autodiff::eval_vertex(pre_right, autodiff::eval_funcs);
+        autodiff::eval_vertex(pre_label, autodiff::eval_funcs);
+        autodiff::eval_vertex(pre_length, autodiff::eval_funcs);
     }
 
     double segrnn_score::operator()(ilat::fst const& f,
         int e) const
     {
+        if (edge_scores.size() > e && edge_scores[e] != nullptr && edge_scores[e]->output != nullptr) {
+            return autodiff::get_output<double>(edge_scores[e]);
+        }
+
+        autodiff::computation_graph& comp_graph = *frames->graph;
+
         auto& m = autodiff::get_output<la::matrix<double>>(frames);
-        auto& length_param = autodiff::get_output<la::matrix<double>>(tensor_tree::get_var(param->children[3]));
+        auto& length_param = autodiff::get_output<la::matrix<double>>(
+            tensor_tree::get_var(param->children[5]));
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        left_embedding->data = std::make_shared<int>(std::max<int>(0, tail_time));
-        right_embedding->data = std::make_shared<int>(std::min<int>(m.rows() - 1, head_time));
-        label_embedding->data = std::make_shared<int>(ell);
-        length_embedding->data = std::make_shared<int>(std::min<int>(head_time - tail_time - 1, length_param.rows()));
+        auto left_embedding = autodiff::row_at(pre_left, std::max<int>(0, tail_time));
+        auto right_embedding = autodiff::row_at(pre_right, std::min<int>(m.rows() - 1, head_time));
+        auto label_embedding = autodiff::row_at(pre_label, ell);
+        auto length_embedding = autodiff::row_at(pre_length,
+            std::min<int>(head_time - tail_time - 1, length_param.rows() - 1));
+
+        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[9]),
+            autodiff::tanh(
+                autodiff::add(
+                    tensor_tree::get_var(param->children[8]),
+                    autodiff::mul(
+                        tensor_tree::get_var(param->children[7]),
+                        autodiff::relu(
+                            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                                left_embedding,
+                                right_embedding,
+                                label_embedding,
+                                length_embedding,
+                                tensor_tree::get_var(param->children[6])
+                            })
+                        )
+                    )
+                )
+            ));
+
+        if (e >= edge_scores.size()) {
+            edge_scores.resize(e + 1, nullptr);
+        }
+
+        edge_scores[e] = s_e;
+
+        std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
+        int d = s_e->id - score->id;
+        for (auto& i: topo_order_shift) {
+            topo_order.push_back(comp_graph.vertices[i + d]);
+        }
 
         autodiff::eval(topo_order, autodiff::eval_funcs);
 
-        return autodiff::get_output<double>(score);
+        return autodiff::get_output<double>(s_e);
     }
 
     void segrnn_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(frames);
-        auto& length_param = autodiff::get_output<la::matrix<double>>(tensor_tree::get_var(param->children[3]));
+        std::shared_ptr<autodiff::op_t> s_e = edge_scores[e];
+        if (s_e->grad == nullptr) {
+            s_e->grad = std::make_shared<double>(0);
+        }
+        autodiff::get_grad<double>(s_e) += g;
+    }
 
-        int ell = f.output(e) - 1;
-        int tail_time = f.time(f.tail(e));
-        int head_time = f.time(f.head(e));
+    void segrnn_score::grad() const
+    {
+        autodiff::computation_graph& comp_graph = *frames->graph;
 
-        left_embedding->data = std::make_shared<int>(std::max<int>(0, tail_time));
-        right_embedding->data = std::make_shared<int>(std::min<int>(m.rows() - 1, head_time));
-        label_embedding->data = std::make_shared<int>(ell);
-        length_embedding->data = std::make_shared<int>(std::min<int>(head_time - tail_time - 1, length_param.rows()));
+        for (auto& t: edge_scores) {
+            if (t != nullptr) {
+                std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
+                int d = t->id - score->id;
+                for (auto& i: topo_order_shift) {
+                    topo_order.push_back(comp_graph.vertices[i + d]);
+                }
+                autodiff::grad(topo_order, autodiff::grad_funcs);
+            }
+        }
 
-        autodiff::eval(topo_order, autodiff::eval_funcs);
-
-        autodiff::clear_grad(topo_order);
-
-        score->grad = std::make_shared<double>(g);
-
-        autodiff::grad(topo_order, autodiff::grad_funcs);
+        autodiff::eval_vertex(pre_left, autodiff::grad_funcs);
+        autodiff::eval_vertex(pre_right, autodiff::grad_funcs);
+        autodiff::eval_vertex(pre_label, autodiff::grad_funcs);
+        autodiff::eval_vertex(pre_length, autodiff::grad_funcs);
     }
 
     left_boundary_order2_score::left_boundary_order2_score(
@@ -1059,9 +1128,16 @@ namespace fscrf {
 
         std::getline(ifs, line);
         int layer = std::stoi(line);
-
-        std::shared_ptr<tensor_tree::vertex> nn_param
-            = lstm::make_stacked_bi_lstm_tensor_tree(layer);
+        lstm::stacked_bi_lstm_tensor_tree_factory fac { layer,
+            std::make_shared<lstm::bi_lstm_tensor_tree_factory>(
+                  lstm::bi_lstm_tensor_tree_factory {
+                      std::make_shared<lstm::dyer_lstm_tensor_tree_factory>(
+                          lstm::dyer_lstm_tensor_tree_factory{})
+                      // std::make_shared<lstm::lstm_tensor_tree_factory>(
+                      //     lstm::lstm_tensor_tree_factory{})
+                  }
+            )};
+        std::shared_ptr<tensor_tree::vertex> nn_param = fac();
         tensor_tree::load_tensor(nn_param, ifs);
         std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
         tensor_tree::load_tensor(pred_param, ifs);

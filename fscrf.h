@@ -191,14 +191,16 @@ namespace fscrf {
 
         std::shared_ptr<tensor_tree::vertex> param;
         std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> pre_left;
+        std::shared_ptr<autodiff::op_t> pre_right;
+        std::shared_ptr<autodiff::op_t> pre_label;
+        std::shared_ptr<autodiff::op_t> pre_length;
 
-        std::shared_ptr<autodiff::op_t> left_embedding;
-        std::shared_ptr<autodiff::op_t> right_embedding;
-        std::shared_ptr<autodiff::op_t> label_embedding;
-        std::shared_ptr<autodiff::op_t> length_embedding;
         std::shared_ptr<autodiff::op_t> score;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
+        std::vector<int> topo_order_shift;
+
+        mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_scores;
 
         segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
             std::shared_ptr<autodiff::op_t> frames);
@@ -208,6 +210,8 @@ namespace fscrf {
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
+
+        virtual void grad() const override;
 
     };
 
