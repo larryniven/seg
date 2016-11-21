@@ -77,7 +77,9 @@ namespace fscrf {
     std::shared_ptr<scrf::composite_weight<ilat::fst>> make_weights(
         std::vector<std::string> const& features,
         std::shared_ptr<tensor_tree::vertex> var_tree,
-        std::shared_ptr<autodiff::op_t> frame_mat);
+        std::shared_ptr<autodiff::op_t> frame_mat,
+        double dropout = 0.0,
+        std::default_random_engine *gen = nullptr);
 
     struct frame_avg_score
         : public scrf::scrf_weight<ilat::fst> {
@@ -200,10 +202,18 @@ namespace fscrf {
 
         std::vector<int> topo_order_shift;
 
+        mutable std::default_random_engine *gen;
+        double dropout;
+
         mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_scores;
 
         segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
             std::shared_ptr<autodiff::op_t> frames);
+
+        segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::shared_ptr<autodiff::op_t> frames,
+            double dropout,
+            std::default_random_engine *gen);
 
         virtual double operator()(ilat::fst const& f,
             int e) const;

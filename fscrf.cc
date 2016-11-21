@@ -200,7 +200,9 @@ namespace fscrf {
     std::shared_ptr<scrf::composite_weight<ilat::fst>> make_weights(
         std::vector<std::string> const& features,
         std::shared_ptr<tensor_tree::vertex> var_tree,
-        std::shared_ptr<autodiff::op_t> frame_mat)
+        std::shared_ptr<autodiff::op_t> frame_mat,
+        double dropout,
+        std::default_random_engine *gen)
     {
         scrf::composite_weight<ilat::fst> weight_func;
 
@@ -312,7 +314,7 @@ namespace fscrf {
                 ++feat_idx;
             } else if (ebt::startswith(k, "segrnn")) {
                 weight_func.weights.push_back(std::make_shared<fscrf::segrnn_score>(
-                    fscrf::segrnn_score(var_tree->children[feat_idx], frame_mat)));
+                    fscrf::segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
 
                 ++feat_idx;
             } else {
@@ -619,8 +621,18 @@ namespace fscrf {
 
     segrnn_score::segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
         std::shared_ptr<autodiff::op_t> frames)
-        : param(param), frames(frames)
+        : segrnn_score(param, frames, 0.0, nullptr)
     {
+    }
+
+    segrnn_score::segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
+        std::shared_ptr<autodiff::op_t> frames,
+        double dropout,
+        std::default_random_engine *gen)
+        : param(param), frames(frames), dropout(dropout), gen(gen)
+    {
+        assert(0.0 <= dropout && dropout <= 1.0);
+
         autodiff::computation_graph& graph = *frames->graph;
 
         std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
@@ -643,21 +655,24 @@ namespace fscrf {
         auto right_embedding = autodiff::row_at(pre_right, 0);
         auto label_embedding = autodiff::row_at(pre_label, 0);
         auto length_embedding = autodiff::row_at(pre_length, 0);
+        auto mask = graph.var();
 
         score = autodiff::dot(tensor_tree::get_var(param->children[9]),
-            autodiff::tanh(
-                autodiff::add(
-                    tensor_tree::get_var(param->children[8]),
-                    autodiff::mul(
-                        tensor_tree::get_var(param->children[7]),
-                        autodiff::relu(
-                            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                                left_embedding,
-                                right_embedding,
-                                label_embedding,
-                                length_embedding,
-                                tensor_tree::get_var(param->children[6])
-                            })
+            autodiff::emul(mask,
+                autodiff::tanh(
+                    autodiff::add(
+                        tensor_tree::get_var(param->children[8]),
+                        autodiff::mul(
+                            tensor_tree::get_var(param->children[7]),
+                            autodiff::relu(
+                                autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                                    left_embedding,
+                                    right_embedding,
+                                    label_embedding,
+                                    length_embedding,
+                                    tensor_tree::get_var(param->children[6])
+                                })
+                            )
                         )
                     )
                 )
@@ -705,20 +720,40 @@ namespace fscrf {
         auto length_embedding = autodiff::row_at(pre_length,
             std::min<int>(head_time - tail_time - 1, length_param.rows() - 1));
 
+        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[9]));
+        la::vector<double> mask_vec;
+
+        if (dropout == 0.0) {
+            mask_vec.resize(theta.size(), 1);
+        } else if (gen == nullptr) {
+            mask_vec.resize(theta.size(), 1 - dropout);
+        } else {
+            mask_vec.resize(theta.size());
+            std::bernoulli_distribution dist {1 - dropout};
+
+            for (int i = 0; i < mask_vec.size(); ++i) {
+                mask_vec(i) = dist(*gen);
+            }
+        }
+
+        auto mask = comp_graph.var(mask_vec);
+
         std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[9]),
-            autodiff::tanh(
-                autodiff::add(
-                    tensor_tree::get_var(param->children[8]),
-                    autodiff::mul(
-                        tensor_tree::get_var(param->children[7]),
-                        autodiff::relu(
-                            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                                left_embedding,
-                                right_embedding,
-                                label_embedding,
-                                length_embedding,
-                                tensor_tree::get_var(param->children[6])
-                            })
+            autodiff::emul(mask,
+                autodiff::tanh(
+                    autodiff::add(
+                        tensor_tree::get_var(param->children[8]),
+                        autodiff::mul(
+                            tensor_tree::get_var(param->children[7]),
+                            autodiff::relu(
+                                autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                                    left_embedding,
+                                    right_embedding,
+                                    label_embedding,
+                                    length_embedding,
+                                    tensor_tree::get_var(param->children[6])
+                                })
+                            )
                         )
                     )
                 )
