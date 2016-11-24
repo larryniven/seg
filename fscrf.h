@@ -188,6 +188,43 @@ namespace fscrf {
 
     };
 
+    struct segrnn_mod_score
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::shared_ptr<tensor_tree::vertex> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> pre_left;
+        std::shared_ptr<autodiff::op_t> pre_right;
+        std::shared_ptr<autodiff::op_t> pre_label;
+        std::shared_ptr<autodiff::op_t> pre_length;
+
+        std::shared_ptr<autodiff::op_t> score;
+
+        std::vector<int> topo_order_shift;
+
+        mutable std::default_random_engine *gen;
+        double dropout;
+
+        mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_scores;
+
+        segrnn_mod_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::shared_ptr<autodiff::op_t> frames);
+
+        segrnn_mod_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::shared_ptr<autodiff::op_t> frames,
+            double dropout,
+            std::default_random_engine *gen);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
     struct segrnn_score
         : public scrf::scrf_weight<ilat::fst> {
 
