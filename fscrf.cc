@@ -325,14 +325,14 @@ namespace fscrf {
                     tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
                 ++feat_idx;
-            } else if (ebt::startswith(k, "segrnn")) {
-                weight_func.weights.push_back(std::make_shared<fscrf::segrnn_score>(
-                    fscrf::segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
-
-                ++feat_idx;
             } else if (ebt::startswith(k, "segrnn-mod")) {
                 weight_func.weights.push_back(std::make_shared<fscrf::segrnn_mod_score>(
                     fscrf::segrnn_mod_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "segrnn")) {
+                weight_func.weights.push_back(std::make_shared<fscrf::segrnn_score>(
+                    fscrf::segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
 
                 ++feat_idx;
             } else {
@@ -726,7 +726,7 @@ namespace fscrf {
 
         auto& m = autodiff::get_output<la::matrix<double>>(frames);
         auto& length_param = autodiff::get_output<la::matrix<double>>(
-            tensor_tree::get_var(param->children[5]));
+            tensor_tree::get_var(param->children[4]));
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -912,7 +912,7 @@ namespace fscrf {
 
         auto& m = autodiff::get_output<la::matrix<double>>(frames);
         auto& length_param = autodiff::get_output<la::matrix<double>>(
-            tensor_tree::get_var(param->children[5]));
+            tensor_tree::get_var(param->children[4]));
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
