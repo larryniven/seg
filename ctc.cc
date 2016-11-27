@@ -1,5 +1,6 @@
 #include "seg/ctc.h"
 #include "seg/util.h"
+#include "nn/lstm-tensor-tree.h"
 #include <fstream>
 
 namespace ctc {
@@ -203,12 +204,14 @@ namespace ctc {
             frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
         }
 
+        int dim = frames.front().size();
+
         if (nn_args.dropout == 0) {
-            lstm::bi_lstm_input_scaling builder { nn_args.dropout,
+            lstm::bi_lstm_input_scaling builder { comp_graph, dim, nn_args.dropout,
                 std::make_shared<lstm::bi_lstm_builder>(lstm::bi_lstm_builder{}) };
             nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, builder);
         } else {
-            lstm::bi_lstm_input_dropout builder { gen, nn_args.dropout,
+            lstm::bi_lstm_input_dropout builder { comp_graph, dim, gen, nn_args.dropout,
                 std::make_shared<lstm::bi_lstm_builder>(lstm::bi_lstm_builder{}) };
             nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, builder);
         }

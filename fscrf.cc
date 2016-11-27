@@ -2,6 +2,7 @@
 #include "seg/scrf_weight.h"
 #include "seg/util.h"
 #include "seg/scrf.h"
+#include "nn/lstm-tensor-tree.h"
 #include <fstream>
 
 namespace fscrf {
@@ -178,7 +179,9 @@ namespace fscrf {
             } else if (k == "segrnn") {
                 tensor_tree::vertex v { tensor_tree::tensor_t::nil };
                 v.children.push_back(tensor_tree::make_matrix("segrnn left embedding"));
+                v.children.push_back(tensor_tree::make_vector("segrnn left end"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn right embedding"));
+                v.children.push_back(tensor_tree::make_vector("segrnn right end"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
                 v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
@@ -200,6 +203,7 @@ namespace fscrf {
                 v.children.push_back(tensor_tree::make_matrix("segrnn weight1"));
                 v.children.push_back(tensor_tree::make_vector("segrnn bias2"));
                 v.children.push_back(tensor_tree::make_vector("segrnn weight2"));
+                v.children.push_back(tensor_tree::make_vector("segrnn bias3"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
@@ -665,7 +669,7 @@ namespace fscrf {
         std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
             pre_left, pre_right, pre_label, pre_length, frames_tmp };
 
-        for (int i = 0; i <= 9; ++i) {
+        for (int i = 0; i <= 10; ++i) {
             exclude.insert(tensor_tree::get_var(param->children[i]));
         }
 
@@ -675,7 +679,8 @@ namespace fscrf {
         auto length_embedding = autodiff::row_at(pre_length, 0);
         auto mask = graph.var();
 
-        score = autodiff::dot(tensor_tree::get_var(param->children[9]),
+        score = autodiff::dot(tensor_tree::get_var(param->children[10]),
+            autodiff::add(tensor_tree::get_var(param->children[9]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
@@ -694,7 +699,7 @@ namespace fscrf {
                         )
                     )
                 )
-            ));
+            )));
 
         std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
 
@@ -738,7 +743,7 @@ namespace fscrf {
         auto length_embedding = autodiff::row_at(pre_length,
             std::min<int>(head_time - tail_time - 1, length_param.rows() - 1));
 
-        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[9]));
+        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[10]));
         la::vector<double> mask_vec;
 
         if (dropout == 0.0) {
@@ -754,7 +759,8 @@ namespace fscrf {
 
         auto mask = comp_graph.var(mask_vec);
 
-        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[9]),
+        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[10]),
+            autodiff::add(tensor_tree::get_var(param->children[9]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
@@ -773,7 +779,7 @@ namespace fscrf {
                         )
                     )
                 )
-            ));
+            )));
 
         if (e >= edge_scores.size()) {
             edge_scores.resize(e + 1, nullptr);
@@ -841,17 +847,20 @@ namespace fscrf {
 
         std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
 
+        left_end = autodiff::lmul(tensor_tree::get_var(param->children[1]), tensor_tree::get_var(param->children[0]));
+        right_end = autodiff::lmul(tensor_tree::get_var(param->children[3]), tensor_tree::get_var(param->children[2]));
+
         pre_left = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[0]));
-        pre_right = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[1]));
-        pre_label = autodiff::mmul(tensor_tree::get_var(param->children[2]),
-            tensor_tree::get_var(param->children[3]));
-        pre_length = autodiff::mmul(tensor_tree::get_var(param->children[4]),
+        pre_right = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[2]));
+        pre_label = autodiff::mmul(tensor_tree::get_var(param->children[4]),
             tensor_tree::get_var(param->children[5]));
+        pre_length = autodiff::mmul(tensor_tree::get_var(param->children[6]),
+            tensor_tree::get_var(param->children[7]));
 
         std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
-            pre_left, pre_right, pre_label, pre_length, frames_tmp };
+            pre_left, pre_right, pre_label, pre_length, left_end, right_end, frames_tmp };
 
-        for (int i = 0; i <= 9; ++i) {
+        for (int i = 0; i <= 11; ++i) {
             exclude.insert(tensor_tree::get_var(param->children[i]));
         }
 
@@ -861,20 +870,20 @@ namespace fscrf {
         auto length_embedding = autodiff::row_at(pre_length, 0);
         auto mask = graph.var();
 
-        score = autodiff::dot(tensor_tree::get_var(param->children[9]),
+        score = autodiff::dot(tensor_tree::get_var(param->children[11]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
-                        tensor_tree::get_var(param->children[8]),
+                        tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            tensor_tree::get_var(param->children[7]),
+                            tensor_tree::get_var(param->children[9]),
                             autodiff::relu(
                                 autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                                     left_embedding,
                                     right_embedding,
                                     label_embedding,
                                     length_embedding,
-                                    tensor_tree::get_var(param->children[6])
+                                    tensor_tree::get_var(param->children[8])
                                 })
                             )
                         )
@@ -897,6 +906,8 @@ namespace fscrf {
 
         autodiff::eval_vertex(pre_left, autodiff::eval_funcs);
         autodiff::eval_vertex(pre_right, autodiff::eval_funcs);
+        autodiff::eval_vertex(left_end, autodiff::eval_funcs);
+        autodiff::eval_vertex(right_end, autodiff::eval_funcs);
         autodiff::eval_vertex(pre_label, autodiff::eval_funcs);
         autodiff::eval_vertex(pre_length, autodiff::eval_funcs);
     }
@@ -918,14 +929,28 @@ namespace fscrf {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        auto left_embedding = autodiff::row_at(pre_left, std::max<int>(0, tail_time));
-        auto right_embedding = autodiff::row_at(pre_right, std::min<int>(m.rows() - 1, head_time));
+        std::shared_ptr<autodiff::op_t> left_embedding;
+
+        if (std::max<int>(0, tail_time) == 0) {
+            left_embedding = autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>>{ left_end });
+        } else {
+            left_embedding = autodiff::row_at(pre_left, std::max<int>(0, tail_time));
+        }
+
+        std::shared_ptr<autodiff::op_t> right_embedding;
+
+        if (std::min<int>(m.rows() - 1, head_time) == m.rows() - 1) {
+            right_embedding = autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>>{ right_end });
+        } else {
+            right_embedding = autodiff::row_at(pre_right, std::min<int>(m.rows() - 1, head_time));
+        }
+
         auto label_embedding = autodiff::row_at(pre_label, ell);
         auto length_embedding = autodiff::row_at(pre_length,
             std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
                  length_param.rows() - 1));
 
-        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[9]));
+        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[11]));
         la::vector<double> mask_vec;
 
         if (dropout == 0.0) {
@@ -941,20 +966,20 @@ namespace fscrf {
 
         auto mask = comp_graph.var(mask_vec);
 
-        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[9]),
+        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[11]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
-                        tensor_tree::get_var(param->children[8]),
+                        tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            tensor_tree::get_var(param->children[7]),
+                            tensor_tree::get_var(param->children[9]),
                             autodiff::relu(
                                 autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                                     left_embedding,
                                     right_embedding,
                                     label_embedding,
                                     length_embedding,
-                                    tensor_tree::get_var(param->children[6])
+                                    tensor_tree::get_var(param->children[8])
                                 })
                             )
                         )
@@ -1006,6 +1031,8 @@ namespace fscrf {
 
         autodiff::eval_vertex(pre_left, autodiff::grad_funcs);
         autodiff::eval_vertex(pre_right, autodiff::grad_funcs);
+        autodiff::eval_vertex(left_end, autodiff::grad_funcs);
+        autodiff::eval_vertex(right_end, autodiff::grad_funcs);
         autodiff::eval_vertex(pre_label, autodiff::grad_funcs);
         autodiff::eval_vertex(pre_length, autodiff::grad_funcs);
     }
@@ -1358,74 +1385,155 @@ namespace fscrf {
         v_grad(0) += g * f.weight(e);
     }
 
-    std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
+    std::shared_ptr<tensor_tree::vertex> make_lstm_tensor_tree(
+        int outer_layer, int inner_layer)
+    {
+        if (inner_layer == -1) {
+            lstm::stacked_bi_lstm_tensor_tree_factory fac { outer_layer,
+                std::make_shared<lstm::bi_lstm_tensor_tree_factory>(
+                      lstm::bi_lstm_tensor_tree_factory {
+                          std::make_shared<lstm::dyer_lstm_tensor_tree_factory>(
+                              lstm::dyer_lstm_tensor_tree_factory{})
+                          // std::make_shared<lstm::lstm_tensor_tree_factory>(
+                          //     lstm::lstm_tensor_tree_factory{})
+                      }
+                )};
+
+            return fac();
+        } else {
+            lstm::stacked_bi_lstm_tensor_tree_factory fac { outer_layer,
+                std::make_shared<lstm::bi_lstm_tensor_tree_factory>(
+                lstm::bi_lstm_tensor_tree_factory {
+                    std::make_shared<lstm::multilayer_lstm_tensor_tree_factory>(
+                    lstm::multilayer_lstm_tensor_tree_factory {
+                       std::make_shared<lstm::dyer_lstm_tensor_tree_factory>(
+                       lstm::dyer_lstm_tensor_tree_factory{}),
+                       inner_layer
+                    })
+                })
+            };
+
+            return fac();
+        }
+    }
+
+    std::tuple<int, int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
     load_lstm_param(std::string filename)
     {
         std::ifstream ifs { filename };
         std::string line;
 
         std::getline(ifs, line);
-        int layer = std::stoi(line);
-        lstm::stacked_bi_lstm_tensor_tree_factory fac { layer,
-            std::make_shared<lstm::bi_lstm_tensor_tree_factory>(
-                  lstm::bi_lstm_tensor_tree_factory {
-                      std::make_shared<lstm::dyer_lstm_tensor_tree_factory>(
-                          lstm::dyer_lstm_tensor_tree_factory{})
-                      // std::make_shared<lstm::lstm_tensor_tree_factory>(
-                      //     lstm::lstm_tensor_tree_factory{})
-                  }
-            )};
-        std::shared_ptr<tensor_tree::vertex> nn_param = fac();
-        tensor_tree::load_tensor(nn_param, ifs);
-        std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
-        tensor_tree::load_tensor(pred_param, ifs);
+        auto parts = ebt::split(line);
 
-        return std::make_tuple(layer, nn_param, pred_param);
+        if (parts.size() == 1) {
+            int layer = std::stoi(line);
+            std::shared_ptr<tensor_tree::vertex> nn_param = make_lstm_tensor_tree(layer, -1);
+            tensor_tree::load_tensor(nn_param, ifs);
+            std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
+            tensor_tree::load_tensor(pred_param, ifs);
+
+            return std::make_tuple(layer, -1, nn_param, pred_param);
+        } else if (parts.size() == 2) {
+            int outer_layer = std::stoi(parts[0]);
+            int inner_layer = std::stoi(parts[1]);
+            std::shared_ptr<tensor_tree::vertex> nn_param = make_lstm_tensor_tree(outer_layer, inner_layer);
+            tensor_tree::load_tensor(nn_param, ifs);
+            std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
+            tensor_tree::load_tensor(pred_param, ifs);
+
+            return std::make_tuple(outer_layer, inner_layer, nn_param, pred_param);
+        }
     }
 
-    void save_lstm_param(std::shared_ptr<tensor_tree::vertex> nn_param,
+    void save_lstm_param(int outer_layer, int inner_layer,
+        std::shared_ptr<tensor_tree::vertex> nn_param,
         std::shared_ptr<tensor_tree::vertex> pred_param,
         std::string filename)
     {
         std::ofstream ofs { filename };
 
-        ofs << nn_param->children.size() << std::endl;
+        if (inner_layer == -1) {
+            ofs << nn_param->children.size() << std::endl;
+        } else {
+            ofs << outer_layer << " " << inner_layer << std::endl;
+        }
         tensor_tree::save_tensor(nn_param, ofs);
         tensor_tree::save_tensor(pred_param, ofs);
     }
 
-    /*
-    std::vector<std::shared_ptr<autodiff::op_t>>
-    make_feat(autodiff::computation_graph& comp_graph,
-        std::shared_ptr<tensor_tree::vertex> lstm_var_tree,
-        std::shared_ptr<tensor_tree::vertex> pred_var_tree,
-        lstm::stacked_bi_lstm_nn_t& nn,
-        rnn::pred_nn_t& pred_nn,
-        std::vector<std::vector<double>> const& frames,
-        std::default_random_engine& gen,
-        inference_args& i_args)
+    std::shared_ptr<lstm::transcriber>
+    make_transcriber(inference_args& i_args)
     {
-        std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
-        for (auto& f: frames) {
-            frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
-        }
+        std::shared_ptr<lstm::lstm_step_transcriber> step;
 
-        if (nn_args.dropout == 0) {
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops);
+        if (ebt::in(std::string("dropout"), i_args.args)) {
+            step = std::make_shared<lstm::lstm_input_dropout_transcriber>(
+                lstm::lstm_input_dropout_transcriber {
+                    i_args.gen, std::stod(i_args.args.at("dropout")),
+                    std::make_shared<lstm::dyer_lstm_step_transcriber>(
+                    lstm::dyer_lstm_step_transcriber{})
+                });
         } else {
-            nn = lstm::make_stacked_bi_lstm_nn_with_dropout(comp_graph, lstm_var_tree,
-                frame_ops, gen, nn_args.dropout);
+            step = std::make_shared<lstm::dyer_lstm_step_transcriber>(
+                lstm::dyer_lstm_step_transcriber{});
         }
 
-        if (nn_args.frame_softmax) {
-            pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
+        lstm::layered_transcriber result;
 
-            return pred_nn.logprob;
+        if (i_args.inner_layer == -1) {
+            for (int i = 0; i < i_args.outer_layer; ++i) {
+                std::shared_ptr<lstm::transcriber> trans = std::make_shared<lstm::bi_transcriber>(
+                    lstm::bi_transcriber {
+                        std::make_shared<lstm::lstm_transcriber>(
+                        lstm::lstm_transcriber { step })
+                    });
+
+                if (i != i_args.outer_layer - 1) {
+                    if (ebt::in(std::string("subsampling"), i_args.args)) {
+                        trans = std::make_shared<lstm::subsampled_transcriber>(
+                            lstm::subsampled_transcriber { 2, 0, trans });
+                    }
+                }
+
+                result.layer.push_back(trans);
+            }
         } else {
-            return nn.layer.back().output;
+            for (int i = 0; i < i_args.outer_layer; ++i) {
+                lstm::layered_transcriber layered_lstm;
+
+                for (int j = 0; j < i_args.inner_layer; ++j) {
+                    if (j != i_args.inner_layer - 1) {
+                        layered_lstm.layer.push_back(
+                            std::make_shared<lstm::lstm_transcriber>(
+                            lstm::lstm_transcriber { step }));
+                    } else {
+                        layered_lstm.layer.push_back(
+                            std::make_shared<lstm::lstm_transcriber>(
+                            lstm::lstm_transcriber {
+                                std::make_shared<lstm::lstm_output_dropout_transcriber>(
+                                lstm::lstm_output_dropout_transcriber {
+                                    i_args.gen, std::stod(i_args.args.at("dropout")), step })
+                            }));
+                    }
+                }
+
+                std::shared_ptr<lstm::transcriber> trans = std::make_shared<lstm::bi_transcriber>(
+                    lstm::bi_transcriber { std::make_shared<lstm::layered_transcriber>(layered_lstm) });
+
+                if (i != i_args.outer_layer - 1) {
+                    if (ebt::in(std::string("subsampling"), i_args.args)) {
+                        trans = std::make_shared<lstm::subsampled_transcriber>(
+                            lstm::subsampled_transcriber { 2, 0, trans });
+                    }
+                }
+
+                result.layer.push_back(trans);
+            }
         }
+
+        return std::make_shared<lstm::layered_transcriber>(result);
     }
-    */
 
     void parse_inference_args(inference_args& i_args,
         std::unordered_map<std::string, std::string> const& args)
@@ -1433,7 +1541,7 @@ namespace fscrf {
         i_args.args = args;
 
         if (ebt::in(std::string("nn-param"), args)) {
-            std::tie(i_args.layer, i_args.nn_param, i_args.pred_param)
+            std::tie(i_args.outer_layer, i_args.inner_layer, i_args.nn_param, i_args.pred_param)
                 = load_lstm_param(args.at("nn-param"));
         }
 
@@ -1512,7 +1620,7 @@ namespace fscrf {
         }
 
         if (ebt::in(std::string("nn-opt-data"), args)) {
-            std::tie(l_args.layer, l_args.nn_opt_data, l_args.pred_opt_data)
+            std::tie(l_args.outer_layer, l_args.inner_layer, l_args.nn_opt_data, l_args.pred_opt_data)
                 = load_lstm_param(args.at("nn-opt-data"));
         }
 

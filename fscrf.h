@@ -6,7 +6,7 @@
 #include "seg/segcost.h"
 #include "seg/scrf_cost.h"
 #include "autodiff/autodiff.h"
-#include "nn/tensor_tree.h"
+#include "nn/tensor-tree.h"
 #include "nn/lstm.h"
 #include "nn/pred.h"
 #include <random>
@@ -232,6 +232,8 @@ namespace fscrf {
         std::shared_ptr<autodiff::op_t> frames;
         std::shared_ptr<autodiff::op_t> pre_left;
         std::shared_ptr<autodiff::op_t> pre_right;
+        std::shared_ptr<autodiff::op_t> left_end;
+        std::shared_ptr<autodiff::op_t> right_end;
         std::shared_ptr<autodiff::op_t> pre_label;
         std::shared_ptr<autodiff::op_t> pre_length;
 
@@ -403,7 +405,8 @@ namespace fscrf {
         std::shared_ptr<tensor_tree::vertex> param;
         std::shared_ptr<tensor_tree::vertex> nn_param;
         std::shared_ptr<tensor_tree::vertex> pred_param;
-        int layer;
+        int inner_layer;
+        int outer_layer;
         std::unordered_map<std::string, int> label_id;
         std::vector<std::string> id_label;
         std::vector<int> labels;
@@ -413,10 +416,18 @@ namespace fscrf {
         std::default_random_engine gen;
     };
 
-    std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
+    std::shared_ptr<tensor_tree::vertex> make_lstm_tensor_tree(
+        int outer_layer, int inner_layer);
+
+    std::tuple<int, int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
     load_lstm_param(std::string filename);
 
-    void save_lstm_param(std::shared_ptr<tensor_tree::vertex> nn_param,
+    std::shared_ptr<lstm::transcriber>
+    make_transcriber(inference_args& i_args);
+
+    void save_lstm_param(
+        int outer_layer, int inner_layer,
+        std::shared_ptr<tensor_tree::vertex> nn_param,
         std::shared_ptr<tensor_tree::vertex> pred_param,
         std::string filename);
 

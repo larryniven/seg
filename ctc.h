@@ -3,7 +3,7 @@
 
 #include "seg/ilat.h"
 #include "la/la.h"
-#include "nn/tensor_tree.h"
+#include "nn/tensor-tree.h"
 #include "nn/lstm.h"
 #include "nn/pred.h"
 
