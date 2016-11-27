@@ -203,7 +203,6 @@ namespace fscrf {
                 v.children.push_back(tensor_tree::make_matrix("segrnn weight1"));
                 v.children.push_back(tensor_tree::make_vector("segrnn bias2"));
                 v.children.push_back(tensor_tree::make_vector("segrnn weight2"));
-                v.children.push_back(tensor_tree::make_vector("segrnn bias3"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
@@ -743,7 +742,7 @@ namespace fscrf {
             std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
                  length_param.rows() - 1));
 
-        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[10]));
+        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[9]));
         la::vector<double> mask_vec;
 
         if (dropout == 0.0) {
@@ -1518,11 +1517,7 @@ namespace fscrf {
                 lstm::layered_transcriber layered_lstm;
 
                 for (int j = 0; j < inner_layer; ++j) {
-                    if (j != inner_layer - 1) {
-                        layered_lstm.layer.push_back(
-                            std::make_shared<lstm::lstm_transcriber>(
-                            lstm::lstm_transcriber { step }));
-                    } else {
+                    if (j == inner_layer - 1 && ebt::in(std::string("output-dropout"), args)) {
                         layered_lstm.layer.push_back(
                             std::make_shared<lstm::lstm_transcriber>(
                             lstm::lstm_transcriber {
@@ -1530,6 +1525,10 @@ namespace fscrf {
                                 lstm::lstm_output_dropout_transcriber {
                                     *gen, std::stod(args.at("dropout")), step })
                             }));
+                    } else {
+                        layered_lstm.layer.push_back(
+                            std::make_shared<lstm::lstm_transcriber>(
+                            lstm::lstm_transcriber { step }));
                     }
                 }
 
