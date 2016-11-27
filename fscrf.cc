@@ -669,7 +669,7 @@ namespace fscrf {
         std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
             pre_left, pre_right, pre_label, pre_length, frames_tmp };
 
-        for (int i = 0; i <= 10; ++i) {
+        for (int i = 0; i <= 9; ++i) {
             exclude.insert(tensor_tree::get_var(param->children[i]));
         }
 
@@ -679,8 +679,7 @@ namespace fscrf {
         auto length_embedding = autodiff::row_at(pre_length, 0);
         auto mask = graph.var();
 
-        score = autodiff::dot(tensor_tree::get_var(param->children[10]),
-            autodiff::add(tensor_tree::get_var(param->children[9]),
+        score = autodiff::dot(tensor_tree::get_var(param->children[9]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
@@ -699,7 +698,7 @@ namespace fscrf {
                         )
                     )
                 )
-            )));
+            ));
 
         std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
 
@@ -741,7 +740,8 @@ namespace fscrf {
         auto right_embedding = autodiff::row_at(pre_right, std::min<int>(m.rows() - 1, head_time));
         auto label_embedding = autodiff::row_at(pre_label, ell);
         auto length_embedding = autodiff::row_at(pre_length,
-            std::min<int>(head_time - tail_time - 1, length_param.rows() - 1));
+            std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
+                 length_param.rows() - 1));
 
         auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[10]));
         la::vector<double> mask_vec;
@@ -759,8 +759,7 @@ namespace fscrf {
 
         auto mask = comp_graph.var(mask_vec);
 
-        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[10]),
-            autodiff::add(tensor_tree::get_var(param->children[9]),
+        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[9]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
@@ -779,7 +778,7 @@ namespace fscrf {
                         )
                     )
                 )
-            )));
+            ));
 
         if (e >= edge_scores.size()) {
             edge_scores.resize(e + 1, nullptr);
@@ -923,7 +922,7 @@ namespace fscrf {
 
         auto& m = autodiff::get_output<la::matrix<double>>(frames);
         auto& length_param = autodiff::get_output<la::matrix<double>>(
-            tensor_tree::get_var(param->children[4]));
+            tensor_tree::get_var(param->children[6]));
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
