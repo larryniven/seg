@@ -423,7 +423,19 @@ namespace fscrf {
     load_lstm_param(std::string filename);
 
     std::shared_ptr<lstm::transcriber>
+    make_transcriber(
+        int outer_layer,
+        int inner_layer,
+        std::unordered_map<std::string, std::string> const& args,
+        std::default_random_engine *gen);
+
+    std::shared_ptr<lstm::transcriber>
     make_transcriber(inference_args& i_args);
+
+    void save_lstm_param(
+        std::shared_ptr<tensor_tree::vertex> nn_param,
+        std::shared_ptr<tensor_tree::vertex> pred_param,
+        std::string filename);
 
     void save_lstm_param(
         int outer_layer, int inner_layer,

@@ -1445,6 +1445,18 @@ namespace fscrf {
         }
     }
 
+    void save_lstm_param(
+        std::shared_ptr<tensor_tree::vertex> nn_param,
+        std::shared_ptr<tensor_tree::vertex> pred_param,
+        std::string filename)
+    {
+        std::ofstream ofs { filename };
+
+        ofs << nn_param->children.size() << std::endl;
+        tensor_tree::save_tensor(nn_param, ofs);
+        tensor_tree::save_tensor(pred_param, ofs);
+    }
+
     void save_lstm_param(int outer_layer, int inner_layer,
         std::shared_ptr<tensor_tree::vertex> nn_param,
         std::shared_ptr<tensor_tree::vertex> pred_param,
@@ -1462,14 +1474,18 @@ namespace fscrf {
     }
 
     std::shared_ptr<lstm::transcriber>
-    make_transcriber(inference_args& i_args)
+    make_transcriber(
+        int outer_layer,
+        int inner_layer,
+        std::unordered_map<std::string, std::string> const& args,
+        std::default_random_engine *gen)
     {
         std::shared_ptr<lstm::lstm_step_transcriber> step;
 
-        if (ebt::in(std::string("dropout"), i_args.args)) {
+        if (ebt::in(std::string("dropout"), args)) {
             step = std::make_shared<lstm::lstm_input_dropout_transcriber>(
                 lstm::lstm_input_dropout_transcriber {
-                    i_args.gen, std::stod(i_args.args.at("dropout")),
+                    *gen, std::stod(args.at("dropout")),
                     std::make_shared<lstm::dyer_lstm_step_transcriber>(
                     lstm::dyer_lstm_step_transcriber{})
                 });
@@ -1480,16 +1496,16 @@ namespace fscrf {
 
         lstm::layered_transcriber result;
 
-        if (i_args.inner_layer == -1) {
-            for (int i = 0; i < i_args.outer_layer; ++i) {
+        if (inner_layer == -1) {
+            for (int i = 0; i < outer_layer; ++i) {
                 std::shared_ptr<lstm::transcriber> trans = std::make_shared<lstm::bi_transcriber>(
                     lstm::bi_transcriber {
                         std::make_shared<lstm::lstm_transcriber>(
                         lstm::lstm_transcriber { step })
                     });
 
-                if (i != i_args.outer_layer - 1) {
-                    if (ebt::in(std::string("subsampling"), i_args.args)) {
+                if (i != outer_layer - 1) {
+                    if (ebt::in(std::string("subsampling"), args)) {
                         trans = std::make_shared<lstm::subsampled_transcriber>(
                             lstm::subsampled_transcriber { 2, 0, trans });
                     }
@@ -1498,11 +1514,11 @@ namespace fscrf {
                 result.layer.push_back(trans);
             }
         } else {
-            for (int i = 0; i < i_args.outer_layer; ++i) {
+            for (int i = 0; i < outer_layer; ++i) {
                 lstm::layered_transcriber layered_lstm;
 
-                for (int j = 0; j < i_args.inner_layer; ++j) {
-                    if (j != i_args.inner_layer - 1) {
+                for (int j = 0; j < inner_layer; ++j) {
+                    if (j != inner_layer - 1) {
                         layered_lstm.layer.push_back(
                             std::make_shared<lstm::lstm_transcriber>(
                             lstm::lstm_transcriber { step }));
@@ -1512,7 +1528,7 @@ namespace fscrf {
                             lstm::lstm_transcriber {
                                 std::make_shared<lstm::lstm_output_dropout_transcriber>(
                                 lstm::lstm_output_dropout_transcriber {
-                                    i_args.gen, std::stod(i_args.args.at("dropout")), step })
+                                    *gen, std::stod(args.at("dropout")), step })
                             }));
                     }
                 }
@@ -1520,8 +1536,8 @@ namespace fscrf {
                 std::shared_ptr<lstm::transcriber> trans = std::make_shared<lstm::bi_transcriber>(
                     lstm::bi_transcriber { std::make_shared<lstm::layered_transcriber>(layered_lstm) });
 
-                if (i != i_args.outer_layer - 1) {
-                    if (ebt::in(std::string("subsampling"), i_args.args)) {
+                if (i != outer_layer - 1) {
+                    if (ebt::in(std::string("subsampling"), args)) {
                         trans = std::make_shared<lstm::subsampled_transcriber>(
                             lstm::subsampled_transcriber { 2, 0, trans });
                     }
@@ -1532,6 +1548,13 @@ namespace fscrf {
         }
 
         return std::make_shared<lstm::layered_transcriber>(result);
+    }
+
+    std::shared_ptr<lstm::transcriber>
+    make_transcriber(inference_args& i_args)
+    {
+        return make_transcriber(i_args.outer_layer, i_args.inner_layer,
+            i_args.args, &i_args.gen);
     }
 
     void parse_inference_args(inference_args& i_args,
