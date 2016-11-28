@@ -121,4 +121,36 @@ namespace util {
         return parts;
     }
 
+    void batch_indices::open(std::string filename)
+    {
+        std::ifstream ifs { filename };
+    
+        std::string line;
+        std::getline(ifs, line);
+    
+        if (!ifs) {
+            std::cerr << "unable to open " << filename << std::endl;
+            exit(1);
+        }
+    
+        stream.open(line);
+    
+        if (!stream) {
+            std::cerr << "unable to open " << line << std::endl;
+            exit(1);
+        }
+    
+        while (std::getline(ifs, line)) {
+            pos.push_back(std::stoul(line));
+        }
+    
+        ifs.close();
+    }
+
+    std::ifstream& batch_indices::at(int i)
+    {
+        stream.seekg(pos.at(i));
+        return stream;
+    }
+
 }

@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vector>
 #include "seg/segcost.h"
+#include <fstream>
 
 namespace util {
 
@@ -20,6 +21,14 @@ namespace util {
     std::vector<segcost::segment<std::string>> load_segments(std::istream& is);
 
     std::vector<std::string> load_labels(std::istream& is);
+
+    struct batch_indices {
+        std::ifstream stream;
+        std::vector<unsigned long> pos;
+    
+        void open(std::string filename);
+        std::ifstream& at(int i);
+    };
 
 }
 
