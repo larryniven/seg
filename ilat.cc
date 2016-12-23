@@ -485,6 +485,8 @@ namespace ilat {
             for (int e1: fst1_.in_edges(std::get<0>(v))) {
                 auto& edge_map = fst2_.in_edges_map(std::get<1>(v));
 
+                // FIXME: assumes edge_map is indexed by output symbols but it's actually indexed by input symbols.
+
                 if (edge_map.size() == 0 || !ebt::in(fst1_.output(e1), edge_map)) {
                     continue;
                 }
@@ -510,6 +512,8 @@ namespace ilat {
 
             for (int e1: fst1_.out_edges(std::get<0>(v))) {
                 auto& edge_map = fst2_.out_edges_map(std::get<1>(v));
+
+                // FIXME: assumes edge_map is indexed by output symbols but it's actually indexed by input symbols.
 
                 if (edge_map.size() == 0 || !ebt::in(fst1_.output(e1), edge_map)) {
                     continue;
@@ -598,6 +602,16 @@ namespace ilat {
         return fst2_;
     }
 
+    ilat::fst& lazy_pair_mode1::fst1()
+    {
+        return fst1_;
+    }
+
+    ilat::fst& lazy_pair_mode1::fst2()
+    {
+        return fst2_;
+    }
+
     lazy_pair_mode2::lazy_pair_mode2(ilat::fst fst1, ilat::fst fst2)
         : fst1_(fst1), fst2_(fst2)
         , vertices_cache(nullptr), edges_cache(nullptr)
@@ -656,14 +670,15 @@ namespace ilat {
 
             std::vector<std::tuple<int, int>> result;
 
-            for (int e2: fst2_.in_edges(std::get<1>(v))) {
-                auto& edge_map = fst1_.in_edges_map(std::get<0>(v));
+            auto& edge_map = fst1_.in_edges_map(std::get<0>(v));
 
-                if (edge_map.size() == 0 || !ebt::in(fst2_.output(e2), edge_map)) {
+            for (int e2: fst2_.in_edges(std::get<1>(v))) {
+
+                if (edge_map.size() == 0 || !ebt::in(fst2_.input(e2), edge_map)) {
                     continue;
                 }
 
-                for (auto& e1: edge_map.at(fst2_.output(e2))) {
+                for (auto& e1: edge_map.at(fst2_.input(e2))) {
                     result.push_back(std::make_tuple(e1, e2));
                 }
             }
@@ -682,14 +697,15 @@ namespace ilat {
 
             std::vector<std::tuple<int, int>> result;
 
-            for (int e2: fst2_.out_edges(std::get<1>(v))) {
-                auto& edge_map = fst1_.out_edges_map(std::get<0>(v));
+            auto& edge_map = fst1_.out_edges_map(std::get<0>(v));
 
-                if (edge_map.size() == 0 || !ebt::in(fst2_.output(e2), edge_map)) {
+            for (int e2: fst2_.out_edges(std::get<1>(v))) {
+
+                if (edge_map.size() == 0 || !ebt::in(fst2_.input(e2), edge_map)) {
                     continue;
                 }
 
-                for (auto& e1: edge_map.at(fst2_.output(e2))) {
+                for (auto& e1: edge_map.at(fst2_.input(e2))) {
                     result.push_back(std::make_tuple(e1, e2));
                 }
             }
@@ -768,6 +784,16 @@ namespace ilat {
     }
 
     ilat::fst const& lazy_pair_mode2::fst2() const
+    {
+        return fst2_;
+    }
+
+    ilat::fst& lazy_pair_mode2::fst1()
+    {
+        return fst1_;
+    }
+
+    ilat::fst& lazy_pair_mode2::fst2()
     {
         return fst2_;
     }
@@ -883,6 +909,240 @@ namespace ilat {
     ilat::fst const& composed_pair::fst2() const
     {
         return fst2_;
+    }
+
+    ilat::fst& composed_pair::fst1()
+    {
+        return fst1_;
+    }
+
+    ilat::fst& composed_pair::fst2()
+    {
+        return fst2_;
+    }
+
+    // lazy_triple_mode2
+
+    lazy_triple_mode2::lazy_triple_mode2(ilat::fst fst1, ilat::fst fst2, ilat::fst fst3)
+        : fst1_(fst1), fst2_(fst2), fst3_(fst3)
+        , vertices_cache(nullptr), edges_cache(nullptr)
+        , initials_cache(nullptr), finals_cache(nullptr)
+        , in_edges_vertex(nullptr), in_edges_cache(nullptr)
+        , out_edges_vertex(nullptr), out_edges_cache(nullptr)
+    {
+    }
+
+    std::vector<lazy_triple_mode2::vertex> const& lazy_triple_mode2::vertices() const
+    {
+        if (vertices_cache == nullptr) {
+            std::vector<std::tuple<int, int, int>> result;
+            for (int u: fst1_.vertices()) {
+                for (int v: fst2_.vertices()) {
+                    for (int w: fst3_.vertices()) {
+                        result.push_back(std::make_tuple(u, v, w));
+                    }
+                }
+            }
+
+            vertices_cache = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+                std::move(result));
+        }
+
+        return *vertices_cache;
+    }
+
+    std::vector<lazy_triple_mode2::edge> const& lazy_triple_mode2::edges() const
+    {
+        if (edges_cache == nullptr) {
+            std::vector<std::tuple<int, int, int>> result;
+
+            for (int e1: fst1_.edges()) {
+                for (int e2: fst2_.edges()) {
+                    for (int e3: fst3_.edges()) {
+                        if (fst1_.output(e1) == fst2_.input(e2)
+                                && fst2_.output(e2) == fst3_.input(e3)) {
+                            result.push_back(std::make_tuple(e1, e2, e3));
+                        }
+                    }
+                }
+            }
+
+            edges_cache = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+                std::move(result));
+        }
+
+        return *edges_cache;
+    }
+
+    double lazy_triple_mode2::weight(lazy_triple_mode2::edge e) const
+    {
+        return fst1_.weight(std::get<0>(e)) + fst2_.weight(std::get<1>(e))
+            + fst3_.weight(std::get<2>(e));
+    }
+
+    std::vector<lazy_triple_mode2::edge> const& lazy_triple_mode2::in_edges(lazy_triple_mode2::vertex v) const
+    {
+        if (in_edges_vertex == nullptr || *in_edges_vertex != v) {
+            in_edges_vertex = std::make_shared<std::tuple<int, int, int>>(v);
+
+            std::vector<std::tuple<int, int, int>> result;
+
+            auto& fst1_edge_map = fst1_.in_edges_map(std::get<0>(v));
+            auto& fst3_edge_map = fst3_.in_edges_map(std::get<2>(v));
+
+            for (int e2: fst2_.in_edges(std::get<1>(v))) {
+
+                // FIXME: assumes edge_map is indexed by output symbols but it's actually indexed by input symbols.
+
+                if (fst1_edge_map.size() == 0 || fst3_edge_map.size() == 0
+                        || !ebt::in(fst2_.input(e2), fst1_edge_map)
+                        || !ebt::in(fst2_.output(e2), fst3_edge_map)) {
+                    continue;
+                }
+
+                for (auto& e1: fst1_edge_map.at(fst2_.input(e2))) {
+                    for (auto& e3: fst3_edge_map.at(fst2_.output(e2))) {
+                        result.push_back(std::make_tuple(e1, e2, e3));
+                    }
+                }
+            }
+
+            in_edges_cache = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+                std::move(result));
+        }
+
+        return *in_edges_cache;
+    }
+
+    std::vector<lazy_triple_mode2::edge> const& lazy_triple_mode2::out_edges(lazy_triple_mode2::vertex v) const
+    {
+        if (out_edges_vertex == nullptr || *out_edges_vertex != v) {
+            out_edges_vertex = std::make_shared<std::tuple<int, int, int>>(v);
+
+            std::vector<std::tuple<int, int, int>> result;
+
+            auto& fst1_edge_map = fst1_.out_edges_map(std::get<0>(v));
+            auto& fst3_edge_map = fst3_.out_edges_map(std::get<2>(v));
+
+            for (int e2: fst2_.out_edges(std::get<1>(v))) {
+
+                // FIXME: assumes edge_map is indexed by output symbols but it's actually indexed by input symbols.
+
+                if (fst1_edge_map.size() == 0 || fst3_edge_map.size() == 0
+                        || !ebt::in(fst2_.input(e2), fst1_edge_map)
+                        || !ebt::in(fst2_.output(e2), fst3_edge_map)) {
+                    continue;
+                }
+
+                for (auto& e1: fst1_edge_map.at(fst2_.input(e2))) {
+                    for (auto& e3: fst3_edge_map.at(fst2_.output(e2))) {
+                        result.push_back(std::make_tuple(e1, e2, e3));
+                    }
+                }
+            }
+
+            out_edges_cache = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+                std::move(result));
+        }
+
+        return *out_edges_cache;
+    }
+
+    lazy_triple_mode2::vertex lazy_triple_mode2::tail(lazy_triple_mode2::edge e) const
+    {
+        return std::make_tuple(fst1_.tail(std::get<0>(e)),
+            fst2_.tail(std::get<1>(e)), fst3_.tail(std::get<2>(e)));
+    }
+
+    lazy_triple_mode2::vertex lazy_triple_mode2::head(lazy_triple_mode2::edge e) const
+    {
+        return std::make_tuple(fst1_.head(std::get<0>(e)),
+            fst2_.head(std::get<1>(e)), fst3_.head(std::get<2>(e)));
+    }
+
+    std::vector<lazy_triple_mode2::vertex> const& lazy_triple_mode2::initials() const
+    {
+        if (initials_cache == nullptr) {
+            std::vector<std::tuple<int, int, int>> result;
+
+            for (int i: fst1_.initials()) {
+                for (int j: fst2_.initials()) {
+                    for (int k: fst3_.initials()) {
+                        result.push_back(std::make_tuple(i, j, k));
+                    }
+                }
+            }
+
+            initials_cache = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+                std::move(result));
+        }
+
+        return *initials_cache;
+    }
+
+    std::vector<lazy_triple_mode2::vertex> const& lazy_triple_mode2::finals() const
+    {
+        if (finals_cache == nullptr) {
+            std::vector<std::tuple<int, int, int>> result;
+
+            for (int i: fst1_.finals()) {
+                for (int j: fst2_.finals()) {
+                    for (int k: fst3_.finals()) {
+                        result.push_back(std::make_tuple(i, j, k));
+                    }
+                }
+            }
+
+            finals_cache = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+                std::move(result));
+        }
+
+        return *finals_cache;
+    }
+
+    int const& lazy_triple_mode2::input(lazy_triple_mode2::edge e) const
+    {
+        return fst1_.input(std::get<0>(e));
+    }
+
+    int const& lazy_triple_mode2::output(lazy_triple_mode2::edge e) const
+    {
+        return fst3_.output(std::get<2>(e));
+    }
+
+    long lazy_triple_mode2::time(lazy_triple_mode2::vertex v) const
+    {
+        return fst1_.time(std::get<0>(v));
+    }
+
+    ilat::fst const& lazy_triple_mode2::fst1() const
+    {
+        return fst1_;
+    }
+
+    ilat::fst const& lazy_triple_mode2::fst2() const
+    {
+        return fst2_;
+    }
+
+    ilat::fst const& lazy_triple_mode2::fst3() const
+    {
+        return fst3_;
+    }
+
+    ilat::fst& lazy_triple_mode2::fst1()
+    {
+        return fst1_;
+    }
+
+    ilat::fst& lazy_triple_mode2::fst2()
+    {
+        return fst2_;
+    }
+
+    ilat::fst& lazy_triple_mode2::fst3()
+    {
+        return fst3_;
     }
 
 }

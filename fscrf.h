@@ -8,7 +8,6 @@
 #include "autodiff/autodiff.h"
 #include "nn/tensor-tree.h"
 #include "nn/lstm.h"
-#include "nn/pred.h"
 #include <random>
 
 namespace fscrf {
@@ -33,6 +32,16 @@ namespace fscrf {
 
     using fscrf_pair_fst = scrf::scrf_fst<fscrf_pair_data>;
 
+    struct fscrf_triple_data {
+        std::shared_ptr<ilat::triple_fst> fst;
+        std::shared_ptr<std::vector<std::tuple<int, int, int>>> topo_order;
+        std::shared_ptr<scrf::scrf_weight<ilat::triple_fst>> weight_func;
+        std::shared_ptr<scrf::scrf_weight<ilat::triple_fst>> cost_func;
+        std::shared_ptr<tensor_tree::vertex> param;
+    };
+
+    using fscrf_triple_fst = scrf::scrf_fst<fscrf_triple_data>;
+
 }
 
 namespace scrf {
@@ -55,6 +64,15 @@ namespace scrf {
         using vertex = std::tuple<int, int>;
         using symbol = int;
         using fst = scrf_fst<fscrf::fscrf_pair_data>;
+    };
+
+    template <>
+    struct scrf_data_trait<fscrf::fscrf_triple_data> {
+        using base_fst = ilat::triple_fst;
+        using edge = std::tuple<int, int, int>;
+        using vertex = std::tuple<int, int, int>;
+        using symbol = int;
+        using fst = scrf_fst<fscrf::fscrf_triple_data>;
     };
 
 }
@@ -255,7 +273,7 @@ namespace fscrf {
             std::default_random_engine *gen);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -282,7 +300,7 @@ namespace fscrf {
             std::vector<std::vector<double>> const& frames, int context);
 
         virtual double operator()(ilat::pair_fst const& f,
-            std::tuple<int, int> e) const;
+            std::tuple<int, int> e) const override;
 
         virtual void accumulate_grad(double g, ilat::pair_fst const& f,
             std::tuple<int, int> e) const override;
@@ -297,7 +315,7 @@ namespace fscrf {
         log_length_score(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -312,7 +330,7 @@ namespace fscrf {
         length_score(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -327,7 +345,7 @@ namespace fscrf {
         bias0_score(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -342,7 +360,7 @@ namespace fscrf {
         bias1_score(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -359,7 +377,7 @@ namespace fscrf {
             std::vector<int> indices);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -376,7 +394,7 @@ namespace fscrf {
             std::vector<int> indices);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -391,7 +409,28 @@ namespace fscrf {
         edge_weight(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ilat::fst const& f,
-            int e) const;
+            int e) const override;
+
+        virtual void accumulate_grad(double g, ilat::fst const& f,
+            int e) const override;
+
+    };
+
+    struct pass_through_score
+        : public scrf::scrf_weight<ilat::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<scrf_weight<ilat::fst>> weight;
+        ilat::fst const& base_fst;
+        std::unordered_map<int, int> edge_map;
+
+        pass_through_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<scrf_weight<ilat::fst>> weight,
+            ilat::fst const& base_fst,
+            std::unordered_map<int, int> const& edge_map);
+
+        virtual double operator()(ilat::fst const& f,
+            int e) const override;
 
         virtual void accumulate_grad(double g, ilat::fst const& f,
             int e) const override;
@@ -404,7 +443,6 @@ namespace fscrf {
         int stride;
         std::shared_ptr<tensor_tree::vertex> param;
         std::shared_ptr<tensor_tree::vertex> nn_param;
-        std::shared_ptr<tensor_tree::vertex> pred_param;
         int inner_layer;
         int outer_layer;
         std::unordered_map<std::string, int> label_id;
@@ -419,7 +457,7 @@ namespace fscrf {
     std::shared_ptr<tensor_tree::vertex> make_lstm_tensor_tree(
         int outer_layer, int inner_layer);
 
-    std::tuple<int, int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
+    std::tuple<int, int, std::shared_ptr<tensor_tree::vertex>>
     load_lstm_param(std::string filename);
 
     std::shared_ptr<lstm::transcriber>
@@ -434,13 +472,11 @@ namespace fscrf {
 
     void save_lstm_param(
         std::shared_ptr<tensor_tree::vertex> nn_param,
-        std::shared_ptr<tensor_tree::vertex> pred_param,
         std::string filename);
 
     void save_lstm_param(
         int outer_layer, int inner_layer,
         std::shared_ptr<tensor_tree::vertex> nn_param,
-        std::shared_ptr<tensor_tree::vertex> pred_param,
         std::string filename);
 
     void parse_inference_args(inference_args& l_args,
@@ -466,9 +502,6 @@ namespace fscrf {
         std::shared_ptr<tensor_tree::vertex> nn_opt_data;
         std::shared_ptr<tensor_tree::vertex> nn_first_moment;
         std::shared_ptr<tensor_tree::vertex> nn_second_moment;
-        std::shared_ptr<tensor_tree::vertex> pred_opt_data;
-        std::shared_ptr<tensor_tree::vertex> pred_first_moment;
-        std::shared_ptr<tensor_tree::vertex> pred_second_moment;
         double l2;
         double step_size;
         double momentum;
@@ -650,7 +683,7 @@ namespace fscrf {
         std::vector<std::string> const& feature,
         std::shared_ptr<tensor_tree::vertex> var_tree);
 
-    std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> make_pair_weights(
+    std::shared_ptr<scrf::composite_weight<ilat::pair_fst>> make_pair_weights(
         std::vector<std::string> const& features,
         std::shared_ptr<tensor_tree::vertex> var_tree,
         std::vector<std::vector<double>> const& frames);
@@ -671,6 +704,44 @@ namespace fscrf {
             std::vector<segcost::segment<int>> const& gt_segs,
             std::vector<int> const& sils,
             double cost_scale);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct mode13_weight
+        : public scrf::scrf_weight<ilat::triple_fst> {
+
+        std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> weight;
+
+        mode13_weight(std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> weight);
+
+        virtual double operator()(ilat::triple_fst const& fst,
+            std::tuple<int, int, int> e) const override;
+
+        virtual void accumulate_grad(double g, ilat::triple_fst const& fst,
+            std::tuple<int, int, int> e) const override;
+
+        virtual void grad() const override;
+    };
+
+    struct marginal_log_loss_pair
+        : public loss_func {
+
+        fscrf_pair_data& graph_data;
+
+        fst::forward_log_sum<fscrf_pair_fst> forward_graph;
+        fst::backward_log_sum<fscrf_pair_fst> backward_graph;
+
+        fscrf_triple_data label_graph_data;
+
+        fst::forward_log_sum<fscrf_triple_fst> forward_label;
+        fst::backward_log_sum<fscrf_triple_fst> backward_label;
+
+        marginal_log_loss_pair(fscrf_pair_data& graph_data,
+            std::vector<int> const& label_seq);
 
         virtual double loss() const override;
 

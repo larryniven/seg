@@ -3,6 +3,7 @@
 #include "seg/util.h"
 #include "seg/scrf.h"
 #include "nn/lstm-tensor-tree.h"
+#include "nn/nn.h"
 #include <fstream>
 
 namespace fscrf {
@@ -138,71 +139,71 @@ namespace fscrf {
 
         for (auto& k: features) {
             if (ebt::startswith(k, "ext0")) {
-                root.children.push_back(tensor_tree::make_vector("ext0"));
+                root.children.push_back(tensor_tree::make_tensor("ext0"));
             } else if (ebt::startswith(k, "ext1")) {
-                root.children.push_back(tensor_tree::make_matrix("ext1"));
+                root.children.push_back(tensor_tree::make_tensor("ext1"));
             } else if (ebt::startswith(k, "frame-avg")) {
-                root.children.push_back(tensor_tree::make_matrix("frame avg"));
+                root.children.push_back(tensor_tree::make_tensor("frame avg"));
             } else if (ebt::startswith(k, "frame-att")) {
-                root.children.push_back(tensor_tree::make_matrix("frame att"));
-                root.children.push_back(tensor_tree::make_matrix("frame att"));
+                root.children.push_back(tensor_tree::make_tensor("frame att"));
+                root.children.push_back(tensor_tree::make_tensor("frame att"));
             } else if (ebt::startswith(k, "frame-samples")) {
-                root.children.push_back(tensor_tree::make_matrix("frame samples"));
-                root.children.push_back(tensor_tree::make_matrix("frame samples"));
-                root.children.push_back(tensor_tree::make_matrix("frame samples"));
+                root.children.push_back(tensor_tree::make_tensor("frame samples"));
+                root.children.push_back(tensor_tree::make_tensor("frame samples"));
+                root.children.push_back(tensor_tree::make_tensor("frame samples"));
             } else if (ebt::startswith(k, "left-boundary")) {
-                root.children.push_back(tensor_tree::make_matrix("left boundary"));
-                root.children.push_back(tensor_tree::make_matrix("left boundary"));
-                root.children.push_back(tensor_tree::make_matrix("left boundary"));
+                root.children.push_back(tensor_tree::make_tensor("left boundary"));
+                root.children.push_back(tensor_tree::make_tensor("left boundary"));
+                root.children.push_back(tensor_tree::make_tensor("left boundary"));
             } else if (ebt::startswith(k, "right-boundary")) {
-                root.children.push_back(tensor_tree::make_matrix("right boundary"));
-                root.children.push_back(tensor_tree::make_matrix("right boundary"));
-                root.children.push_back(tensor_tree::make_matrix("right boundary"));
+                root.children.push_back(tensor_tree::make_tensor("right boundary"));
+                root.children.push_back(tensor_tree::make_tensor("right boundary"));
+                root.children.push_back(tensor_tree::make_tensor("right boundary"));
             } else if (ebt::startswith(k, "length-indicator")) {
-                root.children.push_back(tensor_tree::make_matrix("length"));
+                root.children.push_back(tensor_tree::make_tensor("length"));
             } else if (k == "lm") {
-                root.children.push_back(tensor_tree::make_vector("lm"));
+                root.children.push_back(tensor_tree::make_tensor("lm"));
             } else if (k == "lat-weight") {
-                root.children.push_back(tensor_tree::make_vector("lat-weight"));
+                root.children.push_back(tensor_tree::make_tensor("lat-weight"));
             } else if (k == "bias0") {
-                root.children.push_back(tensor_tree::make_vector("bias0"));
+                root.children.push_back(tensor_tree::make_tensor("bias0"));
             } else if (k == "bias1") {
-                root.children.push_back(tensor_tree::make_vector("bias1"));
+                root.children.push_back(tensor_tree::make_tensor("bias1"));
             } else if (k == "boundary2") {
                 tensor_tree::vertex v { tensor_tree::tensor_t::nil };
-                v.children.push_back(tensor_tree::make_matrix("left boundary order2 acoustic embedding"));
-                v.children.push_back(tensor_tree::make_matrix("left boundary order2 label1 embedding"));
-                v.children.push_back(tensor_tree::make_matrix("left boundary order2 label2 embedding"));
-                v.children.push_back(tensor_tree::make_matrix("left boundary order2 weight"));
-                v.children.push_back(tensor_tree::make_vector("left boundary order2 weight"));
+                v.children.push_back(tensor_tree::make_tensor("left boundary order2 acoustic embedding"));
+                v.children.push_back(tensor_tree::make_tensor("left boundary order2 label1 embedding"));
+                v.children.push_back(tensor_tree::make_tensor("left boundary order2 label2 embedding"));
+                v.children.push_back(tensor_tree::make_tensor("left boundary order2 weight"));
+                v.children.push_back(tensor_tree::make_tensor("left boundary order2 weight"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else if (k == "segrnn") {
                 tensor_tree::vertex v { tensor_tree::tensor_t::nil };
-                v.children.push_back(tensor_tree::make_matrix("segrnn left embedding"));
-                v.children.push_back(tensor_tree::make_vector("segrnn left end"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn right embedding"));
-                v.children.push_back(tensor_tree::make_vector("segrnn right end"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
-                v.children.push_back(tensor_tree::make_vector("segrnn bias1"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn weight1"));
-                v.children.push_back(tensor_tree::make_vector("segrnn bias2"));
-                v.children.push_back(tensor_tree::make_vector("segrnn weight2"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn left embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn left end"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn right embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn right end"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn label embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn label embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn length embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn length embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn bias1"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn weight1"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn bias2"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn weight2"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else if (k == "segrnn-mod") {
                 tensor_tree::vertex v { tensor_tree::tensor_t::nil };
-                v.children.push_back(tensor_tree::make_matrix("segrnn left embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn right embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn label embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn length embedding"));
-                v.children.push_back(tensor_tree::make_vector("segrnn bias1"));
-                v.children.push_back(tensor_tree::make_matrix("segrnn weight1"));
-                v.children.push_back(tensor_tree::make_vector("segrnn bias2"));
-                v.children.push_back(tensor_tree::make_vector("segrnn weight2"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn left embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn right embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn label embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn label embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn length embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn length embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn bias1"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn weight1"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn bias2"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn weight2"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
@@ -358,7 +359,7 @@ namespace fscrf {
     double frame_avg_score::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor_like<double>>(score);
 
         double sum = 0;
 
@@ -367,7 +368,7 @@ namespace fscrf {
         int head_time = f.time(f.head(e));
 
         for (int t = tail_time; t < head_time; ++t) {
-            sum += m(ell, t);
+            sum += m({ell, t});
         }
 
         return (head_time <= tail_time ? 0 : sum / (head_time - tail_time));
@@ -376,22 +377,22 @@ namespace fscrf {
     void frame_avg_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor_like<double>>(score);
 
         if (score->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::tensor_like<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
         for (int t = tail_time; t < head_time; ++t) {
-            m_grad(ell, t) += g / (head_time - tail_time);
+            m_grad({ell, t}) += g / (head_time - tail_time);
         }
     }
 
@@ -410,7 +411,7 @@ namespace fscrf {
         autodiff::eval_vertex(score, autodiff::eval_funcs);
 
         att = autodiff::rtmul(att_param, frames);
-        att_exp = autodiff::mexp(att);
+        att_exp = autodiff::exp(att);
         autodiff::eval_vertex(att, autodiff::eval_funcs);
         autodiff::eval_vertex(att_exp, autodiff::eval_funcs);
     }
@@ -418,8 +419,8 @@ namespace fscrf {
     double frame_weighted_avg_score::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
-        auto& n = autodiff::get_output<la::matrix<double>>(att_exp);
+        auto& m = autodiff::get_output<la::tensor_like<double>>(score);
+        auto& n = autodiff::get_output<la::tensor_like<double>>(att_exp);
 
         double sum = 0;
 
@@ -428,15 +429,15 @@ namespace fscrf {
         int head_time = f.time(f.head(e));
 
         int start = std::max<int>(0, tail_time);
-        int end = std::min<int>(head_time, n.cols());
+        int end = std::min<int>(head_time, n.size(1));
 
         double Z = 0;
         for (int t = start; t < end; ++t) {
-            Z += n(ell, t) + 0.01;
+            Z += n({ell, t}) + 0.01;
         }
 
         for (int t = start; t < end; ++t) {
-            sum += (n(ell, t) + 0.01) * m(ell, t) / Z;
+            sum += (n({ell, t}) + 0.01) * m({ell, t}) / Z;
         }
 
         return sum;
@@ -445,50 +446,50 @@ namespace fscrf {
     void frame_weighted_avg_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
-        auto& n = autodiff::get_output<la::matrix<double>>(att_exp);
+        auto& m = autodiff::get_output<la::tensor_like<double>>(score);
+        auto& n = autodiff::get_output<la::tensor_like<double>>(att_exp);
 
         if (score->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
         if (att_exp->grad == nullptr) {
-            la::matrix<double> n_grad;
-            n_grad.resize(n.rows(), n.cols());
-            att_exp->grad = std::make_shared<la::matrix<double>>(std::move(n_grad));
+            la::tensor<double> n_grad;
+            la::resize_as(n_grad, n);
+            att_exp->grad = std::make_shared<la::tensor<double>>(std::move(n_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
-        auto& n_grad = autodiff::get_grad<la::matrix<double>>(att_exp);
+        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
+        auto& n_grad = autodiff::get_grad<la::tensor<double>>(att_exp);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
         int start = std::max<int>(0, tail_time);
-        int end = std::min<int>(head_time, n.cols());
+        int end = std::min<int>(head_time, n.size(1));
 
         double Z = 0;
         for (int t = start; t < end; ++t) {
-            Z += n(ell, t) + 0.01;
+            Z += n({ell, t}) + 0.01;
         }
 
         double sum = 0;
         for (int t = start; t < end; ++t) {
-            sum += (n(ell, t) + 0.01) * m(ell, t) / Z;
+            sum += (n({ell, t}) + 0.01) * m({ell, t}) / Z;
         }
 
         for (int t = start; t < end; ++t) {
-            m_grad(ell, t) += g * (n(ell, t) + 0.01) / Z;
-            n_grad(ell, t) += g * (m(ell, t) - sum) / Z;
+            m_grad({ell, t}) += g * (n({ell, t}) + 0.01) / Z;
+            n_grad({ell, t}) += g * (m({ell, t}) - sum) / Z;
 
-            if (std::isnan(m_grad(ell, t))) {
+            if (std::isnan(m_grad({ell, t}))) {
                 std::cout << "m_grad has nan" << std::endl;
             }
 
-            if (std::isnan(n_grad(ell, t))) {
+            if (std::isnan(n_grad({ell, t}))) {
                 std::cout << "n_grad has nan" << std::endl;
             }
         }
@@ -512,7 +513,7 @@ namespace fscrf {
     double frame_samples_score::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -520,21 +521,21 @@ namespace fscrf {
 
         int dur = head_time - tail_time;
 
-        return m(ell, tail_time + dur * scale);
+        return m({ell, int(tail_time + dur * scale)});
     }
 
     void frame_samples_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor<double>>(score);
 
         if (score->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -542,7 +543,7 @@ namespace fscrf {
 
         int dur = head_time - tail_time;
 
-        m_grad(ell, tail_time + dur * scale) += g;
+        m_grad({ell, int(tail_time + dur * scale)}) += g;
     }
 
     void frame_samples_score::grad() const
@@ -561,33 +562,33 @@ namespace fscrf {
     double left_boundary_score::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        return m(ell, std::max<int>(tail_time + shift, 0));
+        return m({ell, std::max<int>(tail_time + shift, 0)});
     }
 
     void left_boundary_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor<double>>(score);
 
         if (score->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        m_grad(ell, std::max<int>(tail_time + shift, 0)) += g;
+        m_grad({ell, std::max<int>(tail_time + shift, 0)}) += g;
     }
 
     void left_boundary_score::grad() const
@@ -606,33 +607,33 @@ namespace fscrf {
     double right_boundary_score::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        return m(ell, std::min<int>(head_time + shift, m.cols() - 1));
+        return m({ell, std::min<int>(head_time + shift, m.size(1) - 1)});
     }
 
     void right_boundary_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(score);
+        auto& m = autodiff::get_output<la::tensor<double>>(score);
 
         if (score->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            score->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        m_grad(ell, std::min<int>(head_time + shift, m.cols() - 1)) += g;
+        m_grad({ell, std::min<int>(head_time + shift, m.size(1) - 1)}) += g;
     }
 
     void right_boundary_score::grad() const
@@ -658,11 +659,11 @@ namespace fscrf {
 
         std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
 
-        pre_left = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[0]));
-        pre_right = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[1]));
-        pre_label = autodiff::mmul(tensor_tree::get_var(param->children[2]),
+        pre_left = autodiff::mul(frames_tmp, tensor_tree::get_var(param->children[0]));
+        pre_right = autodiff::mul(frames_tmp, tensor_tree::get_var(param->children[1]));
+        pre_label = autodiff::mul(tensor_tree::get_var(param->children[2]),
             tensor_tree::get_var(param->children[3]));
-        pre_length = autodiff::mmul(tensor_tree::get_var(param->children[4]),
+        pre_length = autodiff::mul(tensor_tree::get_var(param->children[4]),
             tensor_tree::get_var(param->children[5]));
 
         std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
@@ -684,7 +685,6 @@ namespace fscrf {
                     autodiff::add(
                         tensor_tree::get_var(param->children[8]),
                         autodiff::mul(
-                            tensor_tree::get_var(param->children[7]),
                             autodiff::relu(
                                 autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                                     left_embedding,
@@ -693,7 +693,8 @@ namespace fscrf {
                                     length_embedding,
                                     tensor_tree::get_var(param->children[6])
                                 })
-                            )
+                            ),
+                            tensor_tree::get_var(param->children[7])
                         )
                     )
                 )
@@ -727,8 +728,8 @@ namespace fscrf {
 
         autodiff::computation_graph& comp_graph = *frames->graph;
 
-        auto& m = autodiff::get_output<la::matrix<double>>(frames);
-        auto& length_param = autodiff::get_output<la::matrix<double>>(
+        auto& m = autodiff::get_output<la::tensor<double>>(frames);
+        auto& length_param = autodiff::get_output<la::tensor<double>>(
             tensor_tree::get_var(param->children[4]));
 
         int ell = f.output(e) - 1;
@@ -736,23 +737,23 @@ namespace fscrf {
         int head_time = f.time(f.head(e));
 
         auto left_embedding = autodiff::row_at(pre_left, std::max<int>(0, tail_time));
-        auto right_embedding = autodiff::row_at(pre_right, std::min<int>(m.rows() - 1, head_time));
+        auto right_embedding = autodiff::row_at(pre_right, std::min<int>(m.size(0) - 1, head_time));
         auto label_embedding = autodiff::row_at(pre_label, ell);
         auto length_embedding = autodiff::row_at(pre_length,
             std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
-                 length_param.rows() - 1));
+                 length_param.size(0) - 1));
 
-        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[9]));
-        la::vector<double> mask_vec;
+        auto& theta = autodiff::get_output<la::tensor<double>>(tensor_tree::get_var(param->children[9]));
+        la::tensor<double> mask_vec;
 
         if (dropout == 0.0) {
-            mask_vec.resize(theta.size(), 1);
+            mask_vec.resize({theta.vec_size()}, 1);
         } else {
-            mask_vec.resize(theta.size());
+            mask_vec.resize({theta.vec_size()});
             std::bernoulli_distribution dist {1 - dropout};
 
-            for (int i = 0; i < mask_vec.size(); ++i) {
-                mask_vec(i) = dist(*gen) / (1.0 - dropout);
+            for (int i = 0; i < mask_vec.vec_size(); ++i) {
+                mask_vec({i}) = dist(*gen) / (1.0 - dropout);
             }
         }
 
@@ -764,7 +765,6 @@ namespace fscrf {
                     autodiff::add(
                         tensor_tree::get_var(param->children[8]),
                         autodiff::mul(
-                            tensor_tree::get_var(param->children[7]),
                             autodiff::relu(
                                 autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                                     left_embedding,
@@ -773,7 +773,8 @@ namespace fscrf {
                                     length_embedding,
                                     tensor_tree::get_var(param->children[6])
                                 })
-                            )
+                            ),
+                            tensor_tree::get_var(param->children[7])
                         )
                     )
                 )
@@ -845,14 +846,14 @@ namespace fscrf {
 
         std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
 
-        left_end = autodiff::lmul(tensor_tree::get_var(param->children[1]), tensor_tree::get_var(param->children[0]));
-        right_end = autodiff::lmul(tensor_tree::get_var(param->children[3]), tensor_tree::get_var(param->children[2]));
+        left_end = autodiff::mul(tensor_tree::get_var(param->children[1]), tensor_tree::get_var(param->children[0]));
+        right_end = autodiff::mul(tensor_tree::get_var(param->children[3]), tensor_tree::get_var(param->children[2]));
 
-        pre_left = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[0]));
-        pre_right = autodiff::mmul(frames_tmp, tensor_tree::get_var(param->children[2]));
-        pre_label = autodiff::mmul(tensor_tree::get_var(param->children[4]),
+        pre_left = autodiff::mul(frames_tmp, tensor_tree::get_var(param->children[0]));
+        pre_right = autodiff::mul(frames_tmp, tensor_tree::get_var(param->children[2]));
+        pre_label = autodiff::mul(tensor_tree::get_var(param->children[4]),
             tensor_tree::get_var(param->children[5]));
-        pre_length = autodiff::mmul(tensor_tree::get_var(param->children[6]),
+        pre_length = autodiff::mul(tensor_tree::get_var(param->children[6]),
             tensor_tree::get_var(param->children[7]));
 
         std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
@@ -919,8 +920,8 @@ namespace fscrf {
 
         autodiff::computation_graph& comp_graph = *frames->graph;
 
-        auto& m = autodiff::get_output<la::matrix<double>>(frames);
-        auto& length_param = autodiff::get_output<la::matrix<double>>(
+        auto& m = autodiff::get_output<la::tensor<double>>(frames);
+        auto& length_param = autodiff::get_output<la::tensor<double>>(
             tensor_tree::get_var(param->children[6]));
 
         int ell = f.output(e) - 1;
@@ -937,28 +938,28 @@ namespace fscrf {
 
         std::shared_ptr<autodiff::op_t> right_embedding;
 
-        if (std::min<int>(m.rows() - 1, head_time) == m.rows() - 1) {
+        if (std::min<int>(m.size(0) - 1, head_time) == m.size(0) - 1) {
             right_embedding = autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>>{ right_end });
         } else {
-            right_embedding = autodiff::row_at(pre_right, std::min<int>(m.rows() - 1, head_time));
+            right_embedding = autodiff::row_at(pre_right, std::min<int>(m.size(0) - 1, head_time));
         }
 
         auto label_embedding = autodiff::row_at(pre_label, ell);
         auto length_embedding = autodiff::row_at(pre_length,
             std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
-                 length_param.rows() - 1));
+                 length_param.size(0) - 1));
 
-        auto& theta = autodiff::get_output<la::vector<double>>(tensor_tree::get_var(param->children[11]));
-        la::vector<double> mask_vec;
+        auto& theta = autodiff::get_output<la::tensor<double>>(tensor_tree::get_var(param->children[11]));
+        la::tensor<double> mask_vec;
 
         if (dropout == 0.0) {
-            mask_vec.resize(theta.size(), 1);
+            mask_vec.resize({theta.vec_size()}, 1);
         } else {
-            mask_vec.resize(theta.size());
+            mask_vec.resize({theta.vec_size()});
             std::bernoulli_distribution dist {1 - dropout};
 
-            for (int i = 0; i < mask_vec.size(); ++i) {
-                mask_vec(i) = dist(*gen) / (1.0 - dropout);
+            for (int i = 0; i < mask_vec.vec_size(); ++i) {
+                mask_vec({i}) = dist(*gen) / (1.0 - dropout);
             }
         }
 
@@ -970,7 +971,6 @@ namespace fscrf {
                     autodiff::add(
                         tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            tensor_tree::get_var(param->children[9]),
                             autodiff::relu(
                                 autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                                     left_embedding,
@@ -979,7 +979,8 @@ namespace fscrf {
                                     length_embedding,
                                     tensor_tree::get_var(param->children[8])
                                 })
-                            )
+                            ),
+                            tensor_tree::get_var(param->children[9])
                         )
                     )
                 )
@@ -1017,7 +1018,7 @@ namespace fscrf {
         autodiff::computation_graph& comp_graph = *frames->graph;
 
         for (auto& t: edge_scores) {
-            if (t != nullptr) {
+            if (t->grad != nullptr) {
                 std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
                 int d = t->id - score->id;
                 for (auto& i: topo_order_shift) {
@@ -1055,7 +1056,7 @@ namespace fscrf {
                     v.insert(v.end(), frames[j].begin(), frames[j].end());
                 }
             }
-            frames_cat.push_back(graph.var(la::vector<double>{v}));
+            frames_cat.push_back(graph.var(la::tensor<double>{la::vector<double>{v}}));
         }
 
         label_embedding1 = autodiff::row_at(tensor_tree::get_var(param->children[1]), 0);
@@ -1063,12 +1064,14 @@ namespace fscrf {
         input = graph.var();
 
         score = autodiff::dot(tensor_tree::get_var(param->children[4]),
-            autodiff::relu(autodiff::mul(tensor_tree::get_var(param->children[3]),
-            autodiff::relu(autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                autodiff::mul(tensor_tree::get_var(param->children[0]), input),
-                label_embedding1,
-                label_embedding2,
-            })))));
+            autodiff::relu(autodiff::mul(
+                autodiff::relu(autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                    autodiff::mul(tensor_tree::get_var(param->children[0]), input),
+                    label_embedding1,
+                    label_embedding2,
+                })),
+                tensor_tree::get_var(param->children[3])
+            )));
 
         std::vector<std::shared_ptr<autodiff::op_t>> tmp_topo_order = autodiff::topo_order(score);
 
@@ -1136,29 +1139,29 @@ namespace fscrf {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        auto& m = autodiff::get_output<la::matrix<double>>(param);
+        auto& m = autodiff::get_output<la::tensor<double>>(param);
 
-        return m(ell, std::min<int>(head_time - tail_time - 1, m.cols() - 1));
+        return m({ell, std::min<int>(head_time - tail_time - 1, m.size(1) - 1)});
     }
 
     void length_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(param);
+        auto& m = autodiff::get_output<la::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            param->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            param->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(param);
+        auto& m_grad = autodiff::get_grad<la::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        m_grad(ell, std::min<int>(head_time - tail_time - 1, m.cols() - 1)) += g;
+        m_grad({ell, std::min<int>(head_time - tail_time - 1, m.size(1) - 1)}) += g;
     }
 
     log_length_score::log_length_score(std::shared_ptr<autodiff::op_t> param)
@@ -1172,24 +1175,24 @@ namespace fscrf {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        auto& m = autodiff::get_output<la::matrix<double>>(param);
+        auto& m = autodiff::get_output<la::tensor<double>>(param);
         double logd = std::log(head_time - tail_time);
 
-        return m(ell, 0) * logd + m(ell, 1) * logd * logd;
+        return m({ell, 0}) * logd + m({ell, 1}) * logd * logd;
     }
 
     void log_length_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::matrix<double>>(param);
+        auto& m = autodiff::get_output<la::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::matrix<double> m_grad;
-            m_grad.resize(m.rows(), m.cols());
-            param->grad = std::make_shared<la::matrix<double>>(std::move(m_grad));
+            la::tensor<double> m_grad;
+            la::resize_as(m_grad, m);
+            param->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::matrix<double>>(param);
+        auto& m_grad = autodiff::get_grad<la::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -1197,8 +1200,8 @@ namespace fscrf {
 
         double logd = std::log(head_time - tail_time);
 
-        m_grad(ell, 0) += g * logd;
-        m_grad(ell, 1) += g * logd * logd;
+        m_grad({ell, 0}) += g * logd;
+        m_grad({ell, 1}) += g * logd * logd;
     }
 
     bias0_score::bias0_score(std::shared_ptr<autodiff::op_t> param)
@@ -1208,25 +1211,25 @@ namespace fscrf {
     double bias0_score::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::vector<double>>(param);
+        auto& v = autodiff::get_output<la::tensor<double>>(param);
 
-        return v(0);
+        return v({0});
     }
 
     void bias0_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::vector<double>>(param);
+        auto& v = autodiff::get_output<la::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::vector<double> v_grad;
-            v_grad.resize(v.size());
-            param->grad = std::make_shared<la::vector<double>>(std::move(v_grad));
+            la::tensor<double> v_grad;
+            v_grad.resize({v.vec_size()});
+            param->grad = std::make_shared<la::tensor<double>>(std::move(v_grad));
         }
 
-        auto& v_grad = autodiff::get_grad<la::vector<double>>(param);
+        auto& v_grad = autodiff::get_grad<la::tensor<double>>(param);
 
-        v_grad(0) += g;
+        v_grad({0}) += g;
     }
 
     bias1_score::bias1_score(std::shared_ptr<autodiff::op_t> param)
@@ -1238,27 +1241,27 @@ namespace fscrf {
     {
         int ell = f.output(e) - 1;
 
-        auto& v = autodiff::get_output<la::vector<double>>(param);
+        auto& v = autodiff::get_output<la::tensor<double>>(param);
 
-        return v(ell);
+        return v({ell});
     }
 
     void bias1_score::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::vector<double>>(param);
+        auto& v = autodiff::get_output<la::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::vector<double> v_grad;
-            v_grad.resize(v.size());
-            param->grad = std::make_shared<la::vector<double>>(std::move(v_grad));
+            la::tensor<double> v_grad;
+            v_grad.resize({v.vec_size()});
+            param->grad = std::make_shared<la::tensor<double>>(std::move(v_grad));
         }
 
-        auto& v_grad = autodiff::get_grad<la::vector<double>>(param);
+        auto& v_grad = autodiff::get_grad<la::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
 
-        v_grad(ell) += g;
+        v_grad({ell}) += g;
     }
 
     external_score_order0::external_score_order0(std::shared_ptr<autodiff::op_t> param,
@@ -1271,13 +1274,13 @@ namespace fscrf {
     {
         auto& feat = f.data->feats.at(e);
 
-        la::vector<double>& v = autodiff::get_output<la::vector<double>>(param);
+        la::tensor<double>& v = autodiff::get_output<la::tensor<double>>(param);
 
-        assert(indices.size() == v.size());
+        assert(indices.size() == v.vec_size());
 
         double sum = 0;
         for (int i = 0; i < indices.size(); ++i) {
-            sum += v(i) * feat.at(indices.at(i));
+            sum += v({i}) * feat.at(indices.at(i));
         }
 
         return sum;
@@ -1289,19 +1292,19 @@ namespace fscrf {
         auto& feat = f.data->feats.at(e);
 
         if (param->grad == nullptr) {
-            la::vector<double>& v = autodiff::get_output<la::vector<double>>(param);
+            la::tensor<double>& v = autodiff::get_output<la::tensor<double>>(param);
 
-            la::vector<double> g_v;
-            g_v.resize(v.size());
-            param->grad = std::make_shared<la::vector<double>>(g_v);
+            la::tensor<double> g_v;
+            g_v.resize({v.vec_size()});
+            param->grad = std::make_shared<la::tensor<double>>(g_v);
         }
 
-        la::vector<double>& g_v = autodiff::get_grad<la::vector<double>>(param);
+        la::tensor<double>& g_v = autodiff::get_grad<la::tensor<double>>(param);
 
-        assert(indices.size() == g_v.size());
+        assert(indices.size() == g_v.vec_size());
 
         for (int i = 0; i < indices.size(); ++i) {
-            g_v(i) += g * feat.at(indices.at(i));
+            g_v({i}) += g * feat.at(indices.at(i));
         }
     }
 
@@ -1315,16 +1318,16 @@ namespace fscrf {
     {
         auto& feat = f.data->feats.at(e);
 
-        la::matrix<double>& m = autodiff::get_output<la::matrix<double>>(param);
+        la::tensor<double>& m = autodiff::get_output<la::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
 
-        assert(indices.size() == m.cols());
-        assert(ell < m.rows());
+        assert(indices.size() == m.size(1));
+        assert(ell < m.size(0));
 
         double sum = 0;
         for (int i = 0; i < indices.size(); ++i) {
-            sum += m(ell, i) * feat.at(indices.at(i));
+            sum += m({ell, i}) * feat.at(indices.at(i));
         }
 
         return sum;
@@ -1336,22 +1339,22 @@ namespace fscrf {
         auto& feat = f.data->feats.at(e);
 
         if (param->grad == nullptr) {
-            la::matrix<double>& m = autodiff::get_output<la::matrix<double>>(param);
+            la::tensor<double>& m = autodiff::get_output<la::tensor<double>>(param);
 
-            la::matrix<double> g_mat;
-            g_mat.resize(m.rows(), m.cols());
-            param->grad = std::make_shared<la::matrix<double>>(g_mat);
+            la::tensor<double> g_mat;
+            la::resize_as(g_mat, m);
+            param->grad = std::make_shared<la::tensor<double>>(g_mat);
         }
 
-        la::matrix<double>& g_mat = autodiff::get_grad<la::matrix<double>>(param);
+        la::tensor<double>& g_mat = autodiff::get_grad<la::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
 
-        assert(indices.size() == g_mat.cols());
-        assert(ell < g_mat.rows());
+        assert(indices.size() == g_mat.size(1));
+        assert(ell < g_mat.size(0));
 
         for (int i = 0; i < indices.size(); ++i) {
-            g_mat(ell, i) += g * feat.at(indices.at(i));
+            g_mat({ell, i}) += g * feat.at(indices.at(i));
         }
     }
 
@@ -1362,32 +1365,72 @@ namespace fscrf {
     double edge_weight::operator()(ilat::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::vector<double>>(param);
+        auto& v = autodiff::get_output<la::tensor<double>>(param);
 
-        return v(0) * f.weight(e);
+        return v({0}) * f.weight(e);
     }
 
     void edge_weight::accumulate_grad(double g, ilat::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::vector<double>>(param);
+        auto& v = autodiff::get_output<la::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::vector<double> v_grad;
-            v_grad.resize(v.size());
-            param->grad = std::make_shared<la::vector<double>>(std::move(v_grad));
+            la::tensor<double> v_grad;
+            v_grad.resize({v.vec_size()});
+            param->grad = std::make_shared<la::tensor<double>>(std::move(v_grad));
         }
 
-        auto& v_grad = autodiff::get_grad<la::vector<double>>(param);
+        auto& v_grad = autodiff::get_grad<la::tensor<double>>(param);
 
-        v_grad(0) += g * f.weight(e);
+        v_grad({0}) += g * f.weight(e);
+    }
+
+    pass_through_score::pass_through_score(
+        std::shared_ptr<autodiff::op_t> param,
+        std::shared_ptr<scrf_weight<ilat::fst>> weight,
+        ilat::fst const& base_fst,
+        std::unordered_map<int, int> const& edge_map)
+        : param(param), weight(weight), base_fst(base_fst), edge_map(edge_map)
+    {}
+
+    double pass_through_score::operator()(ilat::fst const& f,
+        int e) const
+    {
+        if (ebt::in(e, edge_map)) {
+            auto& v = autodiff::get_output<la::tensor<double>>(param);
+            return v({0}) * (*weight)(base_fst, edge_map.at(e));
+        } else {
+            return 0;
+        }
+    }
+
+    void pass_through_score::accumulate_grad(double g, ilat::fst const& f,
+        int e) const
+    {
+        if (ebt::in(e, edge_map)) {
+            if (param->grad == nullptr) {
+                la::tensor<double> v;
+                v.resize({1});
+                param->grad = std::make_shared<la::tensor<double>>(v);
+            }
+
+            auto& u = autodiff::get_grad<la::tensor<double>>(param);
+            u({0}) += g * (*weight)(base_fst, edge_map.at(e));
+
+            auto& v = autodiff::get_output<la::tensor<double>>(param);
+
+            weight->accumulate_grad(g * v({0}), base_fst, edge_map.at(e));
+        }
     }
 
     std::shared_ptr<tensor_tree::vertex> make_lstm_tensor_tree(
         int outer_layer, int inner_layer)
     {
+        tensor_tree::vertex root { tensor_tree::tensor_t::nil };
+
         if (inner_layer == -1) {
-            lstm::stacked_bi_lstm_tensor_tree_factory fac { outer_layer,
+            lstm::multilayer_lstm_tensor_tree_factory fac {
                 std::make_shared<lstm::bi_lstm_tensor_tree_factory>(
                       lstm::bi_lstm_tensor_tree_factory {
                           std::make_shared<lstm::dyer_lstm_tensor_tree_factory>(
@@ -1395,11 +1438,11 @@ namespace fscrf {
                           // std::make_shared<lstm::lstm_tensor_tree_factory>(
                           //     lstm::lstm_tensor_tree_factory{})
                       }
-                )};
+                ), outer_layer};
 
-            return fac();
+            root.children.push_back(fac());
         } else {
-            lstm::stacked_bi_lstm_tensor_tree_factory fac { outer_layer,
+            lstm::multilayer_lstm_tensor_tree_factory fac {
                 std::make_shared<lstm::bi_lstm_tensor_tree_factory>(
                 lstm::bi_lstm_tensor_tree_factory {
                     std::make_shared<lstm::multilayer_lstm_tensor_tree_factory>(
@@ -1408,14 +1451,18 @@ namespace fscrf {
                        lstm::dyer_lstm_tensor_tree_factory{}),
                        inner_layer
                     })
-                })
-            };
+                }), outer_layer};
 
-            return fac();
+            root.children.push_back(fac());
         }
+
+        root.children.push_back(tensor_tree::make_tensor("softmax weight"));
+        root.children.push_back(tensor_tree::make_tensor("softmax bias"));
+
+        return std::make_shared<tensor_tree::vertex>(root);
     }
 
-    std::tuple<int, int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
+    std::tuple<int, int, std::shared_ptr<tensor_tree::vertex>>
     load_lstm_param(std::string filename)
     {
         std::ifstream ifs { filename };
@@ -1428,37 +1475,30 @@ namespace fscrf {
             int layer = std::stoi(line);
             std::shared_ptr<tensor_tree::vertex> nn_param = make_lstm_tensor_tree(layer, -1);
             tensor_tree::load_tensor(nn_param, ifs);
-            std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
-            tensor_tree::load_tensor(pred_param, ifs);
 
-            return std::make_tuple(layer, -1, nn_param, pred_param);
+            return std::make_tuple(layer, -1, nn_param);
         } else if (parts.size() == 2) {
             int outer_layer = std::stoi(parts[0]);
             int inner_layer = std::stoi(parts[1]);
             std::shared_ptr<tensor_tree::vertex> nn_param = make_lstm_tensor_tree(outer_layer, inner_layer);
             tensor_tree::load_tensor(nn_param, ifs);
-            std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
-            tensor_tree::load_tensor(pred_param, ifs);
 
-            return std::make_tuple(outer_layer, inner_layer, nn_param, pred_param);
+            return std::make_tuple(outer_layer, inner_layer, nn_param);
         }
     }
 
     void save_lstm_param(
         std::shared_ptr<tensor_tree::vertex> nn_param,
-        std::shared_ptr<tensor_tree::vertex> pred_param,
         std::string filename)
     {
         std::ofstream ofs { filename };
 
         ofs << nn_param->children.size() << std::endl;
         tensor_tree::save_tensor(nn_param, ofs);
-        tensor_tree::save_tensor(pred_param, ofs);
     }
 
     void save_lstm_param(int outer_layer, int inner_layer,
         std::shared_ptr<tensor_tree::vertex> nn_param,
-        std::shared_ptr<tensor_tree::vertex> pred_param,
         std::string filename)
     {
         std::ofstream ofs { filename };
@@ -1469,7 +1509,6 @@ namespace fscrf {
             ofs << outer_layer << " " << inner_layer << std::endl;
         }
         tensor_tree::save_tensor(nn_param, ofs);
-        tensor_tree::save_tensor(pred_param, ofs);
     }
 
     std::shared_ptr<lstm::transcriber>
@@ -1562,7 +1601,7 @@ namespace fscrf {
         i_args.args = args;
 
         if (ebt::in(std::string("nn-param"), args)) {
-            std::tie(i_args.outer_layer, i_args.inner_layer, i_args.nn_param, i_args.pred_param)
+            std::tie(i_args.outer_layer, i_args.inner_layer, i_args.nn_param)
                 = load_lstm_param(args.at("nn-param"));
         }
 
@@ -1641,7 +1680,7 @@ namespace fscrf {
         }
 
         if (ebt::in(std::string("nn-opt-data"), args)) {
-            std::tie(l_args.outer_layer, l_args.inner_layer, l_args.nn_opt_data, l_args.pred_opt_data)
+            std::tie(l_args.outer_layer, l_args.inner_layer, l_args.nn_opt_data)
                 = load_lstm_param(args.at("nn-opt-data"));
         }
 
@@ -2357,7 +2396,7 @@ namespace fscrf {
         return std::make_shared<scrf::composite_weight<ilat::fst>>(weight_func);
     }
 
-    std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> make_pair_weights(
+    std::shared_ptr<scrf::composite_weight<ilat::pair_fst>> make_pair_weights(
         std::vector<std::string> const& features,
         std::shared_ptr<tensor_tree::vertex> var_tree,
         std::vector<std::vector<double>> const& frames)
@@ -2508,6 +2547,179 @@ namespace fscrf {
 
         for (auto& e: graph_path.edges()) {
             graph_path_data.weight_func->accumulate_grad(1, *graph_path_data.fst, e);
+        }
+    }
+
+    mode13_weight::mode13_weight(std::shared_ptr<scrf::scrf_weight<ilat::pair_fst>> weight)
+        : weight(weight)
+    {}
+
+    double mode13_weight::operator()(ilat::triple_fst const& fst,
+        std::tuple<int, int, int> e) const
+    {
+        ilat::lazy_pair_mode1 composed_fst { fst.fst1(), fst.fst3() };
+        return (*weight)(composed_fst, std::make_tuple(std::get<0>(e), std::get<2>(e)));
+    }
+
+    void mode13_weight::accumulate_grad(double g, ilat::triple_fst const& fst,
+        std::tuple<int, int, int> e) const
+    {
+        ilat::lazy_pair_mode1 composed_fst { fst.fst1(), fst.fst3() };
+        weight->accumulate_grad(g, composed_fst, std::make_tuple(std::get<0>(e), std::get<2>(e)));
+    }
+
+    void mode13_weight::grad() const
+    {
+        weight->grad();
+    }
+
+    marginal_log_loss_pair::marginal_log_loss_pair(fscrf_pair_data& graph_data,
+        std::vector<int> const& label_seq)
+        : graph_data(graph_data)
+    {
+        fscrf_pair_fst graph { graph_data };
+
+        forward_graph.merge(graph, *graph_data.topo_order);
+
+        auto rev_topo_order = *graph_data.topo_order;
+        std::reverse(rev_topo_order.begin(), rev_topo_order.end());
+
+        backward_graph.merge(graph, rev_topo_order);
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        double graph_forward_logZ = -inf;
+        for (auto& f: graph.finals()) {
+            if (ebt::in(f, forward_graph.extra) && !std::isinf(forward_graph.extra.at(f))) {
+                graph_forward_logZ = ebt::log_add(forward_graph.extra.at(f), graph_forward_logZ);
+            }
+        }
+
+        double graph_backward_logZ = -inf;
+        for (auto& i: graph.initials()) {
+            if (ebt::in(i, backward_graph.extra) && !std::isinf(backward_graph.extra.at(i))) {
+                graph_backward_logZ = ebt::log_add(backward_graph.extra.at(i), graph_backward_logZ);
+            }
+        }
+
+        std::cout << "forward: " << graph_forward_logZ << " backward: " << graph_backward_logZ << std::endl;
+
+        ilat::fst& graph_fst = graph_data.fst->fst1();
+        ilat::fst& lm = graph_data.fst->fst2();
+        auto& label_id = *graph_fst.data->symbol_id;
+        auto& id_label = *graph_fst.data->id_symbol;
+
+        ilat::fst label_fst = make_label_fst(label_seq, label_id, id_label);
+        ilat::add_eps_loops(label_fst);
+
+        ilat::lazy_triple_mode2 composed_fst { graph_fst, label_fst, lm };
+
+        label_graph_data.fst = std::make_shared<ilat::lazy_triple_mode2>(composed_fst);
+        label_graph_data.weight_func = std::make_shared<mode13_weight>(
+            mode13_weight { graph_data.weight_func });
+        label_graph_data.topo_order = std::make_shared<std::vector<std::tuple<int, int, int>>>(
+            fst::topo_order(composed_fst));
+
+        fscrf_triple_fst label_graph { label_graph_data };
+
+        forward_label.merge(label_graph, *label_graph_data.topo_order);
+
+        std::vector<std::tuple<int, int, int>> rev_label_graph_topo_order = *label_graph_data.topo_order;
+        std::reverse(rev_label_graph_topo_order.begin(), rev_label_graph_topo_order.end());
+        backward_label.merge(label_graph, rev_label_graph_topo_order);
+
+        double label_forward_logZ = -inf;
+        for (auto& f: label_graph.finals()) {
+            if (ebt::in(f, forward_label.extra) && !std::isinf(forward_label.extra.at(f))) {
+                label_forward_logZ = ebt::log_add(forward_label.extra.at(f), label_forward_logZ);
+            }
+        }
+
+        double label_backward_logZ = -inf;
+        for (auto& i: label_graph.initials()) {
+            if (ebt::in(i, backward_label.extra) && !std::isinf(backward_label.extra.at(i))) {
+                label_backward_logZ = ebt::log_add(backward_label.extra.at(i), label_backward_logZ);
+            }
+        }
+
+        std::cout << "forward: " << label_forward_logZ << " backward: " << label_backward_logZ << std::endl;
+    }
+
+    double marginal_log_loss_pair::loss() const
+    {
+        double result = 0;
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        fscrf_triple_fst label_graph { label_graph_data };
+
+        double label_forward_logZ = -inf;
+        for (auto& f: label_graph.finals()) {
+            if (ebt::in(f, forward_label.extra) && !std::isinf(forward_label.extra.at(f))) {
+                label_forward_logZ = ebt::log_add(forward_label.extra.at(f), label_forward_logZ);
+            }
+        }
+
+        result -= label_forward_logZ;
+
+        fscrf_pair_fst graph { graph_data };
+
+        double graph_forward_logZ = -inf;
+        for (auto& f: graph.finals()) {
+            if (ebt::in(f, forward_graph.extra) && !std::isinf(forward_graph.extra.at(f))) {
+                graph_forward_logZ = ebt::log_add(forward_graph.extra.at(f), graph_forward_logZ);
+            }
+        }
+
+        result += graph_forward_logZ;
+
+        return result;
+    }
+
+    void marginal_log_loss_pair::grad() const
+    {
+        fscrf_triple_fst label_graph { label_graph_data };
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        double logZ1 = -inf;
+        for (auto& f: label_graph.finals()) {
+            if (ebt::in(f, forward_label.extra) && !std::isinf(forward_label.extra.at(f))) {
+                logZ1 = ebt::log_add(forward_label.extra.at(f), logZ1);
+            }
+        }
+
+        if (!std::isinf(logZ1)) {
+            for (auto& e: label_graph.edges()) {
+                if (!ebt::in(label_graph.tail(e), forward_label.extra) ||
+                        !ebt::in(label_graph.head(e), backward_label.extra)) {
+                    continue;
+                }
+
+                label_graph_data.weight_func->accumulate_grad(
+                    -std::exp(forward_label.extra.at(label_graph.tail(e)) + label_graph.weight(e)
+                        + backward_label.extra.at(label_graph.head(e)) - logZ1), *label_graph_data.fst, e);
+            }
+        }
+
+        fscrf_pair_fst graph { graph_data };
+
+        double logZ2 = -inf;
+        for (auto& f: graph.finals()) {
+            if (ebt::in(f, forward_graph.extra) && !std::isinf(forward_graph.extra.at(f))) {
+                logZ2 = ebt::log_add(forward_graph.extra.at(f), logZ2);
+            }
+        }
+
+        for (auto& e: graph.edges()) {
+            if (!ebt::in(graph.tail(e), forward_graph.extra) ||
+                    !ebt::in(graph.head(e), backward_graph.extra)) {
+                continue;
+            }
+
+            graph_data.weight_func->accumulate_grad(
+                std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
+                    + backward_graph.extra.at(graph.head(e)) - logZ2), *graph_data.fst, e);
         }
     }
 

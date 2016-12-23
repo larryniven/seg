@@ -136,6 +136,8 @@ namespace ilat {
         using edge = std::tuple<int, int>;
         using symbol = int;
 
+        virtual ilat::fst& fst1() = 0;
+        virtual ilat::fst& fst2() = 0;
         virtual ilat::fst const& fst1() const = 0;
         virtual ilat::fst const& fst2() const = 0;
 
@@ -175,6 +177,8 @@ namespace ilat {
         virtual int const& output(edge e) const override;
         virtual long time(vertex v) const override;
 
+        virtual ilat::fst& fst1();
+        virtual ilat::fst& fst2();
         virtual ilat::fst const& fst1() const;
         virtual ilat::fst const& fst2() const;
     };
@@ -213,6 +217,8 @@ namespace ilat {
         virtual int const& output(edge e) const override;
         virtual long time(vertex v) const override;
 
+        virtual ilat::fst& fst1();
+        virtual ilat::fst& fst2();
         virtual ilat::fst const& fst1() const;
         virtual ilat::fst const& fst2() const;
     };
@@ -252,6 +258,8 @@ namespace ilat {
         virtual int const& output(edge e) const override;
         virtual long time(vertex v) const override;
 
+        virtual ilat::fst& fst1();
+        virtual ilat::fst& fst2();
         virtual ilat::fst const& fst1() const;
         virtual ilat::fst const& fst2() const;
     };
@@ -264,6 +272,67 @@ namespace ilat {
 
     };
 
+    struct triple_fst
+        : public ::fst::fst<std::tuple<int, int, int>,
+            std::tuple<int, int, int>, int>
+        , public ::fst::timed<std::tuple<int, int, int>> {
+
+        using vertex = std::tuple<int, int, int>;
+        using edge = std::tuple<int, int, int>;
+        using symbol = int;
+
+        virtual ilat::fst const& fst1() const = 0;
+        virtual ilat::fst const& fst2() const = 0;
+        virtual ilat::fst const& fst3() const = 0;
+
+        virtual ilat::fst& fst1() = 0;
+        virtual ilat::fst& fst2() = 0;
+        virtual ilat::fst& fst3() = 0;
+    };
+
+    struct lazy_triple_mode2
+        : public triple_fst {
+
+        using vertex = std::tuple<int, int, int>;
+        using edge = std::tuple<int, int, int>;
+        using symbol = int;
+
+        ilat::fst fst1_;
+        ilat::fst fst2_;
+        ilat::fst fst3_;
+
+        mutable std::shared_ptr<std::vector<vertex>> vertices_cache;
+        mutable std::shared_ptr<std::vector<edge>> edges_cache;
+        mutable std::shared_ptr<std::vector<vertex>> initials_cache;
+        mutable std::shared_ptr<std::vector<vertex>> finals_cache;
+        mutable std::shared_ptr<vertex> in_edges_vertex;
+        mutable std::shared_ptr<std::vector<edge>> in_edges_cache;
+        mutable std::shared_ptr<vertex> out_edges_vertex;
+        mutable std::shared_ptr<std::vector<edge>> out_edges_cache;
+
+        lazy_triple_mode2(ilat::fst fst1, ilat::fst fst2, ilat::fst fst3);
+
+        virtual std::vector<vertex> const& vertices() const override;
+        virtual std::vector<edge> const& edges() const override;
+        virtual double weight(edge e) const override;
+        virtual std::vector<edge> const& in_edges(vertex v) const override;
+        virtual std::vector<edge> const& out_edges(vertex v) const override;
+        virtual vertex tail(edge e) const override;
+        virtual vertex head(edge e) const override;
+        virtual std::vector<vertex> const& initials() const override;
+        virtual std::vector<vertex> const& finals() const override;
+        virtual int const& input(edge e) const override;
+        virtual int const& output(edge e) const override;
+        virtual long time(vertex v) const override;
+
+        virtual ilat::fst const& fst1() const;
+        virtual ilat::fst const& fst2() const;
+        virtual ilat::fst const& fst3() const;
+
+        virtual ilat::fst& fst1();
+        virtual ilat::fst& fst2();
+        virtual ilat::fst& fst3();
+    };
 }
 
 namespace fst {

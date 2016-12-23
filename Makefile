@@ -9,7 +9,7 @@ clean:
 	-rm *.o
 	-rm libseg.a
 
-libseg.a: segfeat.o fst.o scrf.o scrf_feat.o ilat.o util.o fscrf.o ctc.o
+libseg.a: fst.o scrf.o ilat.o util.o fscrf.o
 	$(AR) rcs $@ $^
 
 util.o: util.h
