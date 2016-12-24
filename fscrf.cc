@@ -856,13 +856,6 @@ namespace fscrf {
         pre_length = autodiff::mul(tensor_tree::get_var(param->children[6]),
             tensor_tree::get_var(param->children[7]));
 
-        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
-            pre_left, pre_right, pre_label, pre_length, left_end, right_end, frames_tmp };
-
-        for (int i = 0; i <= 11; ++i) {
-            exclude.insert(tensor_tree::get_var(param->children[i]));
-        }
-
         auto left_embedding = autodiff::row_at(pre_left, 0);
         auto right_embedding = autodiff::row_at(pre_right, 0);
         auto label_embedding = autodiff::row_at(pre_label, 0);
@@ -889,6 +882,13 @@ namespace fscrf {
                     )
                 )
             ));
+
+        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
+            pre_left, pre_right, pre_label, pre_length, left_end, right_end, frames_tmp };
+
+        for (int i = 0; i <= 11; ++i) {
+            exclude.insert(tensor_tree::get_var(param->children[i]));
+        }
 
         std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
 
@@ -920,8 +920,8 @@ namespace fscrf {
 
         autodiff::computation_graph& comp_graph = *frames->graph;
 
-        auto& m = autodiff::get_output<la::tensor<double>>(frames);
-        auto& length_param = autodiff::get_output<la::tensor<double>>(
+        auto& m = autodiff::get_output<la::tensor_like<double>>(frames);
+        auto& length_param = autodiff::get_output<la::tensor_like<double>>(
             tensor_tree::get_var(param->children[6]));
 
         int ell = f.output(e) - 1;
