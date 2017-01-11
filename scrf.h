@@ -15,35 +15,6 @@
 
 namespace scrf {
 
-    template <class fst, class vector>
-    struct scrf_feature {
-
-        virtual ~scrf_feature()
-        {}
-
-        virtual void operator()(vector& f, fst const& a,
-            typename fst::edge e) const = 0;
-
-    };
-
-    template <class fst, class vector>
-    struct scrf_feature_with_grad
-        : public scrf_feature<fst, vector> {
-
-        virtual void grad(vector const& g, fst const& a,
-            typename fst::edge e) = 0;
-
-    };
-
-    template <class fst, class vector>
-    struct scrf_feature_with_frame_grad
-        : public scrf_feature<fst, vector> {
-
-        virtual void frame_grad(std::vector<std::vector<double>>& grad,
-            vector const& param, fst const& a,
-            typename fst::edge e) const = 0;
-    };
-
     template <class fst>
     struct scrf_weight {
 
@@ -60,75 +31,6 @@ namespace scrf {
         virtual void grad() const
         {}
 
-    };
-
-    struct dense_vec {
-        std::vector<la::vector<double>> class_vec;
-    };
-
-    dense_vec load_dense_vec(std::istream& is);
-    dense_vec load_dense_vec(std::string filename);
-
-    void save_vec(dense_vec const& v, std::ostream& os);
-    void save_vec(dense_vec const& v, std::string filename);
-
-    double dot(dense_vec const& u, dense_vec const& v);
-    void iadd(dense_vec& u, dense_vec const& v);
-    void isub(dense_vec& u, dense_vec const& v);
-    void imul(dense_vec& u, double c);
-
-    void const_step_update(dense_vec& param, dense_vec const& grad,
-        double step_size);
-
-    void const_step_update_momentum(dense_vec& param, dense_vec const& grad,
-        dense_vec& opt_data, double momentum, double step_size);
-
-    void adagrad_update(dense_vec& param, dense_vec const& grad,
-        dense_vec& accu_grad_sq, double step_size);
-
-    void rmsprop_update(dense_vec& param, dense_vec const& grad,
-        dense_vec& accu_grad_sq, double decay, double step_size);
-
-    struct sparse_vec {
-        std::unordered_map<std::string, la::vector<double>> class_vec;
-    };
-
-    sparse_vec load_sparse_vec(std::istream& is);
-    sparse_vec load_sparse_vec(std::string filename);
-
-    void save_vec(sparse_vec const& v, std::ostream& os);
-    void save_vec(sparse_vec const& v, std::string filename);
-
-    double dot(sparse_vec const& u, sparse_vec const& v);
-    void iadd(sparse_vec& u, sparse_vec const& v);
-    void isub(sparse_vec& u, sparse_vec const& v);
-    void imul(sparse_vec& u, double c);
-
-    void adagrad_update(sparse_vec& theta, sparse_vec const& grad,
-        sparse_vec& accu_grad_sq, double step_size);
-
-    void rmsprop_update(sparse_vec& theta, sparse_vec const& grad,
-        sparse_vec& accu_grad_sq, double decay, double step_size);
-
-    template <class vector>
-    struct loss_func {
-
-        virtual ~loss_func()
-        {}
-
-        virtual double loss() const = 0;
-        virtual vector param_grad() const = 0;
-
-    };
-
-    template <class vector, class fst>
-    struct loss_func_with_frame_grad
-        : public loss_func<vector> {
-
-        virtual void frame_grad(
-            scrf_feature_with_frame_grad<fst, vector> const& feat_func,
-            std::vector<std::vector<double>>& grad,
-            vector const& param) const = 0;
     };
 
     std::pair<int, int> get_dim(std::string feat);
@@ -262,8 +164,8 @@ namespace scrf {
     std::shared_ptr<typename scrf_data_trait<scrf_data>::base_fst>
     shortest_path(scrf_data const& data)
     {
-        typename scrf_data_trait<scrf_data>::fst f { data };
-        fst::forward_one_best<typename scrf_data_trait<scrf_data>::fst> one_best;
+        scrf_fst<scrf_data> f { data };
+        fst::forward_one_best<scrf_fst<scrf_data>> one_best;
         for (auto& v: f.initials()) {
             one_best.extra[v] = { fst::edge_trait<typename scrf_data_trait<scrf_data>::edge>::null, 0 };
         }

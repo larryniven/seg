@@ -4,6 +4,7 @@
 #include "seg/scrf.h"
 #include "nn/lstm-tensor-tree.h"
 #include "nn/nn.h"
+#include "speech/speech.h"
 #include <fstream>
 
 namespace fscrf {
@@ -868,7 +869,6 @@ namespace fscrf {
                     autodiff::add(
                         tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            tensor_tree::get_var(param->children[9]),
                             autodiff::relu(
                                 autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                                     left_embedding,
@@ -877,7 +877,8 @@ namespace fscrf {
                                     length_embedding,
                                     tensor_tree::get_var(param->children[8])
                                 })
-                            )
+                            ),
+                            tensor_tree::get_var(param->children[9])
                         )
                     )
                 )
@@ -1017,8 +1018,10 @@ namespace fscrf {
     {
         autodiff::computation_graph& comp_graph = *frames->graph;
 
-        for (auto& t: edge_scores) {
-            if (t->grad != nullptr) {
+        for (int i = 0; i < edge_scores.size(); ++i) {
+            std::shared_ptr<autodiff::op_t> t = edge_scores.at(i);
+
+            if (t != nullptr && t->grad != nullptr) {
                 std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
                 int d = t->id - score->id;
                 for (auto& i: topo_order_shift) {
@@ -1028,12 +1031,18 @@ namespace fscrf {
             }
         }
 
-        autodiff::eval_vertex(pre_left, autodiff::grad_funcs);
-        autodiff::eval_vertex(pre_right, autodiff::grad_funcs);
-        autodiff::eval_vertex(left_end, autodiff::grad_funcs);
-        autodiff::eval_vertex(right_end, autodiff::grad_funcs);
-        autodiff::eval_vertex(pre_label, autodiff::grad_funcs);
-        autodiff::eval_vertex(pre_length, autodiff::grad_funcs);
+        auto guarded_grad = [&](std::shared_ptr<autodiff::op_t> t) {
+            if (t->grad != nullptr) {
+                autodiff::eval_vertex(t, autodiff::grad_funcs);
+            }
+        };
+
+        guarded_grad(pre_left);
+        guarded_grad(pre_right);
+        guarded_grad(left_end);
+        guarded_grad(right_end);
+        guarded_grad(pre_label);
+        guarded_grad(pre_length);
     }
 
     left_boundary_order2_score::left_boundary_order2_score(
@@ -1630,7 +1639,7 @@ namespace fscrf {
             tensor_tree::load_tensor(i_args.param, args.at("param"));
         }
 
-        i_args.label_id = util::load_label_id(args.at("label"));
+        i_args.label_id = speech::load_label_id(args.at("label"));
 
         i_args.id_label.resize(i_args.label_id.size());
         for (auto& p: i_args.label_id) {

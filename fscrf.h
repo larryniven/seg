@@ -53,7 +53,6 @@ namespace scrf {
         using edge = int;
         using vertex = int;
         using symbol = int;
-        using fst = scrf_fst<fscrf::fscrf_data>;
     };
 
     template <>
@@ -63,7 +62,6 @@ namespace scrf {
         using edge = std::tuple<int, int>;
         using vertex = std::tuple<int, int>;
         using symbol = int;
-        using fst = scrf_fst<fscrf::fscrf_pair_data>;
     };
 
     template <>
@@ -72,7 +70,6 @@ namespace scrf {
         using edge = std::tuple<int, int, int>;
         using vertex = std::tuple<int, int, int>;
         using symbol = int;
-        using fst = scrf_fst<fscrf::fscrf_triple_data>;
     };
 
 }
