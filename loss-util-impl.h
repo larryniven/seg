@@ -17,9 +17,8 @@ namespace seg {
                     continue;
                 }
 
-                sum += std::exp(f.weight(e)) * (extra.at(f.tail(e))
-                    + f.weight(e) * std::exp(forward_log_sum.at(f.tail(e)) - logZ)
-                );
+                sum += std::exp(f.weight(e) + forward_log_sum.at(f.tail(e)) - forward_log_sum.at(f.head(e)))
+                    * (f.weight(e) + extra.at(f.tail(e)));
             }
 
             extra[i] = sum;
@@ -43,9 +42,8 @@ namespace seg {
                     continue;
                 }
 
-                sum += std::exp(f.weight(e)) * (extra.at(f.head(e))
-                    + f.weight(e) * std::exp(backward_log_sum.at(f.head(e)) - logZ)
-                );
+                sum += std::exp(f.weight(e) + backward_log_sum.at(f.head(e)) - backward_log_sum.at(f.tail(e)))
+                    * (f.weight(e) + extra.at(f.head(e)));
             }
 
             extra[i] = sum;

@@ -191,7 +191,44 @@ namespace seg {
         int feat_idx = 0;
 
         for (auto& k: features) {
-            if (ebt::startswith(k, "segrnn")) {
+            if (ebt::startswith(k, "frame-avg")) {
+                weight_func.weights.push_back(std::make_shared<frame_avg_score>(
+                    frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "frame-samples")) {
+                weight_func.weights.push_back(std::make_shared<frame_samples_score>(
+                    frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
+                weight_func.weights.push_back(std::make_shared<frame_samples_score>(
+                    frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 1.0 / 2)));
+                weight_func.weights.push_back(std::make_shared<frame_samples_score>(
+                    frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 5.0 / 6)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "left-boundary")) {
+                weight_func.weights.push_back(std::make_shared<left_boundary_score>(
+                    left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, -1)));
+                weight_func.weights.push_back(std::make_shared<left_boundary_score>(
+                    left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, -2)));
+                weight_func.weights.push_back(std::make_shared<left_boundary_score>(
+                    left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, -3)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "right-boundary")) {
+                weight_func.weights.push_back(std::make_shared<right_boundary_score>(
+                    right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1)));
+                weight_func.weights.push_back(std::make_shared<right_boundary_score>(
+                    right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 2)));
+                weight_func.weights.push_back(std::make_shared<right_boundary_score>(
+                    right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "length-indicator")) {
+                weight_func.weights.push_back(std::make_shared<length_score>(
+                    length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "segrnn")) {
                 weight_func.weights.push_back(std::make_shared<segrnn_score>(
                     segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
 

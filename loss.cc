@@ -171,12 +171,7 @@ namespace seg {
             double e_marginal = std::exp(forward_graph.extra.at(tail)
                 + backward_graph.extra.at(head) - logZ + weight);
 
-            double left_exp = (std::abs(forward_exp.extra.at(tail)) < 1e-8 ? 0 : forward_exp.extra.at(tail) * std::exp(logZ - forward_graph.extra.at(tail)));
-            double right_exp = (std::abs(backward_exp.extra.at(head)) < 1e-8 ? 0 : backward_exp.extra.at(head) * std::exp(logZ - backward_graph.extra.at(head)));
-
-            double e_exp = std::exp(weight)
-                * std::exp(forward_graph.extra.at(tail) + backward_graph.extra.at(head) - logZ)
-                * (left_exp + weight + right_exp);
+            double e_exp = forward_exp.extra.at(tail) + weight + backward_exp.extra.at(head);
 
             if (std::isinf(e_marginal) || std::isnan(e_marginal)) {
                 std::cout << forward_graph.extra.at(tail)
@@ -187,15 +182,13 @@ namespace seg {
             }
 
             if (std::isinf(e_exp) || std::isnan(e_exp)) {
-                std::cout << std::exp(logZ - forward_graph.extra.at(head))
-                    << " " << std::exp(logZ - backward_graph.extra.at(tail))
-                    << " " << std::exp(forward_graph.extra.at(tail) + backward_graph.extra.at(head) - logZ)
-                    << " " << forward_exp.extra.at(tail)
+                std::cout << " " << forward_exp.extra.at(tail)
+                    << " " << weight
                     << " " << backward_exp.extra.at(head) << std::endl;
                 exit(1);
             }
 
-            graph_data.weight_func->accumulate_grad(exp_score * e_marginal - e_exp, *graph_data.fst, e);
+            graph_data.weight_func->accumulate_grad((exp_score - e_exp) * e_marginal, *graph_data.fst, e);
         }
     }
 
