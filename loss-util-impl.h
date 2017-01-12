@@ -13,8 +13,13 @@ namespace seg {
             double sum = 0;
 
             for (auto& e: f.in_edges(i)) {
-                sum += std::exp(f.weight(e) - logZ) * (extra.at(f.tail(e))
-                    + f.weight(e) * std::exp(forward_log_sum.at(i)));
+                if (!ebt::in(f.tail(e), forward_log_sum)) {
+                    continue;
+                }
+
+                sum += std::exp(f.weight(e)) * (extra.at(f.tail(e))
+                    + f.weight(e) * std::exp(forward_log_sum.at(f.tail(e)) - logZ)
+                );
             }
 
             extra[i] = sum;
@@ -34,8 +39,13 @@ namespace seg {
             double sum = 0;
 
             for (auto& e: f.out_edges(i)) {
-                sum += std::exp(f.weight(e) - logZ) * (extra.at(f.head(e))
-                    + f.weight(e) * std::exp(backward_log_sum.at(i)));
+                if (!ebt::in(f.head(e), backward_log_sum)) {
+                    continue;
+                }
+
+                sum += std::exp(f.weight(e)) * (extra.at(f.head(e))
+                    + f.weight(e) * std::exp(backward_log_sum.at(f.head(e)) - logZ)
+                );
             }
 
             extra[i] = sum;

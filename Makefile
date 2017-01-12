@@ -7,12 +7,12 @@ all: libseg.a
 
 clean:
 	-rm *.o
-	-rm libseg.a
+	-rm libsego.a libseg.a
 
-libseg.a: fst.o scrf.o ilat.o util.o fscrf.o
+libsego.a: fst.o scrf.o ilat.o util.o fscrf.o
 	$(AR) rcs $@ $^
 
-libseg2.a: lat.o seg.o loss.o seg-weight.o seg-util.o
+libseg.a: lat.o seg.o loss.o seg-weight.o seg-util.o
 	$(AR) rcs $@ $^
 
 util.o: util.h
