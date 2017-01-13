@@ -125,6 +125,89 @@ namespace seg {
 
     };
 
+    struct ds_frame_avg_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> score;
+
+        ds_frame_avg_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct ds_frame_samples_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> score;
+        double scale;
+
+        ds_frame_samples_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames, double scale);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct ds_left_boundary_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> score;
+        int shift;
+
+        ds_left_boundary_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames, int shift);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct ds_right_boundary_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> score;
+        int shift;
+
+        ds_right_boundary_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames, int shift);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
     struct segrnn_score
         : public seg_weight<ifst::fst> {
 
@@ -170,6 +253,21 @@ namespace seg {
         std::shared_ptr<autodiff::op_t> param;
 
         length_score(std::shared_ptr<autodiff::op_t> param);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const override;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+    };
+
+    struct ds_length_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+
+        ds_length_score(std::shared_ptr<autodiff::op_t> param);
 
         virtual double operator()(ifst::fst const& f,
             int e) const override;

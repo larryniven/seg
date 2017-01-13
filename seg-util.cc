@@ -124,7 +124,26 @@ namespace seg {
                 root.children.push_back(tensor_tree::make_tensor("right boundary"));
                 root.children.push_back(tensor_tree::make_tensor("right boundary"));
                 root.children.push_back(tensor_tree::make_tensor("right boundary"));
+            } else if (ebt::startswith(k, "ds-frame-avg")) {
+                root.children.push_back(tensor_tree::make_tensor("frame avg"));
+            } else if (ebt::startswith(k, "ds-frame-att")) {
+                root.children.push_back(tensor_tree::make_tensor("frame att"));
+                root.children.push_back(tensor_tree::make_tensor("frame att"));
+            } else if (ebt::startswith(k, "ds-frame-samples")) {
+                root.children.push_back(tensor_tree::make_tensor("frame samples"));
+                root.children.push_back(tensor_tree::make_tensor("frame samples"));
+                root.children.push_back(tensor_tree::make_tensor("frame samples"));
+            } else if (ebt::startswith(k, "ds-left-boundary")) {
+                root.children.push_back(tensor_tree::make_tensor("left boundary"));
+                root.children.push_back(tensor_tree::make_tensor("left boundary"));
+                root.children.push_back(tensor_tree::make_tensor("left boundary"));
+            } else if (ebt::startswith(k, "ds-right-boundary")) {
+                root.children.push_back(tensor_tree::make_tensor("right boundary"));
+                root.children.push_back(tensor_tree::make_tensor("right boundary"));
+                root.children.push_back(tensor_tree::make_tensor("right boundary"));
             } else if (ebt::startswith(k, "length-indicator")) {
+                root.children.push_back(tensor_tree::make_tensor("length"));
+            } else if (ebt::startswith(k, "ds-length-indicator")) {
                 root.children.push_back(tensor_tree::make_tensor("length"));
             } else if (k == "lm") {
                 root.children.push_back(tensor_tree::make_tensor("lm"));
@@ -223,9 +242,46 @@ namespace seg {
                     right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
 
                 feat_idx += 3;
+            } else if (ebt::startswith(k, "ds-frame-avg")) {
+                weight_func.weights.push_back(std::make_shared<ds_frame_avg_score>(
+                    ds_frame_avg_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "ds-frame-samples")) {
+                weight_func.weights.push_back(std::make_shared<ds_frame_samples_score>(
+                    ds_frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1.0 / 6)));
+                weight_func.weights.push_back(std::make_shared<ds_frame_samples_score>(
+                    ds_frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 1.0 / 2)));
+                weight_func.weights.push_back(std::make_shared<ds_frame_samples_score>(
+                    ds_frame_samples_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 5.0 / 6)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "ds-left-boundary")) {
+                weight_func.weights.push_back(std::make_shared<ds_left_boundary_score>(
+                    ds_left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, -1)));
+                weight_func.weights.push_back(std::make_shared<ds_left_boundary_score>(
+                    ds_left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, -2)));
+                weight_func.weights.push_back(std::make_shared<ds_left_boundary_score>(
+                    ds_left_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, -3)));
+
+                feat_idx += 3;
+            } else if (ebt::startswith(k, "ds-right-boundary")) {
+                weight_func.weights.push_back(std::make_shared<ds_right_boundary_score>(
+                    ds_right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat, 1)));
+                weight_func.weights.push_back(std::make_shared<ds_right_boundary_score>(
+                    ds_right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 1]), frame_mat, 2)));
+                weight_func.weights.push_back(std::make_shared<ds_right_boundary_score>(
+                    ds_right_boundary_score(tensor_tree::get_var(var_tree->children[feat_idx + 2]), frame_mat, 3)));
+
+                feat_idx += 3;
             } else if (ebt::startswith(k, "length-indicator")) {
                 weight_func.weights.push_back(std::make_shared<length_score>(
                     length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "ds-length-indicator")) {
+                weight_func.weights.push_back(std::make_shared<ds_length_score>(
+                    ds_length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
                 ++feat_idx;
             } else if (ebt::startswith(k, "segrnn")) {
