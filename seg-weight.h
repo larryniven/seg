@@ -228,6 +228,7 @@ namespace seg {
         double dropout;
 
         mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_scores;
+        mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_feat;
 
         segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
             std::shared_ptr<autodiff::op_t> frames);

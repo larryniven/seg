@@ -462,22 +462,10 @@ namespace seg {
         return std::make_shared<lstm::layered_transcriber>(result);
     }
 
-    std::shared_ptr<lstm::transcriber>
-    make_transcriber(inference_args& i_args)
-    {
-        return make_transcriber(i_args.outer_layer, i_args.inner_layer,
-            i_args.args, &i_args.gen);
-    }
-
     void parse_inference_args(inference_args& i_args,
         std::unordered_map<std::string, std::string> const& args)
     {
         i_args.args = args;
-
-        if (ebt::in(std::string("nn-param"), args)) {
-            std::tie(i_args.outer_layer, i_args.inner_layer, i_args.nn_param)
-                = load_lstm_param(args.at("nn-param"));
-        }
 
         i_args.min_seg = 1;
         if (ebt::in(std::string("min-seg"), args)) {
@@ -543,11 +531,6 @@ namespace seg {
         if (ebt::in(std::string("opt-data"), args)) {
             l_args.opt_data = make_tensor_tree(l_args.features);
             tensor_tree::load_tensor(l_args.opt_data, args.at("opt-data"));
-        }
-
-        if (ebt::in(std::string("nn-opt-data"), args)) {
-            std::tie(l_args.outer_layer, l_args.inner_layer, l_args.nn_opt_data)
-                = load_lstm_param(args.at("nn-opt-data"));
         }
 
         l_args.l2 = 0;

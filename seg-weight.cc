@@ -441,21 +441,23 @@ namespace seg {
         auto length_embedding = autodiff::row_at(pre_length, 0);
         auto mask = graph.var();
 
+        auto edge_feat = autodiff::relu(
+            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                left_embedding,
+                right_embedding,
+                label_embedding,
+                length_embedding,
+                tensor_tree::get_var(param->children[8])
+            })
+        );
+
         score = autodiff::dot(tensor_tree::get_var(param->children[11]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
                         tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            autodiff::relu(
-                                autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                                    left_embedding,
-                                    right_embedding,
-                                    label_embedding,
-                                    length_embedding,
-                                    tensor_tree::get_var(param->children[8])
-                                })
-                            ),
+                            edge_feat,
                             tensor_tree::get_var(param->children[9])
                         )
                     )
@@ -544,30 +546,33 @@ namespace seg {
 
         auto mask = comp_graph.var(mask_vec);
 
+        if (e >= edge_scores.size()) {
+            edge_scores.resize(e + 1, nullptr);
+            edge_feat.resize(e + 1, nullptr);
+        }
+
+        edge_feat[e] = autodiff::relu(
+            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
+                left_embedding,
+                right_embedding,
+                label_embedding,
+                length_embedding,
+                tensor_tree::get_var(param->children[8])
+            })
+        );
+
         std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[11]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
                         tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            autodiff::relu(
-                                autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                                    left_embedding,
-                                    right_embedding,
-                                    label_embedding,
-                                    length_embedding,
-                                    tensor_tree::get_var(param->children[8])
-                                })
-                            ),
+                            edge_feat[e],
                             tensor_tree::get_var(param->children[9])
                         )
                     )
                 )
             ));
-
-        if (e >= edge_scores.size()) {
-            edge_scores.resize(e + 1, nullptr);
-        }
 
         edge_scores[e] = s_e;
 

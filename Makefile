@@ -18,4 +18,4 @@ libseg.a: lat.o seg.o loss.o seg-weight.o seg-util.o
 util.o: util.h
 ctc.o: ctc.h
 
-loss.o: loss-util.h loss-util-impl.h
+loss.o: loss.h loss-util.h loss-util-impl.h

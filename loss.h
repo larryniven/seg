@@ -36,6 +36,12 @@ namespace seg {
 
     };
 
+    struct weight_risk
+        : public risk_func<seg_fst<iseg_data>> {
+
+        virtual double operator()(seg_fst<iseg_data> const& fst, int e) const;
+    };
+
     struct entropy_loss
         : public loss_func {
 
@@ -46,8 +52,8 @@ namespace seg {
         fst::forward_log_sum<seg_fst<iseg_data>> forward_graph;
         fst::backward_log_sum<seg_fst<iseg_data>> backward_graph;
 
-        forward_exp_score<seg_fst<iseg_data>> forward_exp;
-        backward_exp_score<seg_fst<iseg_data>> backward_exp;
+        forward_exp_risk<seg_fst<iseg_data>> forward_exp;
+        backward_exp_risk<seg_fst<iseg_data>> backward_exp;
 
         entropy_loss(iseg_data& graph_data);
 
@@ -55,6 +61,51 @@ namespace seg {
 
         virtual void grad() const override;
 
+    };
+
+    struct empirical_bayes_risk
+        : public loss_func {
+
+        iseg_data& graph_data;
+        std::shared_ptr<risk_func<seg_fst<iseg_data>>> risk;
+
+        double logZ;
+        double exp_risk;
+
+        fst::forward_log_sum<seg_fst<iseg_data>> f_log_sum;
+        fst::backward_log_sum<seg_fst<iseg_data>> b_log_sum;
+
+        forward_exp_risk<seg_fst<iseg_data>> f_risk;
+        backward_exp_risk<seg_fst<iseg_data>> b_risk;
+
+        empirical_bayes_risk(iseg_data& graph_data,
+            std::shared_ptr<risk_func<seg_fst<iseg_data>>> risk);
+
+        virtual double loss() const override;
+
+        virtual void grad() const override;
+
+    };
+
+    struct frame_reconstruction_risk
+        : public risk_func<seg_fst<iseg_data>> {
+
+        std::vector<std::shared_ptr<autodiff::op_t>> const& frames;
+        std::shared_ptr<tensor_tree::vertex> param;
+
+        mutable std::vector<std::shared_ptr<autodiff::op_t>> risk_cache;
+
+        std::vector<int> topo_order_shift;
+
+        frame_reconstruction_risk(
+            std::vector<std::shared_ptr<autodiff::op_t>> const& frames,
+            std::shared_ptr<tensor_tree::vertex> param);
+
+        virtual double operator()(seg_fst<iseg_data> const& fst, int e) const;
+
+        virtual void accumulate_grad(double g, seg_fst<iseg_data> const& fst, int e);
+
+        virtual void grad();
     };
 
 }

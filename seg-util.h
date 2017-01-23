@@ -37,9 +37,6 @@ namespace seg {
         int max_seg;
         int stride;
         std::shared_ptr<tensor_tree::vertex> param;
-        std::shared_ptr<tensor_tree::vertex> nn_param;
-        int inner_layer;
-        int outer_layer;
         std::unordered_map<std::string, int> label_id;
         std::vector<std::string> id_label;
         std::vector<int> labels;
@@ -61,9 +58,6 @@ namespace seg {
         int inner_layer,
         std::unordered_map<std::string, std::string> const& args,
         std::default_random_engine *gen);
-
-    std::shared_ptr<lstm::transcriber>
-    make_transcriber(inference_args& i_args);
 
     void save_lstm_param(
         std::shared_ptr<tensor_tree::vertex> nn_param,
@@ -94,9 +88,6 @@ namespace seg {
         std::shared_ptr<tensor_tree::vertex> opt_data;
         std::shared_ptr<tensor_tree::vertex> first_moment;
         std::shared_ptr<tensor_tree::vertex> second_moment;
-        std::shared_ptr<tensor_tree::vertex> nn_opt_data;
-        std::shared_ptr<tensor_tree::vertex> nn_first_moment;
-        std::shared_ptr<tensor_tree::vertex> nn_second_moment;
         double l2;
         double step_size;
         double momentum;

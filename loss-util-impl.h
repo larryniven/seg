@@ -1,8 +1,13 @@
 namespace seg {
 
     template <class fst_type>
-    void forward_exp_score<fst_type>::merge(fst_type const& f, std::vector<vertex> order,
-        double logZ,
+    forward_exp_risk<fst_type>::forward_exp_risk(
+        std::shared_ptr<risk_func<fst_type>> risk)
+        : risk(risk)
+    {}
+
+    template <class fst_type>
+    void forward_exp_risk<fst_type>::merge(fst_type const& f, std::vector<vertex> order,
         std::unordered_map<vertex, double> const& forward_log_sum)
     {
         for (auto& i: f.initials()) {
@@ -18,7 +23,7 @@ namespace seg {
                 }
 
                 sum += std::exp(f.weight(e) + forward_log_sum.at(f.tail(e)) - forward_log_sum.at(f.head(e)))
-                    * (f.weight(e) + extra.at(f.tail(e)));
+                    * ((*risk)(f, e) + extra.at(f.tail(e)));
             }
 
             extra[i] = sum;
@@ -26,8 +31,13 @@ namespace seg {
     }
 
     template <class fst_type>
-    void backward_exp_score<fst_type>::merge(fst_type const& f, std::vector<vertex> order,
-        double logZ,
+    backward_exp_risk<fst_type>::backward_exp_risk(
+        std::shared_ptr<risk_func<fst_type>> risk)
+        : risk(risk)
+    {}
+
+    template <class fst_type>
+    void backward_exp_risk<fst_type>::merge(fst_type const& f, std::vector<vertex> order,
         std::unordered_map<vertex, double> const& backward_log_sum)
     {
         for (auto& i: f.finals()) {
@@ -43,7 +53,7 @@ namespace seg {
                 }
 
                 sum += std::exp(f.weight(e) + backward_log_sum.at(f.head(e)) - backward_log_sum.at(f.tail(e)))
-                    * (f.weight(e) + extra.at(f.head(e)));
+                    * ((*risk)(f, e) + extra.at(f.head(e)));
             }
 
             extra[i] = sum;
