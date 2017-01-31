@@ -42,6 +42,21 @@ namespace seg {
         virtual void grad() const override;
     };
 
+    struct frame_sum_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> frames;
+
+        frame_sum_score(std::shared_ptr<autodiff::op_t> frames);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+    };
+
     struct frame_avg_score
         : public seg_weight<ifst::fst> {
 
@@ -248,6 +263,46 @@ namespace seg {
 
     };
 
+    struct ds_segrnn_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<tensor_tree::vertex> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> pre_left;
+        std::shared_ptr<autodiff::op_t> pre_right;
+        std::shared_ptr<autodiff::op_t> left_end;
+        std::shared_ptr<autodiff::op_t> right_end;
+        std::shared_ptr<autodiff::op_t> pre_label;
+        std::shared_ptr<autodiff::op_t> pre_length;
+
+        std::shared_ptr<autodiff::op_t> score;
+
+        std::vector<int> topo_order_shift;
+
+        mutable std::default_random_engine *gen;
+        double dropout;
+
+        mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_scores;
+        mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_feat;
+
+        ds_segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::shared_ptr<autodiff::op_t> frames);
+
+        ds_segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
+            std::shared_ptr<autodiff::op_t> frames,
+            double dropout,
+            std::default_random_engine *gen);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const override;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
     struct length_score
         : public seg_weight<ifst::fst> {
 
@@ -278,6 +333,35 @@ namespace seg {
 
     };
 
+    struct bias0_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+
+        bias0_score(std::shared_ptr<autodiff::op_t> param);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const override;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+    };
+
+    struct bias1_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+
+        bias1_score(std::shared_ptr<autodiff::op_t> param);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const override;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+    };
 }
 
 #include "seg/seg-weight-impl.h"

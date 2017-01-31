@@ -60,11 +60,6 @@ namespace seg {
             ifst::add_vertex(data, v, ifst::vertex_data { i });
         }
 
-        if (frames % stride != 0) {
-            ++v;
-            ifst::add_vertex(data, v, ifst::vertex_data { frames });
-        }
-
         data.initials.push_back(0);
         data.finals.push_back(v);
 
@@ -176,10 +171,12 @@ namespace seg {
                 v.children.push_back(tensor_tree::make_tensor("segrnn bias2"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn weight2"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
-            } else if (k == "segrnn-mod") {
+            } else if (k == "ds-segrnn") {
                 tensor_tree::vertex v { tensor_tree::tensor_t::nil };
                 v.children.push_back(tensor_tree::make_tensor("segrnn left embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn left end"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn right embedding"));
+                v.children.push_back(tensor_tree::make_tensor("segrnn right end"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn label embedding"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn label embedding"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn length embedding"));
@@ -284,9 +281,24 @@ namespace seg {
                     ds_length_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
 
                 ++feat_idx;
+            } else if (k == "bias0") {
+                weight_func.weights.push_back(std::make_shared<bias0_score>(
+                    bias0_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
+            } else if (k == "bias1") {
+                weight_func.weights.push_back(std::make_shared<bias1_score>(
+                    bias1_score { tensor_tree::get_var(var_tree->children[feat_idx]) }));
+
+                ++feat_idx;
             } else if (ebt::startswith(k, "segrnn")) {
                 weight_func.weights.push_back(std::make_shared<segrnn_score>(
                     segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "ds-segrnn")) {
+                weight_func.weights.push_back(std::make_shared<ds_segrnn_score>(
+                    ds_segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
 
                 ++feat_idx;
             } else {
