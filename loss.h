@@ -11,7 +11,7 @@ namespace seg {
         virtual ~loss_func();
 
         virtual double loss() const = 0;
-        virtual void grad() const = 0;
+        virtual void grad(double scale=0) const = 0;
     };
 
     struct marginal_log_loss
@@ -32,7 +32,7 @@ namespace seg {
 
         virtual double loss() const override;
 
-        virtual void grad() const override;
+        virtual void grad(double scale=0) const override;
 
     };
 
@@ -59,7 +59,7 @@ namespace seg {
 
         virtual double loss() const override;
 
-        virtual void grad() const override;
+        virtual void grad(double scale=0) const override;
 
     };
 
@@ -83,7 +83,7 @@ namespace seg {
 
         virtual double loss() const override;
 
-        virtual void grad() const override;
+        virtual void grad(double scale=0) const override;
 
     };
 

@@ -76,7 +76,7 @@ namespace seg {
         return result;
     }
 
-    void marginal_log_loss::grad() const
+    void marginal_log_loss::grad(double scale) const
     {
         seg_fst<pair_iseg_data> pair { pair_data };
 
@@ -89,8 +89,8 @@ namespace seg {
             }
 
             pair_data.weight_func->accumulate_grad(
-                -std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
-                    + backward_label.extra.at(pair.head(e)) - logZ1), *pair_data.fst, e);
+                scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
+                    + backward_label.extra.at(pair.head(e)) - logZ1)), *pair_data.fst, e);
         }
 
         seg_fst<iseg_data> graph { graph_data };
@@ -99,8 +99,8 @@ namespace seg {
 
         for (auto& e: graph.edges()) {
             graph_data.weight_func->accumulate_grad(
-                std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
-                    + backward_graph.extra.at(graph.head(e)) - logZ2), *graph_data.fst, e);
+                scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
+                    + backward_graph.extra.at(graph.head(e)) - logZ2)), *graph_data.fst, e);
         }
     }
 
@@ -162,7 +162,7 @@ namespace seg {
         return logZ - exp_score;
     }
 
-    void entropy_loss::grad() const
+    void entropy_loss::grad(double scale) const
     {
         seg_fst<iseg_data> graph { graph_data };
 
@@ -195,7 +195,7 @@ namespace seg {
                 exit(1);
             }
 
-            graph_data.weight_func->accumulate_grad((exp_score - e_exp) * e_marginal, *graph_data.fst, e);
+            graph_data.weight_func->accumulate_grad(scale * ((exp_score - e_exp) * e_marginal), *graph_data.fst, e);
         }
     }
 
@@ -251,7 +251,7 @@ namespace seg {
         return exp_risk;
     }
 
-    void empirical_bayes_risk::grad() const
+    void empirical_bayes_risk::grad(double scale) const
     {
         seg_fst<iseg_data> graph { graph_data };
 
@@ -270,9 +270,9 @@ namespace seg {
 
             double e_risk = f_risk.extra.at(tail) + r_e + b_risk.extra.at(head);
 
-            graph_data.weight_func->accumulate_grad((e_risk - exp_risk) * e_marginal, *graph_data.fst, e);
+            graph_data.weight_func->accumulate_grad(scale * ((e_risk - exp_risk) * e_marginal), *graph_data.fst, e);
 
-            risk->accumulate_grad(e_marginal, graph, e);
+            risk->accumulate_grad(scale * (e_marginal), graph, e);
         }
     }
 
