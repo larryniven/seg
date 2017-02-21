@@ -276,6 +276,7 @@ namespace seg {
         }
     }
 
+#if 0
     frame_reconstruction_risk::frame_reconstruction_risk(
         std::vector<std::shared_ptr<autodiff::op_t>> const& frames,
         std::shared_ptr<tensor_tree::vertex> param)
@@ -376,5 +377,6 @@ namespace seg {
             }
         }
     }
+#endif
 
 }

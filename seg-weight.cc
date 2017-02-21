@@ -465,75 +465,17 @@ namespace seg {
     {
         assert(0.0 <= dropout && dropout <= 1.0);
 
-        autodiff::computation_graph& graph = *frames->graph;
+        left_end = autodiff::mul(tensor_tree::get_var(param->children[1]),
+            tensor_tree::get_var(param->children[0]));
+        right_end = autodiff::mul(tensor_tree::get_var(param->children[3]),
+            tensor_tree::get_var(param->children[2]));
 
-        std::shared_ptr<autodiff::op_t> frames_tmp = graph.var();
-
-        left_end = autodiff::mul(tensor_tree::get_var(param->children[1]), tensor_tree::get_var(param->children[0]));
-        right_end = autodiff::mul(tensor_tree::get_var(param->children[3]), tensor_tree::get_var(param->children[2]));
-
-        pre_left = autodiff::mul(frames_tmp, tensor_tree::get_var(param->children[0]));
-        pre_right = autodiff::mul(frames_tmp, tensor_tree::get_var(param->children[2]));
+        pre_left = autodiff::mul(frames, tensor_tree::get_var(param->children[0]));
+        pre_right = autodiff::mul(frames, tensor_tree::get_var(param->children[2]));
         pre_label = autodiff::mul(tensor_tree::get_var(param->children[4]),
             tensor_tree::get_var(param->children[5]));
         pre_length = autodiff::mul(tensor_tree::get_var(param->children[6]),
             tensor_tree::get_var(param->children[7]));
-
-        auto left_embedding = autodiff::row_at(pre_left, 0);
-        auto right_embedding = autodiff::row_at(pre_right, 0);
-        auto label_embedding = autodiff::row_at(pre_label, 0);
-        auto length_embedding = autodiff::row_at(pre_length, 0);
-        auto mask = graph.var();
-
-        auto edge_feat = autodiff::relu(
-            autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
-                left_embedding,
-                right_embedding,
-                label_embedding,
-                length_embedding,
-                tensor_tree::get_var(param->children[8])
-            })
-        );
-
-        score = autodiff::dot(tensor_tree::get_var(param->children[11]),
-            autodiff::emul(mask,
-                autodiff::tanh(
-                    autodiff::add(
-                        tensor_tree::get_var(param->children[10]),
-                        autodiff::mul(
-                            edge_feat,
-                            tensor_tree::get_var(param->children[9])
-                        )
-                    )
-                )
-            ));
-
-        std::unordered_set<std::shared_ptr<autodiff::op_t>> exclude {
-            pre_left, pre_right, pre_label, pre_length, left_end, right_end, frames_tmp };
-
-        for (int i = 0; i <= 11; ++i) {
-            exclude.insert(tensor_tree::get_var(param->children[i]));
-        }
-
-        std::vector<std::shared_ptr<autodiff::op_t>> topo_order_tmp = autodiff::topo_order(score);
-
-        for (auto& i: topo_order_tmp) {
-            if (ebt::in(i, exclude)) {
-                continue;
-            }
-
-            topo_order_shift.push_back(i->id);
-        }
-
-        graph.adj[pre_left->id][0] = frames->id;
-        graph.adj[pre_right->id][0] = frames->id;
-
-        autodiff::eval_vertex(pre_left, autodiff::eval_funcs);
-        autodiff::eval_vertex(pre_right, autodiff::eval_funcs);
-        autodiff::eval_vertex(left_end, autodiff::eval_funcs);
-        autodiff::eval_vertex(right_end, autodiff::eval_funcs);
-        autodiff::eval_vertex(pre_label, autodiff::eval_funcs);
-        autodiff::eval_vertex(pre_length, autodiff::eval_funcs);
     }
 
     double segrnn_score::operator()(ifst::fst const& f,
@@ -544,6 +486,8 @@ namespace seg {
         }
 
         autodiff::computation_graph& comp_graph = *frames->graph;
+
+        int begin_size = comp_graph.vertices.size();
 
         auto& m = autodiff::get_output<la::tensor_like<double>>(frames);
         auto& length_param = autodiff::get_output<la::tensor_like<double>>(
@@ -574,7 +518,9 @@ namespace seg {
             std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
                  length_param.size(0) - 1));
 
-        auto& theta = autodiff::get_output<la::tensor<double>>(tensor_tree::get_var(param->children[11]));
+        auto& theta = autodiff::get_output<la::tensor<double>>(
+            tensor_tree::get_var(param->children[11]));
+
         la::tensor<double> mask_vec;
 
         if (dropout == 0.0) {
@@ -592,10 +538,9 @@ namespace seg {
 
         if (e >= edge_scores.size()) {
             edge_scores.resize(e + 1, nullptr);
-            edge_feat.resize(e + 1, nullptr);
         }
 
-        edge_feat[e] = autodiff::relu(
+        auto edge_feat = autodiff::relu(
             autodiff::add(std::vector<std::shared_ptr<autodiff::op_t>> {
                 left_embedding,
                 right_embedding,
@@ -605,13 +550,13 @@ namespace seg {
             })
         );
 
-        std::shared_ptr<autodiff::op_t> s_e = autodiff::dot(tensor_tree::get_var(param->children[11]),
+        auto s_e = autodiff::dot(tensor_tree::get_var(param->children[11]),
             autodiff::emul(mask,
                 autodiff::tanh(
                     autodiff::add(
                         tensor_tree::get_var(param->children[10]),
                         autodiff::mul(
-                            edge_feat[e],
+                            edge_feat,
                             tensor_tree::get_var(param->children[9])
                         )
                     )
@@ -620,13 +565,9 @@ namespace seg {
 
         edge_scores[e] = s_e;
 
-        std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
-        int d = s_e->id - score->id;
-        for (auto& i: topo_order_shift) {
-            topo_order.push_back(comp_graph.vertices[i + d]);
-        }
+        int end_size = comp_graph.vertices.size();
 
-        autodiff::eval(topo_order, autodiff::eval_funcs);
+        topo_shift = end_size - begin_size;
 
         return autodiff::get_output<double>(s_e);
     }
@@ -650,9 +591,8 @@ namespace seg {
 
             if (t != nullptr && t->grad != nullptr) {
                 std::vector<std::shared_ptr<autodiff::op_t>> topo_order;
-                int d = t->id - score->id;
-                for (auto& i: topo_order_shift) {
-                    topo_order.push_back(comp_graph.vertices[i + d]);
+                for (int k = t->id; k > t->id - topo_shift; --k) {
+                    topo_order.push_back(comp_graph.vertices.at(k));
                 }
                 autodiff::grad(topo_order, autodiff::grad_funcs);
             }
@@ -661,6 +601,8 @@ namespace seg {
         auto guarded_grad = [&](std::shared_ptr<autodiff::op_t> t) {
             if (t->grad != nullptr) {
                 autodiff::eval_vertex(t, autodiff::grad_funcs);
+            } else {
+                std::cout << "warning: no grad." << std::endl;
             }
         };
 

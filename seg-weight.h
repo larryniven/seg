@@ -228,6 +228,7 @@ namespace seg {
 
         std::shared_ptr<tensor_tree::vertex> param;
         std::shared_ptr<autodiff::op_t> frames;
+
         std::shared_ptr<autodiff::op_t> pre_left;
         std::shared_ptr<autodiff::op_t> pre_right;
         std::shared_ptr<autodiff::op_t> left_end;
@@ -235,15 +236,12 @@ namespace seg {
         std::shared_ptr<autodiff::op_t> pre_label;
         std::shared_ptr<autodiff::op_t> pre_length;
 
-        std::shared_ptr<autodiff::op_t> score;
-
-        std::vector<int> topo_order_shift;
+        mutable int topo_shift;
 
         mutable std::default_random_engine *gen;
         double dropout;
 
         mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_scores;
-        mutable std::vector<std::shared_ptr<autodiff::op_t>> edge_feat;
 
         segrnn_score(std::shared_ptr<tensor_tree::vertex> param,
             std::shared_ptr<autodiff::op_t> frames);
