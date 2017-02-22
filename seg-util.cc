@@ -328,11 +328,11 @@ namespace seg {
         std::unordered_map<std::string, std::string> const& args,
         std::default_random_engine *gen)
     {
-        std::shared_ptr<lstm::lstm_step_transcriber> step;
+        std::shared_ptr<lstm::step_transcriber> step;
 
         if (ebt::in(std::string("dropout"), args)) {
-            step = std::make_shared<lstm::lstm_input_dropout_transcriber>(
-                lstm::lstm_input_dropout_transcriber {
+            step = std::make_shared<lstm::input_dropout_transcriber>(
+                lstm::input_dropout_transcriber {
                     *gen, std::stod(args.at("dropout")),
                     std::make_shared<lstm::dyer_lstm_step_transcriber>(
                     lstm::dyer_lstm_step_transcriber{})
@@ -370,8 +370,8 @@ namespace seg {
                         layered_lstm.layer.push_back(
                             std::make_shared<lstm::lstm_transcriber>(
                             lstm::lstm_transcriber {
-                                std::make_shared<lstm::lstm_output_dropout_transcriber>(
-                                lstm::lstm_output_dropout_transcriber {
+                                std::make_shared<lstm::output_dropout_transcriber>(
+                                lstm::output_dropout_transcriber {
                                     *gen, std::stod(args.at("dropout")), step })
                             }));
                     } else {
