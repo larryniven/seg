@@ -1,223 +1,208 @@
 #include "seg/ctc.h"
 #include "seg/util.h"
 #include "nn/lstm-tensor-tree.h"
+#include "fst/ifst.h"
+#include "seg/seg-weight.h"
 #include <fstream>
 
 namespace ctc {
 
-    ilat::fst make_frame_fst(std::vector<std::vector<double>> const& feat,
+    ifst::fst make_frame_fst(int nframes,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
     {
-        assert(feat.front().size() + 1 == id_label.size());
-
-        ilat::fst_data data;
+        ifst::fst_data data;
         data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
         data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
 
         int u = 0;
-        ilat::add_vertex(data, u, ilat::vertex_data { u });
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
 
-        for (int i = 0; i < feat.size(); ++i) {
+        for (int i = 0; i < nframes; ++i) {
             int v = data.vertices.size();
-            ilat::add_vertex(data, v, ilat::vertex_data { v });
+            ifst::add_vertex(data, v, ifst::vertex_data { v });
 
-            for (int d = 0; d < feat[i].size(); ++d) {
+            for (int d = 1; d < id_label.size(); ++d) {
                 int e = data.edges.size();
-                ilat::add_edge(data, e, ilat::edge_data { u, v, feat[i][d], d + 1, d + 1 });
+                ifst::add_edge(data, e, ifst::edge_data { u, v, 0, d, d });
             }
 
             u = v;
         }
 
         data.initials.push_back(0);
-        data.finals.push_back(data.vertices.size() - 1);
+        data.finals.push_back(u);
 
-        ilat::fst f;
-        f.data = std::make_shared<ilat::fst_data>(data);
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
 
         return f;
     }
 
-    ilat::fst make_label_fst(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst(std::vector<std::string> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
     {
-        ilat::fst_data data;
-
+        ifst::fst_data data;
         data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
         data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
 
         int u = 0;
-        ilat::add_vertex(data, u, ilat::vertex_data { u });
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
 
         for (int i = 0; i < label_seq.size(); ++i) {
             int v1 = data.vertices.size();
-            ilat::add_vertex(data, v1, ilat::vertex_data { v1 });
+            ifst::add_vertex(data, v1, ifst::vertex_data { v1 });
 
             int e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { u, v1, 0,
+            ifst::add_edge(data, e, ifst::edge_data { u, v1, 0,
                 label_id.at("<blk>"), label_id.at("<blk>") });
 
             e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { v1, v1, 0,
+            ifst::add_edge(data, e, ifst::edge_data { v1, v1, 0,
                 label_id.at("<blk>"), label_id.at("<blk>") });
 
             int v2 = data.vertices.size();
-            ilat::add_vertex(data, v2, ilat::vertex_data { v2 });
+            ifst::add_vertex(data, v2, ifst::vertex_data { v2 });
 
             e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { u, v2, 0,
+            ifst::add_edge(data, e, ifst::edge_data { u, v2, 0,
                 label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
 
             e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { v1, v2, 0,
+            ifst::add_edge(data, e, ifst::edge_data { v1, v2, 0,
                 label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
 
             e = data.edges.size();
-            ilat::add_edge(data, e, ilat::edge_data { v2, v2, 0,
+            ifst::add_edge(data, e, ifst::edge_data { v2, v2, 0,
                 label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
 
             u = v2;
         }
 
-        int v = 0;
-        ilat::add_vertex(data, v, ilat::vertex_data { v });
+        int v = data.vertices.size();
+        ifst::add_vertex(data, v, ifst::vertex_data { v });
 
         int e = data.edges.size();
-        ilat::add_edge(data, e, ilat::edge_data { u, v, 0,
+        ifst::add_edge(data, e, ifst::edge_data { u, v, 0,
             label_id.at("<blk>"), label_id.at("<blk>") });
 
         e = data.edges.size();
-        ilat::add_edge(data, e, ilat::edge_data { v, v, 0,
+        ifst::add_edge(data, e, ifst::edge_data { v, v, 0,
             label_id.at("<blk>"), label_id.at("<blk>") });
 
         data.initials.push_back(0);
-        data.finals.push_back(data.vertices.size() - 1);
+        data.finals.push_back(u);
+        data.finals.push_back(v);
 
-        ilat::fst f;
-        f.data = std::make_shared<ilat::fst_data>(data);
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
 
         return f;
     }
 
-    std::tuple<int, std::shared_ptr<tensor_tree::vertex>, std::shared_ptr<tensor_tree::vertex>>
-    load_lstm_param(std::string filename)
+    label_weight::label_weight(std::vector<std::shared_ptr<autodiff::op_t>> const& label_score)
+        : label_score(label_score)
+    {}
+
+    double label_weight::operator()(ifst::fst const& f, int e) const
     {
-        std::ifstream ifs { filename };
-        std::string line;
-
-        std::getline(ifs, line);
-        int layer = std::stoi(line);
-
-        std::shared_ptr<tensor_tree::vertex> nn_param
-            = lstm::make_stacked_bi_lstm_tensor_tree(layer);
-        tensor_tree::load_tensor(nn_param, ifs);
-        std::shared_ptr<tensor_tree::vertex> pred_param = nn::make_pred_tensor_tree();
-        tensor_tree::load_tensor(pred_param, ifs);
-
-        return std::make_tuple(layer, nn_param, pred_param);
+        int label = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        la::tensor_like<double>& prob = autodiff::get_output<la::tensor_like<double>>(
+            label_score[tail_time]);
+        return prob({label});
     }
 
-    void save_lstm_param(std::shared_ptr<tensor_tree::vertex> nn_param,
-        std::shared_ptr<tensor_tree::vertex> pred_param,
-        std::string filename)
+    void label_weight::accumulate_grad(double g, ifst::fst const& f,
+        int e) const
     {
-        std::ofstream ofs { filename };
+        int label = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        la::tensor_like<double>& prob = autodiff::get_output<la::tensor_like<double>>(
+            label_score[tail_time]);
 
-        ofs << nn_param->children.size() << std::endl;
-        tensor_tree::save_tensor(nn_param, ofs);
-        tensor_tree::save_tensor(pred_param, ofs);
+        if (label_score[tail_time]->grad == nullptr) {
+            la::tensor<double> z;
+            z.resize(prob.sizes());
+            label_score[tail_time]->grad = std::make_shared<la::tensor<double>>(z);
+        }
+
+        la::tensor_like<double>& z = autodiff::get_grad<la::tensor_like<double>>(label_score[tail_time]);
+
+        z({label}) += g;
     }
 
-    void parse_inference_args(inference_args& i_args,
-        std::unordered_map<std::string, std::string> const& args)
+    loss_func::loss_func(seg::iseg_data const& graph_data,
+            std::vector<std::string> const& label_seq)
+        : graph_data(graph_data)
     {
-        i_args.args = args;
+        label_graph = make_label_fst(label_seq, *graph_data.fst->data->symbol_id, *graph_data.fst->data->id_symbol);
 
-        std::tie(i_args.layer, i_args.nn_param, i_args.pred_param)
-            = load_lstm_param(args.at("param"));
+        fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst> pair_fst(label_graph, *graph_data.fst);
 
-        i_args.dropout = 0;
-        if (ebt::in(std::string("dropout"), args)) {
-            i_args.dropout = std::stod(args.at("dropout"));
-            assert(0 <= i_args.dropout && i_args.dropout <= 1);
+        pair_data.fst = std::make_shared<fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst>>(pair_fst);
+        pair_data.weight_func = std::make_shared<seg::mode2_weight>(seg::mode2_weight(graph_data.weight_func));
+
+        seg::seg_fst<seg::pair_iseg_data> pair_graph { pair_data };
+
+        auto topo_order = fst::topo_order(pair_graph);
+
+        forward.merge(pair_graph, topo_order);
+
+        auto rev_topo_order = topo_order;
+        std::reverse(rev_topo_order.begin(), rev_topo_order.end());
+
+        backward.merge(pair_graph, rev_topo_order);
+
+        double inf = std::numeric_limits<double>::infinity();
+
+        double forward_sum = -inf;
+
+        for (auto& f: pair_fst.finals()) {
+            if (!ebt::in(f, forward.extra)) {
+                continue;
+            }
+
+            forward_sum = ebt::log_add(forward_sum, forward.extra.at(f));
         }
 
-        i_args.label_id = util::load_label_id(args.at("label"));
+        double backward_sum = -inf;
 
-        i_args.id_label.resize(i_args.label_id.size());
-        for (auto& p: i_args.label_id) {
-            i_args.labels.push_back(p.second);
-            i_args.id_label[p.second] = p.first;
+        for (auto& i: pair_fst.initials()) {
+            if (!ebt::in(i, backward.extra)) {
+                continue;
+            }
+
+            backward_sum = ebt::log_add(backward_sum, backward.extra.at(i));
+        }
+
+        std::cout << "forward: " << forward_sum << std::endl;
+        std::cout << "backward: " << backward_sum << std::endl;
+
+        logZ = forward_sum;
+    }
+
+    double loss_func::loss() const
+    {
+        return -logZ;
+    }
+
+    void loss_func::grad(double scale) const
+    {
+        seg::seg_fst<seg::pair_iseg_data> pair_graph { pair_data };
+
+        for (auto& e: pair_graph.edges()) {
+            if (!ebt::in(pair_graph.tail(e), forward.extra)
+                    || !ebt::in(pair_graph.head(e), backward.extra)) {
+                continue;
+            }
+
+            double g = forward.extra.at(pair_graph.tail(e)) + pair_graph.weight(e)
+                + backward.extra.at(pair_graph.head(e)) - logZ;
+
+            pair_data.weight_func->accumulate_grad(-std::exp(g), *pair_data.fst, e);
         }
     }
 
-    void parse_learning_args(learning_args& l_args,
-        std::unordered_map<std::string, std::string> const& args)
-    {
-        parse_inference_args(l_args, args);
-
-        std::tie(l_args.layer, l_args.nn_opt_data, l_args.pred_opt_data)
-            = load_lstm_param(args.at("opt-data"));
-
-        l_args.step_size = 0;
-        if (ebt::in(std::string("step-size"), args)) {
-            l_args.step_size = std::stod(args.at("step-size"));
-        }
-
-        l_args.momentum = -1;
-        if (ebt::in(std::string("momentum"), args)) {
-            l_args.momentum = std::stod(args.at("momentum"));
-            assert(0 <= l_args.momentum && l_args.momentum <= 1);
-        }
-
-        l_args.decay = -1;
-        if (ebt::in(std::string("decay"), args)) {
-            l_args.decay = std::stod(args.at("decay"));
-            assert(0 <= l_args.decay && l_args.decay <= 1);
-        }
-
-        l_args.dropout_seed = 0;
-        if (ebt::in(std::string("dropout-seed"), args)) {
-            l_args.dropout_seed = std::stoi(args.at("dropout-seed"));
-        }
-
-        l_args.clip = 0;
-        if (ebt::in(std::string("clip"), args)) {
-            l_args.clip = std::stod(args.at("clip"));
-        }
-    }
-
-    std::vector<std::shared_ptr<autodiff::op_t>>
-    make_feat(autodiff::computation_graph& comp_graph,
-        std::shared_ptr<tensor_tree::vertex> lstm_var_tree,
-        std::shared_ptr<tensor_tree::vertex> pred_var_tree,
-        lstm::stacked_bi_lstm_nn_t& nn,
-        rnn::pred_nn_t& pred_nn,
-        std::vector<std::vector<double>> const& frames,
-        std::default_random_engine& gen,
-        inference_args& nn_args)
-    {
-        std::vector<std::shared_ptr<autodiff::op_t>> frame_ops;
-        for (auto& f: frames) {
-            frame_ops.push_back(comp_graph.var(la::vector<double>(f)));
-        }
-
-        int dim = frames.front().size();
-
-        if (nn_args.dropout == 0) {
-            lstm::bi_lstm_input_scaling builder { comp_graph, dim, nn_args.dropout,
-                std::make_shared<lstm::bi_lstm_builder>(lstm::bi_lstm_builder{}) };
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, builder);
-        } else {
-            lstm::bi_lstm_input_dropout builder { comp_graph, dim, gen, nn_args.dropout,
-                std::make_shared<lstm::bi_lstm_builder>(lstm::bi_lstm_builder{}) };
-            nn = lstm::make_stacked_bi_lstm_nn(lstm_var_tree, frame_ops, builder);
-        }
-
-        pred_nn = rnn::make_pred_nn(pred_var_tree, nn.layer.back().output);
-
-        return pred_nn.logprob;
-    }
 }

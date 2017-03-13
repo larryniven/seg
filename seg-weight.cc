@@ -514,4 +514,70 @@ namespace seg {
         v_grad({ell}) += g;
     }
 
+    epitome_score::epitome_score(std::shared_ptr<autodiff::op_t> frames,
+            std::shared_ptr<autodiff::op_t> param)
+        : frames(frames), param(param)
+    {
+        la::tensor_like<double>& filters = autodiff::get_output<la::tensor_like<double>>(param);
+
+        for (int c = 0; c < filters.size(0); ++c) {
+            double sum = 0;
+            for (int i = 0; i < filters.size(1); ++i) {
+                for (int j = 0; j < filters.size(2); ++j) {
+                    sum += filters({c, i, j}) * filters({c, i, j});
+                }
+            }
+            filter_energy.push_back(sum);
+        }
+    }
+
+    double epitome_score::operator()(ifst::fst const& f, int e) const
+    {
+        la::tensor_like<double>& filters = autodiff::get_output<la::tensor_like<double>>(param);
+        la::tensor_like<double>& utt_frames = autodiff::get_output<la::tensor_like<double>>(frames);
+
+        int label = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        la::weak_tensor<double> seg_frames { utt_frames.data() + tail_time * utt_frames.size(1),
+            {(unsigned int)(head_time - tail_time), utt_frames.size(1), 1} };
+
+        // if (e >= seg_energy_cache.size() || seg_energy_cache[e] == -1) {
+        //     seg_energy_cache.resize(std::max<int>(e + 1, seg_energy_cache.size()), -1);
+        //     seg_energy_cache[e] = std::pow(la::norm(seg_frames), 2.0);
+        // }
+
+        la::weak_tensor<double> filter_e { filters.data() + label * filters.size(1) * filters.size(2),
+            {filters.size(1), filters.size(2), 1}};
+
+        la::tensor<double> filter_lin;
+        filter_lin.resize({filters.size(1) - seg_frames.size(0) + 1,
+            filters.size(2) - seg_frames.size(1) + 1, seg_frames.size(0) * seg_frames.size(1)});
+
+        la::corr_linearize_valid(filter_lin, filter_e, seg_frames.size(0), seg_frames.size(1));
+
+        la::tensor<double> res = la::mul(filter_lin, seg_frames);
+
+        double inf = std::numeric_limits<double>::infinity();
+        double max = -inf;
+        int argmax = -1;
+
+        for (int i = 0; i < res.vec_size(); ++i) {
+            if (res.data()[i] > max) {
+                max = res.data()[i];
+                argmax = i;
+            }
+        }
+
+        // std::cout << tail_time << " " << head_time << " " << label
+        //     << " seg: " << seg_energy
+        //     << " match: " << -2 * res.data()[argmax]
+        //     << " filter: " << filter_energy.at(label)
+        //     << " score: " << -(-2 * res.data()[argmax] + filter_energy.at(label))
+        //     << std::endl;
+
+        return res.data()[argmax];
+    }
+
 }

@@ -222,6 +222,24 @@ namespace seg {
             int e) const override;
 
     };
+
+    struct epitome_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> param;
+        std::vector<int> filter_energy;
+
+        mutable std::vector<int> seg_energy_cache;
+
+        epitome_score(std::shared_ptr<autodiff::op_t> frames,
+            std::shared_ptr<autodiff::op_t> param);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const override;
+
+    };
+
 }
 
 #include "seg/seg-weight-impl.h"
