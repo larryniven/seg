@@ -76,7 +76,7 @@ namespace seg {
                 }
 
                 for (auto& p: label_id) {
-                    if (p.second == 0) {
+                    if (p.first == "<eps>") {
                         continue;
                     }
 

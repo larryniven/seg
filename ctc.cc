@@ -22,7 +22,11 @@ namespace ctc {
             int v = data.vertices.size();
             ifst::add_vertex(data, v, ifst::vertex_data { v });
 
-            for (int d = 1; d < id_label.size(); ++d) {
+            for (int d = 0; d < id_label.size(); ++d) {
+                if (id_label.at(d) == "<eps>") {
+                    continue;
+                }
+
                 int e = data.edges.size();
                 ifst::add_edge(data, e, ifst::edge_data { u, v, 0, d, d });
             }
