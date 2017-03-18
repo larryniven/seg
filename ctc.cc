@@ -105,22 +105,109 @@ namespace ctc {
         return f;
     }
 
+    ifst::fst make_phone_fst(std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ifst::fst_data data;
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int start = data.vertices.size();
+        ifst::add_vertex(data, start, ifst::vertex_data { start });
+
+        int end = data.vertices.size();
+        ifst::add_vertex(data, end, ifst::vertex_data { -1 });
+
+        int blk = label_id.at("<blk>");
+        int eps = label_id.at("<eps>");
+
+        for (int i = 0; i < id_label.size(); ++i) {
+            if (id_label[i] == "<eps>" || id_label[i] == "<blk>") {
+                continue;
+            }
+
+            int u = data.vertices.size();
+            ifst::add_vertex(data, u, ifst::vertex_data { u });
+
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { start, u, 0, eps, i });
+
+            int v1 = data.vertices.size();
+            ifst::add_vertex(data, v1, ifst::vertex_data { v1 });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v1, 0, blk, eps });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v1, v1, 0, blk, eps });
+
+            int v2 = data.vertices.size();
+            ifst::add_vertex(data, v2, ifst::vertex_data { v2 });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v2, 0, i, eps });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v1, v2, 0, i, eps });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v2, v2, 0, i, eps });
+
+            int v3 = data.vertices.size();
+            ifst::add_vertex(data, v3, ifst::vertex_data { v3 });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v2, v3, 0, blk, eps });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v3, v3, 0, blk, eps });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v2, end, 0, eps, eps });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v3, end, 0, eps, eps });
+        }
+
+        int e = data.edges.size();
+        ifst::add_edge(data, e, ifst::edge_data { end, start, 0, eps, eps });
+
+        data.vertices[end].time = data.vertices.size() + 1;
+
+        data.initials.push_back(start);
+        data.finals.push_back(end);
+
+        ifst::fst result;
+        result.data = std::make_shared<ifst::fst_data>(data);
+
+        return result;
+    }
+
     label_weight::label_weight(std::vector<std::shared_ptr<autodiff::op_t>> const& label_score)
         : label_score(label_score)
     {}
 
     double label_weight::operator()(ifst::fst const& f, int e) const
     {
+        if (f.output(e) == 0) {
+            return 0;
+        }
+
         int label = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         la::tensor_like<double>& prob = autodiff::get_output<la::tensor_like<double>>(
             label_score[tail_time]);
+
         return prob({label});
     }
 
     void label_weight::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return;
+        }
+
         int label = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
         la::tensor_like<double>& prob = autodiff::get_output<la::tensor_like<double>>(
@@ -132,7 +219,8 @@ namespace ctc {
             label_score[tail_time]->grad = std::make_shared<la::tensor<double>>(z);
         }
 
-        la::tensor_like<double>& z = autodiff::get_grad<la::tensor_like<double>>(label_score[tail_time]);
+        la::tensor_like<double>& z = autodiff::get_grad<la::tensor_like<double>>(
+            label_score[tail_time]);
 
         z({label}) += g;
     }

@@ -15,6 +15,9 @@ namespace ctc {
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
+    ifst::fst make_phone_fst(std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
+
     struct label_weight
         : public seg::seg_weight<ifst::fst> {
 
@@ -47,6 +50,27 @@ namespace ctc {
         virtual void grad(double scale=1) const override;
     };
 
+    template <class fst_t>
+    struct beam_search {
+
+        struct extra_data {
+            typename fst_t::vertex vertex;
+            bool ends_blank;
+            int seq_id;
+        };
+
+        std::vector<std::vector<int>> id_seq;
+        std::unordered_map<std::vector<int>, int> seq_id;
+
+        std::unordered_map<std::pair<bool, int>, double> path_score;
+        std::vector<extra_data> heap;
+
+        void search(fst_t const& f, typename fst_t::output_symbol blk, int topk);
+
+    };
+
 }
+
+#include "ctc-impl.h"
 
 #endif

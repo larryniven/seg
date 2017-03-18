@@ -26,6 +26,22 @@ namespace seg {
 
     };
 
+    struct mode1_weight
+        : public seg_weight<fst::pair_fst<ifst::fst, ifst::fst>> {
+
+        std::shared_ptr<seg_weight<ifst::fst>> weight;
+
+        mode1_weight(std::shared_ptr<seg_weight<ifst::fst>> weight);
+
+        virtual double operator()(fst::pair_fst<ifst::fst, ifst::fst> const& fst,
+            std::tuple<int, int> e) const override;
+
+        virtual void accumulate_grad(double g, fst::pair_fst<ifst::fst, ifst::fst> const& fst,
+            std::tuple<int, int> e) const override;
+
+        virtual void grad() const override;
+    };
+
     struct mode2_weight
         : public seg_weight<fst::pair_fst<ifst::fst, ifst::fst>> {
 
@@ -219,23 +235,6 @@ namespace seg {
             int e) const override;
 
         virtual void accumulate_grad(double g, ifst::fst const& f,
-            int e) const override;
-
-    };
-
-    struct epitome_score
-        : public seg_weight<ifst::fst> {
-
-        std::shared_ptr<autodiff::op_t> frames;
-        std::shared_ptr<autodiff::op_t> param;
-        std::vector<int> filter_energy;
-
-        mutable std::vector<int> seg_energy_cache;
-
-        epitome_score(std::shared_ptr<autodiff::op_t> frames,
-            std::shared_ptr<autodiff::op_t> param);
-
-        virtual double operator()(ifst::fst const& f,
             int e) const override;
 
     };

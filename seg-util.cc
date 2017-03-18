@@ -39,6 +39,48 @@ namespace seg {
         return f;
     }
 
+    ifst::fst make_label_fst_with_sil_loop(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ifst::fst_data data;
+
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int u = 0;
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
+
+        for (int i = 0; i < label_seq.size(); ++i) {
+            int v = data.vertices.size();
+            ifst::add_vertex(data, v, ifst::vertex_data { v });
+
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v, 0,
+                label_seq[i], label_seq[i] });
+
+            if (i == 0 && label_seq[i] == label_id.at("sil")) {
+                int e = data.edges.size();
+                ifst::add_edge(data, e, ifst::edge_data { v, v, 0,
+                    label_seq[i], label_seq[i] });
+            } else if (i == label_seq.size() - 1 && label_seq[i] == label_id.at("sil")) {
+                int e = data.edges.size();
+                ifst::add_edge(data, e, ifst::edge_data { v, v, 0,
+                    label_seq[i], label_seq[i] });
+            }
+
+            u = v;
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(data.vertices.size() - 1);
+
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
+
+        return f;
+    }
+
     std::shared_ptr<ifst::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
