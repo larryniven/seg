@@ -9,7 +9,7 @@ namespace seg {
     {}
 
     marginal_log_loss::marginal_log_loss(iseg_data& graph_data,
-        std::vector<int> const& label_seq)
+        ifst::fst& label_fst)
         : graph_data(graph_data)
     {
         seg_fst<iseg_data> graph { graph_data };
@@ -30,10 +30,6 @@ namespace seg {
         }
 
         ifst::fst& graph_fst = *graph_data.fst;
-        auto& label_id = *graph_fst.data->symbol_id;
-        auto& id_label = *graph_fst.data->id_symbol;
-
-        ifst::fst label_fst = make_label_fst(label_seq, label_id, id_label);
 
         fst::lazy_pair_mode1_fst<ifst::fst, ifst::fst> composed_fst { label_fst, graph_fst };
 

@@ -28,7 +28,7 @@ namespace seg {
         fst::backward_log_sum<seg_fst<pair_iseg_data>> backward_label;
 
         marginal_log_loss(iseg_data& graph_data,
-            std::vector<int> const& label_seq);
+            ifst::fst& label_fst);
 
         virtual double loss() const override;
 
