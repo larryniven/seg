@@ -17,9 +17,10 @@ namespace seg {
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
-    ifst::fst make_label_fst_with_sil_loop(std::vector<int> const& label_seq,
+    ifst::fst make_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
-        std::vector<std::string> const& id_label);
+        std::vector<std::string> const& id_label,
+        std::vector<std::string> const& long_labels);
 
     std::shared_ptr<ifst::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
