@@ -15,6 +15,14 @@ namespace ctc {
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
+    ifst::fst make_label_fst_hmm1s(std::vector<std::string> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
+
+    ifst::fst make_label_fst_hmm2s(std::vector<std::string> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
+
     ifst::fst make_phone_fst(std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
@@ -44,7 +52,7 @@ namespace ctc {
         fst::backward_log_sum<seg::seg_fst<seg::pair_iseg_data>> backward;
 
         loss_func(seg::iseg_data const& graph_data,
-            std::vector<std::string> const& label_seq);
+            ifst::fst const& label_fst);
 
         virtual double loss() const override;
         virtual void grad(double scale=1) const override;

@@ -105,6 +105,76 @@ namespace ctc {
         return f;
     }
 
+    ifst::fst make_label_fst_hmm1s(std::vector<std::string> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ifst::fst_data data;
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int u = 0;
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
+
+        for (int i = 0; i < label_seq.size(); ++i) {
+            int v2 = data.vertices.size();
+            ifst::add_vertex(data, v2, ifst::vertex_data { v2 });
+
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v2, 0,
+                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v2, v2, 0,
+                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+
+            u = v2;
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(u);
+
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
+
+        return f;
+    }
+
+    ifst::fst make_label_fst_hmm2s(std::vector<std::string> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ifst::fst_data data;
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int u = 0;
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
+
+        for (int i = 0; i < label_seq.size(); ++i) {
+            int v1 = data.vertices.size();
+            ifst::add_vertex(data, v1, ifst::vertex_data { v1 });
+
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v1, 0,
+                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v1, v1, 0,
+                label_id.at(label_seq[i] + "-"), label_id.at(label_seq[i] + "-") });
+
+            u = v1;
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(u);
+
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
+
+        return f;
+    }
+
     ifst::fst make_phone_fst(std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
     {
@@ -226,12 +296,10 @@ namespace ctc {
     }
 
     loss_func::loss_func(seg::iseg_data const& graph_data,
-            std::vector<std::string> const& label_seq)
+             ifst::fst const& label_fst)
         : graph_data(graph_data)
     {
-        label_graph = make_label_fst(label_seq, *graph_data.fst->data->symbol_id, *graph_data.fst->data->id_symbol);
-
-        fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst> pair_fst(label_graph, *graph_data.fst);
+        fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst> pair_fst(label_fst, *graph_data.fst);
 
         pair_data.fst = std::make_shared<fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst>>(pair_fst);
         pair_data.weight_func = std::make_shared<seg::mode2_weight>(seg::mode2_weight(graph_data.weight_func));
