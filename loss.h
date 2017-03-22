@@ -15,10 +15,30 @@ namespace seg {
         virtual void grad(double scale=1) const = 0;
     };
 
+    struct hinge_loss
+        : public loss_func {
+
+        iseg_data& graph_data;
+        double cost_aug_score;
+        std::vector<int> min_cost_path;
+        std::vector<int> cost_aug_path;
+        std::vector<cost::segment<int>> min_cost_segs;
+
+        hinge_loss(iseg_data& graph_data,
+            std::vector<cost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils);
+
+        virtual double loss() const override;
+
+        virtual void grad(double scale=1) const override;
+
+    };
+
     struct log_loss
         : public loss_func {
 
         iseg_data& graph_data;
+        double logZ;
         std::vector<int> min_cost_path;
         std::vector<cost::segment<int>> min_cost_segs;
 
