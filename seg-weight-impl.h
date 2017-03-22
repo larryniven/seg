@@ -1,5 +1,23 @@
 namespace seg {
 
+    template <class fst_t, class T>
+    weight_wrapper<fst_t, T>::weight_wrapper(T func)
+        : func(func)
+    {}
+
+    template <class fst_t, class T>
+    double weight_wrapper<fst_t, T>::operator()(fst_t const& f,
+        typename fst_t::edge e) const
+    {
+        return func(f, e);
+    }
+
+    template <class fst_t, class T>
+    std::shared_ptr<weight_wrapper<fst_t, T>> make_weight(T&& t)
+    {
+        return std::make_shared<weight_wrapper<fst_t, T>>(weight_wrapper<fst_t, T>(std::move(t)));
+    }
+
     template <class fst>
     double composite_weight<fst>::operator()(fst const& f,
         typename fst::edge e) const

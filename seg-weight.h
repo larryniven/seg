@@ -10,6 +10,21 @@
 
 namespace seg {
 
+    template <class fst_t, class T>
+    struct weight_wrapper
+        : public seg_weight<fst_t> {
+
+        T func;
+
+        weight_wrapper(T func);
+        
+        virtual double operator()(fst_t const& f,
+            typename fst_t::edge e) const override;
+    };
+
+    template <class fst_t, class T>
+    std::shared_ptr<weight_wrapper<fst_t, T>> make_weight(T&& t);
+
     template <class fst>
     struct composite_weight
         : public seg_weight<fst> {

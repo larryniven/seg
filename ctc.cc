@@ -1,5 +1,4 @@
 #include "seg/ctc.h"
-#include "seg/util.h"
 #include "nn/lstm-tensor-tree.h"
 #include "fst/ifst.h"
 #include "seg/seg-weight.h"

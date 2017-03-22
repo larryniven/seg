@@ -4,6 +4,7 @@
 #include "seg/seg.h"
 #include "fst/fst-algo.h"
 #include "seg/loss-util.h"
+#include "seg/seg-cost.h"
 
 namespace seg {
 
@@ -12,6 +13,26 @@ namespace seg {
 
         virtual double loss() const = 0;
         virtual void grad(double scale=1) const = 0;
+    };
+
+    struct log_loss
+        : public loss_func {
+
+        iseg_data& graph_data;
+        std::vector<int> min_cost_path;
+        std::vector<cost::segment<int>> min_cost_segs;
+
+        fst::forward_log_sum<seg_fst<iseg_data>> forward;
+        fst::backward_log_sum<seg_fst<iseg_data>> backward;
+
+        log_loss(iseg_data& graph_data,
+            std::vector<cost::segment<int>> const& gt_segs,
+            std::vector<int> const& sils);
+
+        virtual double loss() const override;
+
+        virtual void grad(double scale=1) const override;
+
     };
 
     struct marginal_log_loss

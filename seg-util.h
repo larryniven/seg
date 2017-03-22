@@ -9,7 +9,7 @@
 #include <vector>
 #include <unordered_map>
 #include <random>
-#include "seg/segcost.h"
+#include "seg/cost.h"
 
 namespace seg {
 
@@ -109,7 +109,7 @@ namespace seg {
     struct learning_sample
         : public sample {
 
-        std::vector<segcost::segment<int>> gt_segs;
+        std::vector<cost::segment<int>> gt_segs;
         iseg_data gold_data;
 
         learning_sample(learning_args const& args);

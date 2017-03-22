@@ -8,6 +8,112 @@ namespace seg {
     loss_func::~loss_func()
     {}
 
+    log_loss::log_loss(iseg_data& graph_data,
+        std::vector<cost::segment<int>> const& gt_segs,
+        std::vector<int> const& sils)
+        : graph_data(graph_data)
+    {
+        seg_fst<iseg_data> graph { graph_data };
+
+        cost::overlap_cost<int> cost_func { sils };
+
+        auto old_weight_func = graph_data.weight_func;
+
+        graph_data.weight_func = make_weight<ifst::fst>([&](ifst::fst const& f, int e) {
+            int tail_time = graph.time(graph.tail(e));
+            int head_time = graph.time(graph.head(e));
+            cost::segment<int> s { tail_time, head_time, graph.output(e) };
+            return -cost_func(gt_segs, s);
+        });
+
+        fst::forward_one_best<seg_fst<iseg_data>> one_best;
+        for (auto& i: graph.initials()) {
+            one_best.extra[i] = {-1, 0};
+        }
+        one_best.merge(graph, *graph_data.topo_order);
+        min_cost_path = one_best.best_path(graph);
+
+        graph_data.weight_func = old_weight_func;
+
+        for (auto& e: min_cost_path) {
+            int tail_time = graph.time(graph.tail(e));
+            int head_time = graph.time(graph.head(e));
+
+            min_cost_segs.push_back(cost::segment<int> { tail_time, head_time, graph.output(e) });
+        }
+
+        auto& id_symbol = *graph_data.fst->data->id_symbol;
+
+        double gold_cost = 0;
+        double gold_score = 0;
+        std::cout << "gold:";
+        for (auto& e: min_cost_path) {
+            int tail_time = graph.time(graph.tail(e));
+            int head_time = graph.time(graph.head(e));
+            cost::segment<int> s { tail_time, head_time, graph.output(e) };
+            double c = cost_func(gt_segs, s);
+            gold_cost += c;
+            gold_score += graph.weight(e);
+
+            std::cout << " " << id_symbol[graph.output(e)] << " (" << c << ")";
+        }
+        std::cout << std::endl;
+        std::cout << "gold cost: " << gold_cost << std::endl;
+        std::cout << "gold score: " << gold_score << std::endl;
+
+        forward.merge(graph, *graph_data.topo_order);
+
+        auto rev_topo_order = *graph_data.topo_order;
+        std::reverse(rev_topo_order.begin(), rev_topo_order.end());
+
+        backward.merge(graph, rev_topo_order);
+
+        for (auto& f: graph.finals()) {
+            std::cout << "forward: " << forward.extra[f] << std::endl;
+        }
+
+        for (auto& i: graph.initials()) {
+            std::cout << "backward: " << backward.extra[i] << std::endl;
+        }
+    }
+
+    double log_loss::loss() const
+    {
+        double result = 0;
+
+        seg_fst<iseg_data> graph { graph_data };
+
+        for (auto& e: min_cost_path) {
+            result -= graph.weight(e);
+        }
+
+        result += forward.extra.at(graph.finals().front());
+
+        return result;
+    }
+
+    void log_loss::grad(double scale) const
+    {
+        seg_fst<iseg_data> graph { graph_data };
+
+        for (auto& e: min_cost_path) {
+            graph_data.weight_func->accumulate_grad(-1, *graph_data.fst, e);
+        }
+
+        double inf = std::numeric_limits<double>::infinity();
+        double logZ = -inf;
+
+        for (auto& f: graph.finals()) {
+            logZ = ebt::log_add(logZ, forward.extra.at(f));
+        }
+
+        for (auto& e: graph.edges()) {
+            graph_data.weight_func->accumulate_grad(
+                std::exp(forward.extra.at(graph.tail(e)) + graph.weight(e)
+                    + backward.extra.at(graph.head(e)) - logZ), *graph_data.fst, e);
+        }
+    }
+
     marginal_log_loss::marginal_log_loss(iseg_data& graph_data,
         ifst::fst& label_fst)
         : graph_data(graph_data)
