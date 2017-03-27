@@ -11,15 +11,15 @@ namespace ctc {
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
-    ifst::fst make_label_fst(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
-    ifst::fst make_label_fst_hmm1s(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst_hmm1s(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
-    ifst::fst make_label_fst_hmm2s(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst_hmm2s(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 

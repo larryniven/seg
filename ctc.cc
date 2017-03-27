@@ -42,7 +42,7 @@ namespace ctc {
         return f;
     }
 
-    ifst::fst make_label_fst(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
     {
@@ -70,15 +70,15 @@ namespace ctc {
 
             e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { u, v2, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+                label_seq[i], label_seq[i] });
 
             e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { v1, v2, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+                label_seq[i], label_seq[i] });
 
             e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { v2, v2, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+                label_seq[i], label_seq[i] });
 
             u = v2;
         }
@@ -104,7 +104,7 @@ namespace ctc {
         return f;
     }
 
-    ifst::fst make_label_fst_hmm1s(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst_hmm1s(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
     {
@@ -121,11 +121,11 @@ namespace ctc {
 
             int e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { u, v2, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+                label_seq[i], label_seq[i] });
 
             e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { v2, v2, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+                label_seq[i], label_seq[i] });
 
             u = v2;
         }
@@ -139,7 +139,7 @@ namespace ctc {
         return f;
     }
 
-    ifst::fst make_label_fst_hmm2s(std::vector<std::string> const& label_seq,
+    ifst::fst make_label_fst_hmm2s(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
     {
@@ -156,11 +156,11 @@ namespace ctc {
 
             int e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { u, v1, 0,
-                label_id.at(label_seq[i]), label_id.at(label_seq[i]) });
+                label_seq[i], label_seq[i] });
 
             e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { v1, v1, 0,
-                label_id.at(label_seq[i] + "-"), label_id.at(label_seq[i] + "-") });
+                label_id.at(id_label.at(label_seq[i]) + "-"), label_id.at(id_label.at(label_seq[i]) + "-") });
 
             u = v1;
         }
