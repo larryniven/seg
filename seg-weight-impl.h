@@ -48,4 +48,33 @@ namespace seg {
         }
     }
 
+    template <class fst>
+    cached_weight<fst>::cached_weight(std::shared_ptr<seg_weight<fst>> weight)
+        : weight(weight)
+    {}
+
+    template <class fst>
+    double cached_weight<fst>::operator()(fst const& f,
+        typename fst::edge e) const
+    {
+        if (!ebt::in(e, cache)) {
+            cache[e] = (*weight)(f, e);
+        }
+
+        return cache.at(e);
+    }
+
+    template <class fst>
+    void cached_weight<fst>::accumulate_grad(double g, fst const& f,
+        typename fst::edge e) const
+    {
+        weight->accumulate_grad(g, f, e);
+    }
+
+    template <class fst>
+    void cached_weight<fst>::grad() const
+    {
+        weight->grad();
+    }
+
 }

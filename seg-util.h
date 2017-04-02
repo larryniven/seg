@@ -30,7 +30,7 @@ namespace seg {
     std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
         std::vector<std::string> const& features);
 
-    std::shared_ptr<composite_weight<ifst::fst>> make_weights(
+    std::shared_ptr<seg_weight<ifst::fst>> make_weights(
         std::vector<std::string> const& features,
         std::shared_ptr<tensor_tree::vertex> var_tree,
         std::shared_ptr<autodiff::op_t> frame_mat,

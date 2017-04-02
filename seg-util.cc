@@ -206,7 +206,7 @@ namespace seg {
         return std::make_shared<tensor_tree::vertex>(root);
     }
 
-    std::shared_ptr<composite_weight<ifst::fst>> make_weights(
+    std::shared_ptr<seg_weight<ifst::fst>> make_weights(
         std::vector<std::string> const& features,
         std::shared_ptr<tensor_tree::vertex> var_tree,
         std::shared_ptr<autodiff::op_t> frame_mat,
@@ -276,7 +276,8 @@ namespace seg {
             }
         }
 
-        return std::make_shared<composite_weight<ifst::fst>>(weight_func);
+        return std::make_shared<cached_weight<ifst::fst>>(cached_weight<ifst::fst>(
+            std::make_shared<composite_weight<ifst::fst>>(weight_func)));
     }
 
     std::shared_ptr<tensor_tree::vertex> make_lstm_tensor_tree(

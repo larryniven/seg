@@ -306,10 +306,6 @@ namespace seg {
     double segrnn_score::operator()(ifst::fst const& f,
         int e) const
     {
-        if (edge_scores.size() > e && edge_scores[e] != nullptr && edge_scores[e]->output != nullptr) {
-            return autodiff::get_output<double>(edge_scores[e]);
-        }
-
         autodiff::computation_graph& comp_graph = *frames->graph;
 
         int begin_size = comp_graph.vertices.size();

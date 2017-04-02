@@ -41,6 +41,26 @@ namespace seg {
 
     };
 
+    template <class fst>
+    struct cached_weight
+        : public seg_weight<fst> {
+
+        std::shared_ptr<seg_weight<fst>> weight;
+
+        mutable std::unordered_map<typename fst::edge, double> cache;
+
+        cached_weight(std::shared_ptr<seg_weight<fst>> weight);
+
+        virtual double operator()(fst const& f,
+            typename fst::edge e) const override;
+
+        virtual void accumulate_grad(double g, fst const& f,
+            typename fst::edge e) const override;
+
+        virtual void grad() const override;
+
+    };
+
     struct mode1_weight
         : public seg_weight<fst::pair_fst<ifst::fst, ifst::fst>> {
 
