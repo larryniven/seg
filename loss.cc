@@ -10,8 +10,9 @@ namespace seg {
 
     hinge_loss::hinge_loss(iseg_data& graph_data,
         std::vector<cost::segment<int>> const& gt_segs,
-        std::vector<int> const& sils)
+        std::vector<int> const& sils, double cost_scale)
         : graph_data(graph_data)
+        , cost_scale(cost_scale)
     {
         seg_fst<iseg_data> graph { graph_data };
 
@@ -43,7 +44,7 @@ namespace seg {
         auto& id_symbol = *graph_data.fst->data->id_symbol;
 
         double gold_cost = 0;
-        double gold_score = 0;
+        gold_weight = 0;
         std::cout << "gold:";
         for (auto& e: min_cost_path) {
             int tail_time = graph.time(graph.tail(e));
@@ -51,19 +52,19 @@ namespace seg {
             cost::segment<int> s { tail_time, head_time, graph.output(e) };
             double c = cost_func(gt_segs, s);
             gold_cost += c;
-            gold_score += (*old_weight_func)(*graph_data.fst, e);
+            gold_weight += (*old_weight_func)(*graph_data.fst, e);
 
             std::cout << " " << id_symbol[graph.output(e)] << " (" << c << ")";
         }
         std::cout << std::endl;
         std::cout << "gold cost: " << gold_cost << std::endl;
-        std::cout << "gold score: " << gold_score << std::endl;
+        std::cout << "gold weight: " << gold_weight << std::endl;
 
         graph_data.weight_func = make_weight<ifst::fst>([&](ifst::fst const& f, int e) {
             int tail_time = graph.time(graph.tail(e));
             int head_time = graph.time(graph.head(e));
             cost::segment<int> s { tail_time, head_time, graph.output(e) };
-            return cost_func(min_cost_segs, s) + (*old_weight_func)(f, e);
+            return cost_func(min_cost_segs, s) * cost_scale + (*old_weight_func)(f, e);
         });
 
         fst::forward_one_best<seg_fst<iseg_data>> one_best;
@@ -73,8 +74,8 @@ namespace seg {
         one_best.merge(graph, *graph_data.topo_order);
         cost_aug_path = one_best.best_path(graph);
 
-        double cost_aug_cost = 0;
-        cost_aug_score = 0;
+        cost_aug_cost = 0;
+        cost_aug_weight = 0;
         std::cout << "cost aug inf:";
         for (auto& e: cost_aug_path) {
             int tail_time = graph.time(graph.tail(e));
@@ -82,30 +83,20 @@ namespace seg {
             cost::segment<int> s { tail_time, head_time, graph.output(e) };
             double c = cost_func(min_cost_segs, s);
             cost_aug_cost += c;
-            cost_aug_score += graph.weight(e);
+            cost_aug_weight += (*old_weight_func)(*graph_data.fst, e);
 
             std::cout << " " << id_symbol[graph.output(e)] << " (" << c << ")";
         }
         std::cout << std::endl;
-        std::cout << "cost aug path cost: " << cost_aug_cost << std::endl;
-        std::cout << "cost aug path score: " << cost_aug_score << std::endl;
+        std::cout << "cost aug path cost: " << cost_aug_cost * cost_scale << std::endl;
+        std::cout << "cost aug path weight: " << cost_aug_weight << std::endl;
 
         graph_data.weight_func = old_weight_func;
     }
 
     double hinge_loss::loss() const
     {
-        double result = 0;
-
-        seg_fst<iseg_data> graph { graph_data };
-
-        for (auto& e: min_cost_path) {
-            result -= graph.weight(e);
-        }
-
-        result += cost_aug_score;
-
-        return result;
+        return cost_aug_cost * cost_scale - gold_weight + cost_aug_weight;
     }
 
     void hinge_loss::grad(double scale) const

@@ -19,14 +19,17 @@ namespace seg {
         : public loss_func {
 
         iseg_data& graph_data;
-        double cost_aug_score;
+        double cost_scale;
+        double gold_weight;
+        double cost_aug_weight;
+        double cost_aug_cost;
         std::vector<int> min_cost_path;
         std::vector<int> cost_aug_path;
         std::vector<cost::segment<int>> min_cost_segs;
 
         hinge_loss(iseg_data& graph_data,
             std::vector<cost::segment<int>> const& gt_segs,
-            std::vector<int> const& sils);
+            std::vector<int> const& sils, double cost_scale=1.0);
 
         virtual double loss() const override;
 
