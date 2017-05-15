@@ -264,7 +264,7 @@ namespace ctc {
 
         int label = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
-        la::tensor_like<double>& prob = autodiff::get_output<la::tensor_like<double>>(
+        la::cpu::tensor_like<double>& prob = autodiff::get_output<la::cpu::tensor_like<double>>(
             label_score[tail_time]);
 
         return prob({label});
@@ -279,16 +279,16 @@ namespace ctc {
 
         int label = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
-        la::tensor_like<double>& prob = autodiff::get_output<la::tensor_like<double>>(
+        la::cpu::tensor_like<double>& prob = autodiff::get_output<la::cpu::tensor_like<double>>(
             label_score[tail_time]);
 
         if (label_score[tail_time]->grad == nullptr) {
-            la::tensor<double> z;
+            la::cpu::tensor<double> z;
             z.resize(prob.sizes());
-            label_score[tail_time]->grad = std::make_shared<la::tensor<double>>(z);
+            label_score[tail_time]->grad = std::make_shared<la::cpu::tensor<double>>(z);
         }
 
-        la::tensor_like<double>& z = autodiff::get_grad<la::tensor_like<double>>(
+        la::cpu::tensor_like<double>& z = autodiff::get_grad<la::cpu::tensor_like<double>>(
             label_score[tail_time]);
 
         z({label}) += g;

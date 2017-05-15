@@ -51,7 +51,7 @@ namespace seg {
     double frame_sum_score::operator()(ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor_like<double>>(frames);
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(frames);
 
         double sum = 0;
 
@@ -69,15 +69,15 @@ namespace seg {
     void frame_sum_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor_like<double>>(frames);
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(frames);
 
         if (frames->grad == nullptr) {
-            la::tensor<double> m_grad;
-            la::resize_as(m_grad, m);
-            frames->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            frames->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::tensor_like<double>>(frames);
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor_like<double>>(frames);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -98,7 +98,7 @@ namespace seg {
     double frame_avg_score::operator()(ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor_like<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(score);
 
         double sum = 0;
 
@@ -116,15 +116,15 @@ namespace seg {
     void frame_avg_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor_like<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(score);
 
         if (score->grad == nullptr) {
-            la::tensor<double> m_grad;
-            la::resize_as(m_grad, m);
-            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::tensor_like<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor_like<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -150,7 +150,7 @@ namespace seg {
     double frame_samples_score::operator()(ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -164,15 +164,15 @@ namespace seg {
     void frame_samples_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(score);
 
         if (score->grad == nullptr) {
-            la::tensor<double> m_grad;
-            la::resize_as(m_grad, m);
-            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -198,7 +198,7 @@ namespace seg {
     double left_boundary_score::operator()(ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -210,15 +210,15 @@ namespace seg {
     void left_boundary_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(score);
 
         if (score->grad == nullptr) {
-            la::tensor<double> m_grad;
-            la::resize_as(m_grad, m);
-            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -242,7 +242,7 @@ namespace seg {
     double right_boundary_score::operator()(ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -254,15 +254,15 @@ namespace seg {
     void right_boundary_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(score);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(score);
 
         if (score->grad == nullptr) {
-            la::tensor<double> m_grad;
-            la::resize_as(m_grad, m);
-            score->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            score->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::tensor<double>>(score);
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor<double>>(score);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -310,8 +310,8 @@ namespace seg {
 
         int begin_size = comp_graph.vertices.size();
 
-        auto& m = autodiff::get_output<la::tensor_like<double>>(frames);
-        auto& length_param = autodiff::get_output<la::tensor_like<double>>(
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(frames);
+        auto& length_param = autodiff::get_output<la::cpu::tensor_like<double>>(
             tensor_tree::get_var(param->children[6]));
 
         int ell = f.output(e) - 1;
@@ -339,10 +339,10 @@ namespace seg {
             std::min<int>(int(std::log(head_time - tail_time) / std::log(1.6)) + 1,
                  length_param.size(0) - 1));
 
-        auto& theta = autodiff::get_output<la::tensor<double>>(
+        auto& theta = autodiff::get_output<la::cpu::tensor<double>>(
             tensor_tree::get_var(param->children[11]));
 
-        la::tensor<double> mask_vec;
+        la::cpu::tensor<double> mask_vec;
 
         if (dropout == 0.0) {
             mask_vec.resize({theta.vec_size()}, 1);
@@ -446,7 +446,7 @@ namespace seg {
         int tail_time = f.time(f.tail(e));
         int head_time = f.time(f.head(e));
 
-        auto& m = autodiff::get_output<la::tensor<double>>(param);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         return m({ell, std::min<int>(head_time - tail_time - 1, m.size(1) - 1)});
     }
@@ -454,15 +454,15 @@ namespace seg {
     void length_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& m = autodiff::get_output<la::tensor<double>>(param);
+        auto& m = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::tensor<double> m_grad;
-            la::resize_as(m_grad, m);
-            param->grad = std::make_shared<la::tensor<double>>(std::move(m_grad));
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            param->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
         }
 
-        auto& m_grad = autodiff::get_grad<la::tensor<double>>(param);
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
@@ -478,7 +478,7 @@ namespace seg {
     double bias0_score::operator()(ifst::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::tensor<double>>(param);
+        auto& v = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         return v({0});
     }
@@ -486,15 +486,15 @@ namespace seg {
     void bias0_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::tensor<double>>(param);
+        auto& v = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::tensor<double> v_grad;
+            la::cpu::tensor<double> v_grad;
             v_grad.resize({v.vec_size()});
-            param->grad = std::make_shared<la::tensor<double>>(std::move(v_grad));
+            param->grad = std::make_shared<la::cpu::tensor<double>>(std::move(v_grad));
         }
 
-        auto& v_grad = autodiff::get_grad<la::tensor<double>>(param);
+        auto& v_grad = autodiff::get_grad<la::cpu::tensor<double>>(param);
 
         v_grad({0}) += g;
     }
@@ -508,7 +508,7 @@ namespace seg {
     {
         int ell = f.output(e) - 1;
 
-        auto& v = autodiff::get_output<la::tensor<double>>(param);
+        auto& v = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         return v({ell});
     }
@@ -516,15 +516,15 @@ namespace seg {
     void bias1_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
-        auto& v = autodiff::get_output<la::tensor<double>>(param);
+        auto& v = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         if (param->grad == nullptr) {
-            la::tensor<double> v_grad;
+            la::cpu::tensor<double> v_grad;
             v_grad.resize({v.vec_size()});
-            param->grad = std::make_shared<la::tensor<double>>(std::move(v_grad));
+            param->grad = std::make_shared<la::cpu::tensor<double>>(std::move(v_grad));
         }
 
-        auto& v_grad = autodiff::get_grad<la::tensor<double>>(param);
+        auto& v_grad = autodiff::get_grad<la::cpu::tensor<double>>(param);
 
         int ell = f.output(e) - 1;
 
