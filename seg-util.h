@@ -17,6 +17,10 @@ namespace seg {
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
+    ifst::fst make_label_fst_1b(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
+
     ifst::fst make_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,

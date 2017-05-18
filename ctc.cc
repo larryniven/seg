@@ -104,6 +104,64 @@ namespace ctc {
         return f;
     }
 
+    ifst::fst make_label_fst_1b(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ifst::fst_data data;
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int u = 0;
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
+
+        for (int i = 0; i < label_seq.size(); ++i) {
+            int v1 = data.vertices.size();
+            ifst::add_vertex(data, v1, ifst::vertex_data { v1 });
+
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v1, 0,
+                label_id.at("<blk>"), label_id.at("<blk>") });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v1, v1, 0,
+                label_id.at("<blk>"), label_id.at("<blk>") });
+
+            int v2 = data.vertices.size();
+            ifst::add_vertex(data, v2, ifst::vertex_data { v2 });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v1, v2, 0,
+                label_seq[i], label_seq[i] });
+
+            e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { v2, v2, 0,
+                label_seq[i], label_seq[i] });
+
+            u = v2;
+        }
+
+        int v = data.vertices.size();
+        ifst::add_vertex(data, v, ifst::vertex_data { v });
+
+        int e = data.edges.size();
+        ifst::add_edge(data, e, ifst::edge_data { u, v, 0,
+            label_id.at("<blk>"), label_id.at("<blk>") });
+
+        e = data.edges.size();
+        ifst::add_edge(data, e, ifst::edge_data { v, v, 0,
+            label_id.at("<blk>"), label_id.at("<blk>") });
+
+        data.initials.push_back(0);
+        data.finals.push_back(u);
+        data.finals.push_back(v);
+
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
+
+        return f;
+    }
+
     ifst::fst make_label_fst_hmm1s(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label)
@@ -160,7 +218,8 @@ namespace ctc {
 
             e = data.edges.size();
             ifst::add_edge(data, e, ifst::edge_data { v1, v1, 0,
-                label_id.at(id_label.at(label_seq[i]) + "-"), label_id.at(id_label.at(label_seq[i]) + "-") });
+                label_id.at(id_label.at(label_seq[i]) + "-"),
+                label_id.at(id_label.at(label_seq[i]) + "-") });
 
             u = v1;
         }
@@ -252,7 +311,7 @@ namespace ctc {
         return result;
     }
 
-    label_weight::label_weight(std::vector<std::shared_ptr<autodiff::op_t>> const& label_score)
+    label_weight::label_weight(std::shared_ptr<autodiff::op_t> const& label_score)
         : label_score(label_score)
     {}
 
@@ -264,10 +323,9 @@ namespace ctc {
 
         int label = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
-        la::cpu::tensor_like<double>& prob = autodiff::get_output<la::cpu::tensor_like<double>>(
-            label_score[tail_time]);
+        auto& prob = autodiff::get_output<la::cpu::tensor_like<double>>(label_score);
 
-        return prob({label});
+        return prob({tail_time, label});
     }
 
     void label_weight::accumulate_grad(double g, ifst::fst const& f,
@@ -279,19 +337,17 @@ namespace ctc {
 
         int label = f.output(e) - 1;
         int tail_time = f.time(f.tail(e));
-        la::cpu::tensor_like<double>& prob = autodiff::get_output<la::cpu::tensor_like<double>>(
-            label_score[tail_time]);
+        auto& prob = autodiff::get_output<la::cpu::tensor_like<double>>(label_score);
 
-        if (label_score[tail_time]->grad == nullptr) {
+        if (label_score->grad == nullptr) {
             la::cpu::tensor<double> z;
             z.resize(prob.sizes());
-            label_score[tail_time]->grad = std::make_shared<la::cpu::tensor<double>>(z);
+            label_score->grad = std::make_shared<la::cpu::tensor<double>>(std::move(z));
         }
 
-        la::cpu::tensor_like<double>& z = autodiff::get_grad<la::cpu::tensor_like<double>>(
-            label_score[tail_time]);
+        auto& z = autodiff::get_grad<la::cpu::tensor_like<double>>(label_score);
 
-        z({label}) += g;
+        z({tail_time, label}) += g;
     }
 
     loss_func::loss_func(seg::iseg_data const& graph_data,

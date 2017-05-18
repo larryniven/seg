@@ -15,6 +15,10 @@ namespace ctc {
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
 
+    ifst::fst make_label_fst_1b(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
+
     ifst::fst make_label_fst_hmm1s(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label);
@@ -29,9 +33,9 @@ namespace ctc {
     struct label_weight
         : public seg::seg_weight<ifst::fst> {
 
-        std::vector<std::shared_ptr<autodiff::op_t>> const& label_score;
+        std::shared_ptr<autodiff::op_t> const& label_score;
 
-        label_weight(std::vector<std::shared_ptr<autodiff::op_t>> const& label_score);
+        label_weight(std::shared_ptr<autodiff::op_t> const& label_score);
 
         virtual double operator()(ifst::fst const& f, int e) const override;
 
