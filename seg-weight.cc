@@ -531,4 +531,59 @@ namespace seg {
         v_grad({ell}) += g;
     }
 
+    logsoftmax_score::logsoftmax_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames)
+        : param(param), frames(frames)
+    {
+        auto& t = autodiff::get_output<la::cpu::tensor_like<double>>(param);
+        first = autodiff::reshape(param, {t.size(0), t.size(1) * t.size(2)});
+        score = autodiff::mul(frames, first);
+        prob = autodiff::logsoftmax(score);
+    }
+
+    double logsoftmax_score::operator()(ifst::fst const& f,
+        int e) const
+    {
+        auto& t = autodiff::get_output<la::cpu::tensor_like<double>>(param);
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
+
+        int ell = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+        int dur = head_time - tail_time;
+
+        return m({head_time - 1, (int)(ell * t.size(2) + dur - 1)});
+    }
+
+    void logsoftmax_score::accumulate_grad(double g, ifst::fst const& f,
+        int e) const
+    {
+        auto& t = autodiff::get_output<la::cpu::tensor_like<double>>(param);
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
+
+        if (prob->grad == nullptr) {
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            prob->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
+        }
+
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor_like<double>>(prob);
+
+        int ell = f.output(e) - 1;
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+        int dur = head_time - tail_time;
+
+        m_grad({head_time - 1, (int)(ell * t.size(2) + dur - 1)}) += g;
+    }
+
+    void logsoftmax_score::grad() const
+    {
+        auto& g = *prob->graph;
+
+        for (int i = prob->id; i >= first->id; --i) {
+            autodiff::eval_vertex(g.vertices[i], autodiff::grad_funcs);
+        }
+    }
+
 }

@@ -274,6 +274,28 @@ namespace seg {
 
     };
 
+    struct logsoftmax_score
+        : public seg_weight<ifst::fst> {
+
+        std::shared_ptr<autodiff::op_t> param;
+        std::shared_ptr<autodiff::op_t> frames;
+        std::shared_ptr<autodiff::op_t> first;
+        std::shared_ptr<autodiff::op_t> score;
+        std::shared_ptr<autodiff::op_t> prob;
+
+        logsoftmax_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames);
+
+        virtual double operator()(ifst::fst const& f,
+            int e) const;
+
+        virtual void accumulate_grad(double g, ifst::fst const& f,
+            int e) const override;
+
+        virtual void grad() const override;
+
+    };
+
 }
 
 #include "seg/seg-weight-impl.h"
