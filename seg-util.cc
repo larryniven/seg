@@ -235,8 +235,12 @@ namespace seg {
                 v.children.push_back(tensor_tree::make_tensor("segrnn bias2"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn weight2"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
+            } else if (k == "label-logsoftmax") {
+                root.children.push_back(tensor_tree::make_tensor("label logsoftmax"));
+            } else if (k == "length-logsoftmax") {
+                root.children.push_back(tensor_tree::make_tensor("length logsoftmax"));
             } else if (k == "logsoftmax") {
-                root.children.push_back(tensor_tree::make_tensor("softmax"));
+                root.children.push_back(tensor_tree::make_tensor("logsoftmax"));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
                 exit(1);
@@ -308,6 +312,18 @@ namespace seg {
             } else if (ebt::startswith(k, "segrnn")) {
                 weight_func.weights.push_back(std::make_shared<segrnn_score>(
                     segrnn_score(var_tree->children[feat_idx], frame_mat, dropout, gen)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "label-logsoftmax")) {
+                weight_func.weights.push_back(std::make_shared<label_logsoftmax_score>(
+                    label_logsoftmax_score(tensor_tree::get_var(
+                        var_tree->children[feat_idx]), frame_mat)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "length-logsoftmax")) {
+                weight_func.weights.push_back(std::make_shared<length_logsoftmax_score>(
+                    length_logsoftmax_score(tensor_tree::get_var(
+                        var_tree->children[feat_idx]), frame_mat)));
 
                 ++feat_idx;
             } else if (ebt::startswith(k, "logsoftmax")) {
