@@ -506,6 +506,10 @@ namespace seg {
     double bias1_score::operator()(ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return 0;
+        }
+
         int ell = f.output(e) - 1;
 
         auto& v = autodiff::get_output<la::cpu::tensor<double>>(param);
@@ -516,6 +520,10 @@ namespace seg {
     void bias1_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return;
+        }
+
         auto& v = autodiff::get_output<la::cpu::tensor<double>>(param);
 
         if (param->grad == nullptr) {
@@ -597,6 +605,10 @@ namespace seg {
     double label_logsoftmax_score::operator()(ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return 0;
+        }
+
         auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
 
         int ell = f.output(e) - 1;
@@ -608,6 +620,10 @@ namespace seg {
     void label_logsoftmax_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return;
+        }
+
         auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
 
         if (prob->grad == nullptr) {
@@ -641,6 +657,10 @@ namespace seg {
     double length_logsoftmax_score::operator()(ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return 0;
+        }
+
         auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
 
         int tail_time = f.time(f.tail(e));
@@ -652,6 +672,10 @@ namespace seg {
     void length_logsoftmax_score::accumulate_grad(double g, ifst::fst const& f,
         int e) const
     {
+        if (f.output(e) == 0) {
+            return;
+        }
+
         auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
 
         if (prob->grad == nullptr) {
@@ -669,6 +693,110 @@ namespace seg {
     }
 
     void length_logsoftmax_score::grad() const
+    {
+        autodiff::eval_vertex(prob, autodiff::grad_funcs);
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
+    }
+
+    label_tanh_score::label_tanh_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames)
+        : param(param), frames(frames)
+    {
+        score = autodiff::mul(frames, param);
+        prob = autodiff::tanh(score);
+    }
+
+    double label_tanh_score::operator()(ifst::fst const& f,
+        int e) const
+    {
+        if (f.output(e) == 0) {
+            return 0;
+        }
+
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
+
+        int ell = f.output(e) - 1;
+        int head_time = f.time(f.head(e));
+
+        return m({head_time - 1, ell});
+    }
+
+    void label_tanh_score::accumulate_grad(double g, ifst::fst const& f,
+        int e) const
+    {
+        if (f.output(e) == 0) {
+            return;
+        }
+
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
+
+        if (prob->grad == nullptr) {
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            prob->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
+        }
+
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor_like<double>>(prob);
+
+        int ell = f.output(e) - 1;
+        int head_time = f.time(f.head(e));
+
+        m_grad({head_time - 1, ell}) += g;
+    }
+
+    void label_tanh_score::grad() const
+    {
+        autodiff::eval_vertex(prob, autodiff::grad_funcs);
+        autodiff::eval_vertex(score, autodiff::grad_funcs);
+    }
+
+    length_tanh_score::length_tanh_score(std::shared_ptr<autodiff::op_t> param,
+            std::shared_ptr<autodiff::op_t> frames)
+        : param(param), frames(frames)
+    {
+        score = autodiff::mul(frames, param);
+        prob = autodiff::tanh(score);
+    }
+
+    double length_tanh_score::operator()(ifst::fst const& f,
+        int e) const
+    {
+        if (f.output(e) == 0) {
+            return 0;
+        }
+
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
+
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        return m({head_time - 1, head_time - tail_time - 1});
+    }
+
+    void length_tanh_score::accumulate_grad(double g, ifst::fst const& f,
+        int e) const
+    {
+        if (f.output(e) == 0) {
+            return;
+        }
+
+        auto& m = autodiff::get_output<la::cpu::tensor_like<double>>(prob);
+
+        if (prob->grad == nullptr) {
+            la::cpu::tensor<double> m_grad;
+            la::cpu::resize_as(m_grad, m);
+            prob->grad = std::make_shared<la::cpu::tensor<double>>(std::move(m_grad));
+        }
+
+        auto& m_grad = autodiff::get_grad<la::cpu::tensor_like<double>>(prob);
+
+        int tail_time = f.time(f.tail(e));
+        int head_time = f.time(f.head(e));
+
+        m_grad({head_time - 1, head_time - tail_time - 1}) += g;
+    }
+
+    void length_tanh_score::grad() const
     {
         autodiff::eval_vertex(prob, autodiff::grad_funcs);
         autodiff::eval_vertex(score, autodiff::grad_funcs);

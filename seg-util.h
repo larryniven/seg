@@ -26,7 +26,16 @@ namespace seg {
         std::vector<std::string> const& id_label,
         std::vector<std::string> const& long_labels);
 
+    ifst::fst make_forward_label_fst(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label);
+
     std::shared_ptr<ifst::fst> make_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride);
+
+    std::shared_ptr<ifst::fst> make_forward_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
         int min_seg_len, int max_seg_len, int stride);

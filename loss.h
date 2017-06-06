@@ -71,6 +71,9 @@ namespace seg {
         fst::forward_log_sum<seg_fst<pair_iseg_data>> forward_label;
         fst::backward_log_sum<seg_fst<pair_iseg_data>> backward_label;
 
+        double graph_logZ;
+        double label_logZ;
+
         marginal_log_loss(iseg_data& graph_data,
             ifst::fst& label_fst);
 

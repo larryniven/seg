@@ -242,13 +242,25 @@ namespace seg {
 
         backward_graph.merge(graph, rev_topo_order);
 
+        double inf = std::numeric_limits<double>::infinity();
+
+        double f_graph_logZ = -inf;
+
         for (auto& f: graph.finals()) {
-            std::cout << "forward: " << forward_graph.extra[f] << std::endl;
+            f_graph_logZ = ebt::log_add(f_graph_logZ, forward_graph.extra[f]);
         }
 
+        std::cout << "forward: " << f_graph_logZ << std::endl;
+
+        double b_graph_logZ = -inf;
+
         for (auto& i: graph.initials()) {
-            std::cout << "backward: " << backward_graph.extra[i] << std::endl;
+            b_graph_logZ = ebt::log_add(b_graph_logZ, backward_graph.extra[i]);
         }
+
+        std::cout << "backward: " << b_graph_logZ << std::endl;
+
+        graph_logZ = f_graph_logZ;
 
         ifst::fst& graph_fst = *graph_data.fst;
 
@@ -268,36 +280,33 @@ namespace seg {
         std::reverse(rev_pair_topo_order.begin(), rev_pair_topo_order.end());
         backward_label.merge(pair, rev_pair_topo_order);
 
+        double f_label_logZ = -inf;
+
         for (auto& f: pair.finals()) {
-            std::cout << "forward: " << forward_label.extra[f] << std::endl;
+            f_label_logZ = ebt::log_add(f_label_logZ, forward_label.extra[f]);
         }
+
+        std::cout << "forward: " << f_label_logZ << std::endl;
+
+        double b_label_logZ = -inf;
 
         for (auto& i: pair.initials()) {
-            std::cout << "backward: " << backward_label.extra[i] << std::endl;
+            b_label_logZ = ebt::log_add(b_label_logZ, backward_label.extra[i]);
         }
 
+        std::cout << "backward: " << b_label_logZ << std::endl;
+
+        label_logZ = f_label_logZ;
     }
 
     double marginal_log_loss::loss() const
     {
-        double result = 0;
-
-        seg_fst<pair_iseg_data> pair { pair_data };
-
-        result -= forward_label.extra.at(pair.finals().front());
-
-        seg_fst<iseg_data> graph { graph_data };
-
-        result += forward_graph.extra.at(graph.finals().front());
-
-        return result;
+        return -label_logZ + graph_logZ;
     }
 
     void marginal_log_loss::grad(double scale) const
     {
         seg_fst<pair_iseg_data> pair { pair_data };
-
-        double logZ1 = forward_label.extra.at(pair.finals().front());
 
         for (auto& e: pair.edges()) {
             if (!ebt::in(pair.tail(e), forward_label.extra) ||
@@ -307,17 +316,15 @@ namespace seg {
 
             pair_data.weight_func->accumulate_grad(
                 scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
-                    + backward_label.extra.at(pair.head(e)) - logZ1)), *pair_data.fst, e);
+                    + backward_label.extra.at(pair.head(e)) - label_logZ)), *pair_data.fst, e);
         }
 
         seg_fst<iseg_data> graph { graph_data };
 
-        double logZ2 = forward_graph.extra.at(graph.finals().front());
-
         for (auto& e: graph.edges()) {
             graph_data.weight_func->accumulate_grad(
                 scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
-                    + backward_graph.extra.at(graph.head(e)) - logZ2)), *graph_data.fst, e);
+                    + backward_graph.extra.at(graph.head(e)) - graph_logZ)), *graph_data.fst, e);
         }
     }
 

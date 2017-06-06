@@ -122,6 +122,43 @@ namespace seg {
         return f;
     }
 
+    ifst::fst make_forward_label_fst(std::vector<int> const& label_seq,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label)
+    {
+        ifst::fst_data data;
+
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int u = 0;
+        ifst::add_vertex(data, u, ifst::vertex_data { u });
+
+        for (int i = 0; i < label_seq.size(); ++i) {
+            int v = data.vertices.size();
+            ifst::add_vertex(data, v, ifst::vertex_data { v });
+
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, v, 0,
+                label_seq[i], label_seq[i] });
+
+            u = v;
+        }
+
+        for (int i = 1; i < id_label.size(); ++i) {
+            int e = data.edges.size();
+            ifst::add_edge(data, e, ifst::edge_data { u, u, 0, i, i });
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(u);
+
+        ifst::fst f;
+        f.data = std::make_shared<ifst::fst_data>(data);
+
+        return f;
+    }
+
     std::shared_ptr<ifst::fst> make_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
@@ -167,6 +204,64 @@ namespace seg {
                         ifst::edge_data { u, v, 0, p.second, p.second });
                 }
             }
+        }
+
+        ifst::fst result;
+        result.data = std::make_shared<ifst::fst_data>(std::move(data));
+
+        return std::make_shared<ifst::fst>(result);
+    }
+
+    std::shared_ptr<ifst::fst> make_forward_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride)
+    {
+        assert(stride >= 1);
+        assert(min_seg_len >= 1);
+        assert(max_seg_len >= min_seg_len);
+
+        ifst::fst_data data;
+
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int i = 0;
+        int v = -1;
+        for (i = 0; i < frames + 1; i += stride) {
+            ++v;
+            ifst::add_vertex(data, v, ifst::vertex_data { i });
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(v);
+
+        for (int u = 0; u < data.vertices.size(); ++u) {
+            for (int v = u + 1; v < data.vertices.size(); ++v) {
+                int duration = data.vertices[v].time - data.vertices[u].time;
+
+                if (duration < min_seg_len) {
+                    continue;
+                }
+
+                if (duration > max_seg_len) {
+                    break;
+                }
+
+                for (auto& p: label_id) {
+                    if (p.first == "<eps>") {
+                        continue;
+                    }
+
+                    ifst::add_edge(data, data.edges.size(),
+                        ifst::edge_data { u, v, 0, p.second, p.second });
+                }
+            }
+        }
+
+        for (int u = 1; u < data.vertices.size() - 1; ++u) {
+            ifst::add_edge(data, data.edges.size(),
+                ifst::edge_data { u, v, 0, 0, 0 });
         }
 
         ifst::fst result;
@@ -241,6 +336,10 @@ namespace seg {
                 root.children.push_back(tensor_tree::make_tensor("length logsoftmax"));
             } else if (k == "logsoftmax") {
                 root.children.push_back(tensor_tree::make_tensor("logsoftmax"));
+            } else if (k == "label-tanh") {
+                root.children.push_back(tensor_tree::make_tensor("label tanh"));
+            } else if (k == "length-tanh") {
+                root.children.push_back(tensor_tree::make_tensor("length tanh"));
             } else {
                 std::cout << "unknown feature " << k << std::endl;
                 exit(1);
@@ -329,6 +428,18 @@ namespace seg {
             } else if (ebt::startswith(k, "logsoftmax")) {
                 weight_func.weights.push_back(std::make_shared<logsoftmax_score>(
                     logsoftmax_score(tensor_tree::get_var(var_tree->children[feat_idx]), frame_mat)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "label-tanh")) {
+                weight_func.weights.push_back(std::make_shared<label_tanh_score>(
+                    label_tanh_score(tensor_tree::get_var(
+                        var_tree->children[feat_idx]), frame_mat)));
+
+                ++feat_idx;
+            } else if (ebt::startswith(k, "length-tanh")) {
+                weight_func.weights.push_back(std::make_shared<length_tanh_score>(
+                    length_tanh_score(tensor_tree::get_var(
+                        var_tree->children[feat_idx]), frame_mat)));
 
                 ++feat_idx;
             } else {
