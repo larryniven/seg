@@ -264,9 +264,9 @@ namespace seg {
 
         ifst::fst& graph_fst = *graph_data.fst;
 
-        fst::lazy_pair_mode1_fst<ifst::fst, ifst::fst> composed_fst { label_fst, graph_fst };
+        fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst> composed_fst { label_fst, graph_fst };
 
-        pair_data.fst = std::make_shared<fst::lazy_pair_mode1_fst<ifst::fst, ifst::fst>>(composed_fst);
+        pair_data.fst = std::make_shared<fst::lazy_pair_mode2_fst<ifst::fst, ifst::fst>>(composed_fst);
         pair_data.weight_func = std::make_shared<mode2_weight>(
             mode2_weight { graph_data.weight_func });
         pair_data.topo_order = std::make_shared<std::vector<std::tuple<int, int>>>(

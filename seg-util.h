@@ -24,7 +24,7 @@ namespace seg {
     ifst::fst make_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
-        std::vector<std::string> const& long_labels);
+        std::vector<std::string> const& rep_labels);
 
     ifst::fst make_forward_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,

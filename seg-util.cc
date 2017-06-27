@@ -81,16 +81,16 @@ namespace seg {
     ifst::fst make_label_fst(std::vector<int> const& label_seq,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
-        std::vector<std::string> const& long_labels)
+        std::vector<std::string> const& rep_labels)
     {
         ifst::fst_data data;
 
         data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
         data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
 
-        std::unordered_set<int> long_label_set;
-        for (auto& ell: long_labels) {
-            long_label_set.insert(label_id.at(ell));
+        std::unordered_set<int> rep_label_set;
+        for (auto& ell: rep_labels) {
+            rep_label_set.insert(label_id.at(ell));
         }
 
         int u = 0;
@@ -104,7 +104,7 @@ namespace seg {
             ifst::add_edge(data, e, ifst::edge_data { u, v, 0,
                 label_seq[i], label_seq[i] });
 
-            if (ebt::in(label_seq[i], long_label_set)) {
+            if (ebt::in(label_seq[i], rep_label_set)) {
                 int e = data.edges.size();
                 ifst::add_edge(data, e, ifst::edge_data { v, v, 0,
                     label_seq[i], label_seq[i] });
