@@ -47,7 +47,12 @@ namespace seg {
 
         std::shared_ptr<seg_weight<fst>> weight;
 
-        mutable std::unordered_map<typename fst::edge, double> cache;
+#if OMP_SAFE
+        mutable std::shared_ptr<std::unordered_map<typename fst::edge, int>> indices_cache;
+        mutable std::shared_ptr<std::vector<double>> score_cache;
+#else
+        mutable std::unordered_map<typename fst::edge, double> score_cache;
+#endif
 
         cached_weight(std::shared_ptr<seg_weight<fst>> weight);
 

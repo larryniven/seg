@@ -48,6 +48,15 @@ namespace seg {
         std::vector<vertex> const& initials() const;
         std::vector<vertex> const& finals() const;
 
+        std::unordered_map<input_symbol, std::vector<edge>> const&
+        in_edges_input_map(vertex v) const;
+        std::unordered_map<output_symbol, std::vector<edge>> const&
+        in_edges_output_map(vertex v) const;
+        std::unordered_map<input_symbol, std::vector<edge>> const&
+        out_edges_input_map(vertex v) const;
+        std::unordered_map<output_symbol, std::vector<edge>> const&
+        out_edges_output_map(vertex v) const;
+
         long time(vertex v) const;
 
     };

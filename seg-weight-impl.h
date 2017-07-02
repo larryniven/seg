@@ -57,11 +57,41 @@ namespace seg {
     double cached_weight<fst>::operator()(fst const& f,
         typename fst::edge e) const
     {
-        if (!ebt::in(e, cache)) {
-            cache[e] = (*weight)(f, e);
+#if OMP_SAFE
+        if (score_cache == nullptr) {
+            auto const& edges = f.edges();
+
+            std::vector<double> score;
+            score.resize(edges.size());
+
+            std::unordered_map<typename fst::edge, int> indices;
+
+            for (int i = 0; i < edges.size(); ++i) {
+                indices[edges[i]] = i;
+            }
+
+            #pragma omp parallel for
+            for (int i = 0; i < edges.size(); ++i) {
+                score[i] = (*weight)(f, edges[i]);
+            }
+
+            score_cache = std::make_shared<std::vector<double>>(score);
+            indices_cache = std::make_shared<std::unordered_map<typename fst::edge, int>>(indices);
         }
 
-        return cache.at(e);
+        return score_cache->at(indices_cache->at(e));
+#else
+        double result;
+
+        if (!ebt::in(e, score_cache)) {
+            result = (*weight)(f, e);
+            score_cache[e] = result;
+        } else {
+            result = score_cache.at(e);
+        }
+
+        return result;
+#endif
     }
 
     template <class fst>

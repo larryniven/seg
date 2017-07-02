@@ -82,4 +82,36 @@ namespace seg {
         return data.fst->time(v);
     }
 
+    template <class seg_data>
+    std::unordered_map<typename seg_fst<seg_data>::input_symbol,
+        std::vector<typename seg_fst<seg_data>::edge>> const&
+    seg_fst<seg_data>::in_edges_input_map(vertex v) const
+    {
+        return data.fst->in_edges_input_map(v);
+    }
+
+    template <class seg_data>
+    std::unordered_map<typename seg_fst<seg_data>::output_symbol,
+        std::vector<typename seg_fst<seg_data>::edge>> const&
+    seg_fst<seg_data>::in_edges_output_map(vertex v) const
+    {
+        return data.fst->in_edges_output_map(v);
+    }
+
+    template <class seg_data>
+    std::unordered_map<typename seg_fst<seg_data>::input_symbol,
+        std::vector<typename seg_fst<seg_data>::edge>> const&
+    seg_fst<seg_data>::out_edges_input_map(vertex v) const
+    {
+        return data.fst->out_edges_input_map(v);
+    }
+
+    template <class seg_data>
+    std::unordered_map<typename seg_fst<seg_data>::output_symbol,
+        std::vector<typename seg_fst<seg_data>::edge>> const&
+    seg_fst<seg_data>::out_edges_output_map(vertex v) const
+    {
+        return data.fst->out_edges_output_map(v);
+    }
+
 }
