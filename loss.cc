@@ -313,8 +313,6 @@ namespace seg {
     {
         seg_fst<pair_iseg_data> pair { pair_data };
 
-        std::cout << "pair grad ..." << std::endl;
-
         // for (auto& e: pair.edges()) {
         for (auto& v: *pair_data.topo_order) {
             double back_grad = backward_label.extra.at(v) - label_logZ;
@@ -335,9 +333,6 @@ namespace seg {
             }
         }
 
-        std::cout << "pair grad done" << std::endl;
-        std::cout << "graph grad ..." << std::endl;
-
         seg_fst<iseg_data> graph { graph_data };
 
         // for (auto& e: graph.edges()) {
@@ -356,8 +351,6 @@ namespace seg {
                         + back_grad)), *graph_data.fst, e);
             }
         }
-
-        std::cout << "graph grad done" << std::endl;
     }
 
     double weight_risk::operator()(seg_fst<iseg_data> const& f, int e) const
