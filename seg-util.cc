@@ -212,6 +212,64 @@ namespace seg {
         return std::make_shared<ifst::fst>(result);
     }
 
+    std::shared_ptr<ifst::fst> make_random_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride,
+        double prob, std::default_random_engine& gen)
+    {
+        assert(stride >= 1);
+        assert(min_seg_len >= 1);
+        assert(max_seg_len >= min_seg_len);
+
+        ifst::fst_data data;
+
+        data.symbol_id = std::make_shared<std::unordered_map<std::string, int>>(label_id);
+        data.id_symbol = std::make_shared<std::vector<std::string>>(id_label);
+
+        int i = 0;
+        int v = -1;
+        for (i = 0; i < frames + 1; i += stride) {
+            ++v;
+            ifst::add_vertex(data, v, ifst::vertex_data { i });
+        }
+
+        data.initials.push_back(0);
+        data.finals.push_back(v);
+
+        std::bernoulli_distribution dist { prob };
+
+        for (int u = 0; u < data.vertices.size(); ++u) {
+            for (int v = u + 1; v < data.vertices.size(); ++v) {
+                int duration = data.vertices[v].time - data.vertices[u].time;
+
+                if (duration < min_seg_len) {
+                    continue;
+                }
+
+                if (duration > max_seg_len) {
+                    break;
+                }
+
+                for (auto& p: label_id) {
+                    if (p.first == "<eps>") {
+                        continue;
+                    }
+
+                    if (dist(gen)) {
+                        ifst::add_edge(data, data.edges.size(),
+                            ifst::edge_data { u, v, 0, p.second, p.second });
+                    }
+                }
+            }
+        }
+
+        ifst::fst result;
+        result.data = std::make_shared<ifst::fst_data>(std::move(data));
+
+        return std::make_shared<ifst::fst>(result);
+    }
+
     std::shared_ptr<ifst::fst> make_forward_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,

@@ -247,7 +247,7 @@ namespace seg {
         double f_graph_logZ = -inf;
 
         for (auto& f: graph.finals()) {
-            f_graph_logZ = ebt::log_add(f_graph_logZ, forward_graph.extra[f]);
+            f_graph_logZ = ebt::log_add(f_graph_logZ, forward_graph.extra.at(f));
         }
 
         std::cout << "forward: " << f_graph_logZ << std::endl;
@@ -255,7 +255,7 @@ namespace seg {
         double b_graph_logZ = -inf;
 
         for (auto& i: graph.initials()) {
-            b_graph_logZ = ebt::log_add(b_graph_logZ, backward_graph.extra[i]);
+            b_graph_logZ = ebt::log_add(b_graph_logZ, backward_graph.extra.at(i));
         }
 
         std::cout << "backward: " << b_graph_logZ << std::endl;
@@ -283,7 +283,7 @@ namespace seg {
         double f_label_logZ = -inf;
 
         for (auto& f: pair.finals()) {
-            f_label_logZ = ebt::log_add(f_label_logZ, forward_label.extra[f]);
+            f_label_logZ = ebt::log_add(f_label_logZ, forward_label.extra.at(f));
         }
 
         std::cout << "forward: " << f_label_logZ << std::endl;
@@ -291,7 +291,7 @@ namespace seg {
         double b_label_logZ = -inf;
 
         for (auto& i: pair.initials()) {
-            b_label_logZ = ebt::log_add(b_label_logZ, backward_label.extra[i]);
+            b_label_logZ = ebt::log_add(b_label_logZ, backward_label.extra.at(i));
         }
 
         std::cout << "backward: " << b_label_logZ << std::endl;
@@ -301,6 +301,11 @@ namespace seg {
 
     double marginal_log_loss::loss() const
     {
+        if (std::isnan(label_logZ) || std::isnan(graph_logZ)) {
+            std::cout << "loss is nan" << std::endl;
+            return -1;
+        }
+
         return -label_logZ + graph_logZ;
     }
 
@@ -308,24 +313,51 @@ namespace seg {
     {
         seg_fst<pair_iseg_data> pair { pair_data };
 
-        for (auto& e: pair.edges()) {
-            if (!ebt::in(pair.tail(e), forward_label.extra) ||
-                    !ebt::in(pair.head(e), backward_label.extra)) {
-                continue;
-            }
+        std::cout << "pair grad ..." << std::endl;
 
-            pair_data.weight_func->accumulate_grad(
-                scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
-                    + backward_label.extra.at(pair.head(e)) - label_logZ)), *pair_data.fst, e);
+        // for (auto& e: pair.edges()) {
+        for (auto& v: *pair_data.topo_order) {
+            double back_grad = backward_label.extra.at(v) - label_logZ;
+
+            for (auto& e: pair.in_edges(v)) {
+                if (!ebt::in(pair.tail(e), forward_label.extra) ||
+                        !ebt::in(pair.head(e), backward_label.extra)) {
+                    continue;
+                }
+
+                // pair_data.weight_func->accumulate_grad(
+                //     scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
+                //         + backward_label.extra.at(pair.head(e)) - label_logZ)), *pair_data.fst, e);
+
+                pair_data.weight_func->accumulate_grad(
+                    scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
+                        + back_grad)), *pair_data.fst, e);
+            }
         }
+
+        std::cout << "pair grad done" << std::endl;
+        std::cout << "graph grad ..." << std::endl;
 
         seg_fst<iseg_data> graph { graph_data };
 
-        for (auto& e: graph.edges()) {
-            graph_data.weight_func->accumulate_grad(
-                scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
-                    + backward_graph.extra.at(graph.head(e)) - graph_logZ)), *graph_data.fst, e);
+        // for (auto& e: graph.edges()) {
+        for (auto& v: *graph_data.topo_order) {
+
+            double back_grad = backward_graph.extra.at(v) - graph_logZ;
+
+            for (auto& e: graph.in_edges(v)) {
+
+                // graph_data.weight_func->accumulate_grad(
+                //     scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
+                //         + backward_graph.extra.at(graph.head(e)) - graph_logZ)), *graph_data.fst, e);
+
+                graph_data.weight_func->accumulate_grad(
+                    scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
+                        + back_grad)), *graph_data.fst, e);
+            }
         }
+
+        std::cout << "graph grad done" << std::endl;
     }
 
     double weight_risk::operator()(seg_fst<iseg_data> const& f, int e) const

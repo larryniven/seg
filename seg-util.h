@@ -35,6 +35,12 @@ namespace seg {
         std::vector<std::string> const& id_label,
         int min_seg_len, int max_seg_len, int stride);
 
+    std::shared_ptr<ifst::fst> make_random_graph(int frames,
+        std::unordered_map<std::string, int> const& label_id,
+        std::vector<std::string> const& id_label,
+        int min_seg_len, int max_seg_len, int stride,
+        double prob, std::default_random_engine& gen);
+
     std::shared_ptr<ifst::fst> make_forward_graph(int frames,
         std::unordered_map<std::string, int> const& label_id,
         std::vector<std::string> const& id_label,
