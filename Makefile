@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++14 -I ..
+CXXFLAGS += -std=c++11 -I ..
 AR = gcc-ar
 
 .PHONY: all clean
