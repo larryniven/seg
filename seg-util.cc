@@ -4,6 +4,7 @@
 #include <fstream>
 #include "fst/fst-algo.h"
 #include "util/speech.h"
+#include "util/util.h"
 #include "ebt/ebt.h"
 
 namespace seg {
@@ -567,7 +568,7 @@ namespace seg {
             tensor_tree::load_tensor(i_args.param, args.at("param"));
         }
 
-        i_args.label_id = speech::load_label_id(args.at("label"));
+        i_args.label_id = util::load_label_id(args.at("label"));
 
         i_args.id_label.resize(i_args.label_id.size());
         for (auto& p: i_args.label_id) {
