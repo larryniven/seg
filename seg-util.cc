@@ -3,10 +3,8 @@
 #include "nn/lstm-tensor-tree.h"
 #include <fstream>
 #include "fst/fst-algo.h"
-#include "speech/speech.h"
+#include "util/speech.h"
 #include "ebt/ebt.h"
-
-using namespace std::string_literals;
 
 namespace seg {
 
@@ -273,7 +271,7 @@ namespace seg {
     std::shared_ptr<tensor_tree::vertex> make_tensor_tree(
         std::vector<std::string> const& features)
     {
-        tensor_tree::vertex root { "nil"s };
+        tensor_tree::vertex root { "nil" };
 
         for (auto& k: features) {
             if (ebt::startswith(k, "ext0")) {
@@ -308,7 +306,7 @@ namespace seg {
             } else if (k == "bias1") {
                 root.children.push_back(tensor_tree::make_tensor("bias1"));
             } else if (k == "boundary2") {
-                tensor_tree::vertex v { "nil"s };
+                tensor_tree::vertex v { "nil" };
                 v.children.push_back(tensor_tree::make_tensor("left boundary order2 acoustic embedding"));
                 v.children.push_back(tensor_tree::make_tensor("left boundary order2 label1 embedding"));
                 v.children.push_back(tensor_tree::make_tensor("left boundary order2 label2 embedding"));
@@ -316,7 +314,7 @@ namespace seg {
                 v.children.push_back(tensor_tree::make_tensor("left boundary order2 weight"));
                 root.children.push_back(std::make_shared<tensor_tree::vertex>(v));
             } else if (k == "segrnn") {
-                tensor_tree::vertex v { "nil"s };
+                tensor_tree::vertex v { "nil" };
                 v.children.push_back(tensor_tree::make_tensor("segrnn left embedding"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn left end"));
                 v.children.push_back(tensor_tree::make_tensor("segrnn right embedding"));
@@ -455,7 +453,7 @@ namespace seg {
     std::shared_ptr<tensor_tree::vertex> make_lstm_tensor_tree(
         int outer_layer, int inner_layer)
     {
-        tensor_tree::vertex root { "nil"s };
+        tensor_tree::vertex root { "nil" };
 
         if (inner_layer == -1) {
             lstm::multilayer_lstm_tensor_tree_factory fac {
