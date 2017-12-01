@@ -313,7 +313,6 @@ namespace seg {
     {
         seg_fst<pair_iseg_data> pair { pair_data };
 
-        // for (auto& e: pair.edges()) {
         for (auto& v: *pair_data.topo_order) {
             double back_grad = backward_label.extra.at(v) - label_logZ;
 
@@ -323,34 +322,42 @@ namespace seg {
                     continue;
                 }
 
-                // pair_data.weight_func->accumulate_grad(
-                //     scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
-                //         + backward_label.extra.at(pair.head(e)) - label_logZ)), *pair_data.fst, e);
-
                 pair_data.weight_func->accumulate_grad(
                     scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
                         + back_grad)), *pair_data.fst, e);
             }
         }
 
+        // for (auto& e: pair.edges()) {
+        //     if (!ebt::in(pair.tail(e), forward_label.extra) ||
+        //             !ebt::in(pair.head(e), backward_label.extra)) {
+        //         continue;
+        //     }
+
+        //     pair_data.weight_func->accumulate_grad(
+        //         scale * (-std::exp(forward_label.extra.at(pair.tail(e)) + pair.weight(e)
+        //             + backward_label.extra.at(pair.head(e)) - label_logZ)), *pair_data.fst, e);
+        // }
+
         seg_fst<iseg_data> graph { graph_data };
 
-        // for (auto& e: graph.edges()) {
         for (auto& v: *graph_data.topo_order) {
 
             double back_grad = backward_graph.extra.at(v) - graph_logZ;
 
             for (auto& e: graph.in_edges(v)) {
 
-                // graph_data.weight_func->accumulate_grad(
-                //     scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
-                //         + backward_graph.extra.at(graph.head(e)) - graph_logZ)), *graph_data.fst, e);
-
                 graph_data.weight_func->accumulate_grad(
                     scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
                         + back_grad)), *graph_data.fst, e);
             }
         }
+
+        // for (auto& e: graph.edges()) {
+        //     graph_data.weight_func->accumulate_grad(
+        //         scale * (std::exp(forward_graph.extra.at(graph.tail(e)) + graph.weight(e)
+        //             + backward_graph.extra.at(graph.head(e)) - graph_logZ)), *graph_data.fst, e);
+        // }
     }
 
     double weight_risk::operator()(seg_fst<iseg_data> const& f, int e) const
